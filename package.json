@@ -1,0 +1,29 @@
+{
+  "name": "six-continents-contest",
+  "version": "1.0.0",
+  "description": "Interactive travel contest game with riddles and prizes",
+  "main": "index.html",
+  "scripts": {
+    "dev": "python -m http.server 3000",
+    "start": "python -m http.server 3000",
+    "build": "echo 'Static site - no build needed'",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "contest",
+    "travel",
+    "game",
+    "riddles",
+    "supabase",
+    "vercel"
+  ],
+  "author": "Your Name",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/six-continents-contest.git"
+  },
+  "homepage": "https://your-domain.com",
+  "devDependencies": {},
+  "dependencies": {}
+}

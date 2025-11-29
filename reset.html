@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Password Reset</title>
+  <style>
+    body { font-family: Arial, sans-serif; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }
+    .card { width:360px; padding:24px; box-shadow:0 6px 18px rgba(0,0,0,0.08); border-radius:8px; }
+    label, input, button { display:block; width:100%; }
+    input { padding:8px; margin-top:8px; margin-bottom:16px; }
+    button { padding:10px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Reset your password</h2>
+    <form id="reset-form">
+      <label for="new-password">New password</label>
+      <input id="new-password" type="password" minlength="6" required />
+      <button type="submit">Set new password</button>
+    </form>
+    <p id="message" aria-live="polite" style="margin-top:12px;color:#666;font-size:14px"></p>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
+  <script>
+    (function(){
+      const msgEl = document.getElementById('message');
+      function setMsg(text) { msgEl.textContent = text; }
+
+      // Create client from config
+      if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
+        console.error('[PasswordReset] Missing SUPABASE config');
+        setMsg('Configuration missing. Contact the site administrator.');
+        return;
+      }
+
+      const supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+
+      document.getElementById('reset-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const newPassword = document.getElementById('new-password').value;
+        if (!newPassword || newPassword.length < 6) {
+          alert('Password must be at least 6 characters');
+          return;
+        }
+
+        setMsg('Updating password...');
+
+        try {
+          const { data, error } = await supabaseClient.auth.updateUser({ password: newPassword });
+          if (error) {
+            console.error('[PasswordReset] Error updating password:', error);
+            alert('Error updating password. Please try again.');
+            setMsg('Failed to update password');
+            return;
+          }
+
+          console.log('[PasswordReset] Password updated successfully:', data);
+          alert('Your password has been updated. You will be redirected to the homepage.');
+          window.location.href = '/';
+        } catch (err) {
+          console.error('[PasswordReset] Unexpected error:', err);
+          alert('Unexpected error updating password');
+          setMsg('Unexpected error');
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
