@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- SEO Meta Tags -->
+    <title>Six Continents Challenge - Win 150,000 Turkish Airlines Miles | Travel Contest Game</title>
+    <meta name="description" content="Join the Six Continents Challenge! Solve riddles, unlock stages, and win up to 150,000 Turkish Airlines Miles. Follow Joel's 16-day journey across 6 continents in this interactive travel contest game.">
+    <meta name="keywords" content="travel contest, Turkish Airlines miles, Six Continents Challenge, travel game, riddles, contest, win miles, travel competition, interactive game">
+    <meta name="author" content="The Accidental Retiree">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://theaccidentalretiree.app/">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://www.theaccidentalretiree.app/">
+    <meta property="og:title" content="Six Continents Challenge – Win 150,000 Turkish Airlines Miles">
+    <meta property="og:description" content="Join the Six Continents Challenge! Solve riddles, unlock stages, and win up to 150,000 Turkish Airlines Miles. Follow Joel's 16-day journey across 6 continents.">
+    <meta property="og:image" content="https://www.theaccidentalretiree.app/og/default.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="The Accidental Retiree">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://www.theaccidentalretiree.app/">
+    <meta property="twitter:title" content="Six Continents Challenge – Win 150,000 Turkish Airlines Miles">
+    <meta property="twitter:description" content="Join the Six Continents Challenge! Solve riddles, unlock stages, and win up to 150,000 Turkish Airlines Miles.">
+    <meta property="twitter:image" content="https://www.theaccidentalretiree.app/og/default.jpg">
+    <meta property="twitter:creator" content="@theaccidentalretiree">
+    <meta property="twitter:site" content="@theaccidentalretiree">
+    
+    <!-- Favicons -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#e60000">
+    <meta name="msapplication-TileColor" content="#e60000">
+    <meta name="theme-color" content="#e60000">
+    
+    <!-- Additional SEO -->
+    <meta name="application-name" content="Six Continents Challenge">
+    
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Contest",
+        "name": "Six Continents Challenge",
+        "description": "Interactive travel contest where participants solve riddles to win Turkish Airlines Miles",
+        "url": "https://theaccidentalretiree.app/",
+        "organizer": {
+            "@type": "Person",
+            "name": "Joel",
+            "url": "https://theaccidentalretiree.app/"
+        },
+        "prize": {
+            "@type": "MonetaryAmount",
+            "currency": "Miles",
+            "value": "150000"
+        },
+        "startDate": "2024-11-01",
+        "endDate": "2026-06-30"
+    }
+    </script>
+    
+    <link rel="icon" href="https://public-frontend-cos.metadl.com/mgx/img/favicon.png" type="image/png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div id="global-toast" class="global-toast hidden">
+        <p id="global-toast-message"></p>
+    </div>
+    <!-- Landing Page -->
+    <div id="landingPage" class="landing-page">
+        <div class="landing-hero">
+            <div class="landing-tagline">Six Continents Challenge</div>
+            <h1 class="landing-title">The Global Travel Game<br>You Can Actually Win!</h1>
+            <p class="landing-subtitle">Six Continents. 16 Days. One Amazing Journey.</p>
+
+            <div class="landing-features">
+                <div class="landing-feature">
+                    <span class="landing-feature-icon">🔍</span>
+                    <div class="landing-feature-text">Solve Clues</div>
+                </div>
+                <div class="landing-feature">
+                    <span class="landing-feature-icon">🔓</span>
+                    <div class="landing-feature-text">Unlock Stages</div>
+                </div>
+                <div class="landing-feature">
+                    <span class="landing-feature-icon">✈️</span>
+                    <div class="landing-feature-text">Win Miles</div>
+                </div>
+            </div>
+
+            <div class="prize-highlight">Win 150,000<br>Turkish Airlines Miles</div>
+
+            <button id="playGameBtn" class="play-game-btn">PLAY THE GAME!</button>
+        </div>
+
+        <!-- Player Status Card (Hidden by default) -->
+        <section id="player-status" class="player-status-card hidden">
+            <div class="player-status-label">Your Game Status</div>
+            <h2 class="player-status-headline">Welcome back, <span id="playerName"></span></h2>
+            <p class="player-status-subline">You're currently on Stage <span id="playerCurrentStage"></span> of 16</p>
+            <button id="playerContinueBtn" class="player-continue-btn">Continue where you left off</button>
+        </section>
+
+        <!-- FOOTER SECTION -->
+        <footer class="app-footer">
+            <div class="footer-links">
+                <a href="#" id="howToPlayLink">❓ How to Play the Game?</a>
+                <span class="footer-separator">•</span>
+                <a href="#" id="termsLink">⚖️ Terms & Conditions</a>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Admin Panel Container (Hidden Initially) -->
+    <div id="adminContainer" class="container" style="display: none;">
+        <div class="admin-container">
+            <div class="admin-header">
+                <h1 class="admin-title">🎮 Contest Admin Panel</h1>
+                <p class="admin-subtitle">Six Continents Challenge - Stage Control System</p>
+            </div>
+
+            <div class="admin-content">
+                <!-- Status Indicator -->
+                <div id="adminStatusIndicator" class="status-indicator status-loading">
+                    Loading...
+                </div>
+
+                <!-- Admin User Info -->
+                <div class="journey-header" style="margin-bottom: 20px;">
+                    <div class="journey-title">Admin Dashboard</div>
+                    <div class="user-info">
+                        <span id="adminUserName" class="user-name"></span>
+                        <button id="adminSignOutBtn" class="sign-out-btn">Sign Out</button>
+                    </div>
+                </div>
+
+                <!-- Bulk Controls -->
+                <div class="controls-section">
+                    <h3 class="controls-title">🚀 Bulk Operations</h3>
+                    <div class="bulk-controls">
+                        <button class="bulk-btn enable" onclick="adminBulkOperation('enable_all')">
+                            ✅ Enable All Stages
+                        </button>
+                        <button class="bulk-btn disable" onclick="adminBulkOperation('disable_all')">
+                            ❌ Disable All Stages
+                        </button>
+                        <button class="bulk-btn enable" onclick="adminBulkOperation('enable_range', [1,2,3,4,5])">
+                            🎯 Enable Stages 1-5
+                        </button>
+                        <button class="bulk-btn disable" onclick="adminBulkOperation('disable_range', [6,7,8,9,10,11,12,13,14,15,16])">
+                            🔒 Disable Stages 6-16
+                        </button>
+                        <button class="bulk-btn neutral" onclick="loadAdminStageData()">
+                            🔄 Refresh Data
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Error/Success Messages -->
+                <div id="adminMessageContainer"></div>
+
+                <!-- Stages Grid -->
+                <div id="adminStagesContainer" class="admin-loading">
+                    <p>Loading stage data...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Refresh Button -->
+        <button class="admin-refresh-btn" onclick="loadAdminStageData()" title="Refresh Data">
+            🔄
+        </button>
+    </div>
+
+    <!-- Game Container (Hidden Initially) -->
+    <div id="gameContainer" class="container" style="display: none;">
+        <!-- Current Stage Panel -->
+        <div id="currentStage" class="stage-panel">
+            <section class="game-hero">
+                <div class="stage-header">
+                    <div class="stage-header__title">
+                        <div class="stage-title">Stage 1</div>
+                    </div>
+
+                    <div class="stage-header__profile">
+                        <div class="stage-header__user">
+                            <div class="ar-header-avatar-circle">
+                                <img id="headerAvatarImg" src="" alt="Profile avatar">
+                            </div>
+                            <span id="journeyUserEmail" class="stage-header__user-name"></span>
+                        </div>
+                        <div class="stage-header__actions">
+                            <button id="btnProfile" type="button" class="btn-profile">My Profile</button>
+                            <button id="btnSignOut" type="button">Sign Out</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stage 1 Helper Bar (new players only) -->
+                <div id="stage1HelperBar" class="stage-helper-bar stage-helper-hidden">
+                    <p class="stage-helper-text">
+                        Welcome to the game. We want to get you started and make it easy!
+                        The first answer is <strong>bucharest</strong>. Enter bucharest in lowercase and you'll move on to Stage 2.
+                    </p>
+                </div>
+
+                <div class="stage-instructions how-to-play-text">How to play the game — Watch the video. Joel will give you three clues. Use those clues to solve the riddle. Enter the answer in lowercase as one word (e.g., thefatcat).</div>
+
+                <div class="game-video-card">
+                    <div class="video-container">
+                        <iframe id="currentVideo"
+                            src="https://www.youtube.com/embed/bGI0u0RlW34"
+                            title="Stage Video"
+                            frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen></iframe>
+                    </div>
+                </div>
+
+                <div id="inputSection" class="input-group game-answer-row">
+                    <input id="answerInput"
+                        type="text"
+                        class="answer-input"
+                        placeholder="type your answer…">
+                    <button id="submitBtn" class="submit-btn">Submit</button>
+                </div>
+            </section>
+
+            <div id="errorMessage" class="error-message">
+                That's not it. Watch & listen again 👀
+            </div>
+
+            <div id="successPanel" class="success-panel">
+                <div class="success-title">🎉 Correct!</div>
+                <div id="successText" class="success-text">Stage 1 complete. Your journey has officially begun.</div>
+                <button id="continueBtn" class="continue-btn">Continue to Stage 2</button>
+            </div>
+
+            <!-- Second Riddle Panel (for stages 5-15) -->
+            <div id="secondRiddlePanel" class="second-riddle-panel">
+                <div class="second-riddle-title">🎉 Congratulations! You're almost there. Just one last riddle to solve 😊</div>
+                <div id="secondRiddleClue" class="second-riddle-clue">
+                    <!-- This will be dynamically updated by JavaScript -->
+                </div>
+                <div class="input-group">
+                    <input id="secondRiddleInput"
+                        type="text"
+                        class="answer-input"
+                        placeholder="type your second answer…">
+                    <button id="secondRiddleSubmit" class="submit-btn">Submit</button>
+                </div>
+                <div id="secondRiddleError" class="error-message">
+                    That's not it. Watch & listen again 👀
+                </div>
+            </div>
+
+            <!-- NEW: Stage Disabled Notification Panel -->
+            <div id="stageDisabledPanel" class="stage-disabled-panel">
+                <div class="stage-disabled-title">🎉 Congratulations for reaching Stage <span id="disabledStageNumber">X</span>!</div>
+                <div class="stage-disabled-message">
+                    The next stage video is not yet live. Make sure that you have your YouTube notifications set to alert when new videos are posted.
+                </div>
+                <a href="https://www.youtube.com/@AccidentalTravel" target="_blank" class="youtube-notification-btn">
+                    <span class="youtube-icon">🔔</span>
+                    Set YouTube Notifications
+                </a>
+            </div>
+        </div>
+
+        <!-- Journey Progress -->
+        <div class="journey-section">
+            <!-- Journey Section Header -->
+            <div class="journey-section-header">
+                <div class="journey-section-title">Your Journey Progress</div>
+                <div class="journey-section-subtitle">Solve each stage to unlock the next destination.</div>
+            </div>
+
+            <!-- Journey Progress Bar -->
+            <div class="stage-progress-wrapper">
+                <div class="stage-progress-bar">
+                    <div class="stage-progress-fill"></div>
+                </div>
+                <div class="stage-progress-dots"></div>
+            </div>
+
+            <div id="stagesGrid" class="stages-grid">
+                <!-- Stages 1-15 will be populated by JavaScript -->
+            </div>
+
+            <!-- Stage 16 Master Stage Card (Standalone) -->
+            <div class="stage16-master-container">
+                <div id="stage16Card" class="journey-master-stage-card locked">
+                    <div class="stage16-master-icon locked">🔒</div>
+                    <div class="stage16-master-header">
+                        <div class="master-stage-title">Stage 16 — Master Stage</div>
+                        <div class="master-stage-subtitle">Grand Finale — 100K Miles</div>
+                    </div>
+                    <div class="stage16-master-description">
+                        Complete all 15 stages to unlock the Grand Finale.<br>
+                        The first correct solver wins 100,000 Turkish Airlines Miles.<br>
+                        Once claimed, Stage 16 closes for everyone else.
+                    </div>
+                    <div class="stage16-master-status">Opens as your journey unfolds</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stage Winners Leaderboard -->
+        <section id="leaderboard-section" aria-labelledby="leaderboard-title">
+            <div class="section-header section-header-leaderboard">
+                <div class="section-header-icon">🏆</div>
+                <div class="section-header-text">
+                    <h2 id="leaderboard-title">Stage Winners Leaderboard</h2>
+                    <p>Every stage has one winner — see who solved them first.</p>
+                </div>
+            </div>
+            <div class="leaderboard-grid" role="list"></div>
+        </section>
+
+        <!-- FOOTER SECTION -->
+        <footer class="app-footer">
+            <div class="footer-links">
+                <a href="#" id="howToPlayLinkGame">❓ How to Play the Game?</a>
+                <span class="footer-separator">•</span>
+                <a href="#" id="termsLinkGame">⚖️ Terms & Conditions</a>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Simple Modal for stage info only -->
+    <div id="stageModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div id="modalTitle" class="modal-title">Stage</div>
+                <button id="closeModal" class="close-btn" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-message">
+                    Go to the main stage panel above to watch the video and submit your answer.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- How to Play Modal -->
+    <div id="howToPlayModal" class="info-modal">
+        <div class="info-modal-content">
+            <div class="info-modal-header">
+                <h2 class="info-modal-title">✨ How to Play the 6-Continent Challenge Giveaway and WIN</h2>
+                <button class="info-modal-close" onclick="howToPlayModal.close()">✖</button>
+            </div>
+            <div class="info-modal-body">
+                <ol>
+                    <li><strong>Watch the Videos</strong> – Over the course of the trip, 16 YouTube videos will be uploaded. In each video, Joel recites three riddles or clues. These lead to the answer you need to solve.</li>
+                    
+                    <li><strong>Solve the Riddle and Guess the Answer</strong> – Each correct solution is your ticket forward and essentially the password that unlocks the next stage. Think of it like collecting keys as you move through the game.</li>
+                    
+                    <li><strong>Unlock the Hidden Webpage</strong> – With the solution in hand, click on the stage link to solve the riddle. Enter the solution to unlock the next stage. If it does not unlock, keep trying until you get it right.</li>
+                    
+                    <li><strong>Instant Stage Win and Stage Draws</strong> – The first person to crack a stage password wins $50 USD and a $100 vacation voucher. All others are entered into a stage draw for the same prizes.</li>
+                    
+                    <li><strong>Keep Moving Through All 16 Stages</strong> – Video, code, website, prize — repeat! The first person to solve Stage 15 wins 50,000 Turkish Airlines Miles.</li>
+                    
+                    <li><strong>The Final Riddle</strong> – Solve the Stage 16 final puzzle to win the Grand Prize of 100,000 Turkish Airlines Miles.</li>
+                    
+                    <li><strong>It's Never Too Late to Join (Unless the Contest Is Over)</strong> – You can join and solve until the Grand Prize has been won or the contest ends (June 30 2026).</li>
+                </ol>
+                
+                <p style="margin-top: 24px; text-align: center;">
+                    📜 See full <a onclick="howToPlayModal.close(); termsModal.open();">Terms & Conditions →</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terms & Conditions Modal -->
+    <div id="termsModal" class="info-modal">
+        <div class="info-modal-content">
+            <div class="info-modal-header">
+                <h2 class="info-modal-title">⚖️ Terms & Conditions – 6 Continent Challenge Contest</h2>
+                <button class="info-modal-close" onclick="termsModal.close()">✖</button>
+            </div>
+            <div class="info-modal-body">
+                <h3>1. Eligibility</h3>
+                <p>Open to individuals aged 18 and older at the time of entry. Void where prohibited by law. Employees, contractors, and immediate family members of the organizers are not eligible to participate. Limit one entry per person. Multiple entries or attempts to circumvent entry limits may result in disqualification.</p>
+
+                <h3>2. Contest Overview</h3>
+                <p>The contest consists of 16 password-protected stages. Each video in the 6 Continent Challenge series contains clues that unlock a password. Participants must enter the correct password on the contest website and complete the acknowledgment form to advance. After completing the first 15 stages, participants will use all collected passwords to solve the final Stage 16 puzzle.</p>
+
+                <h3>3. Prize Structure</h3>
+                <p><strong>Grand & Bonus Prizes</strong> — Grand Prize: 100,000 Turkish Airlines Miles awarded to the first participant to solve the final Stage 16 puzzle (subject to Section 4). Bonus Prize: 50,000 Turkish Airlines Miles awarded to the first participant who successfully unlocks the Stage 15 password.</p>
+                
+                <p><strong>Stage Prizes</strong> — 15 total stages.</p>
+                <p>First Correct Solver Prize: $50 USD cash (via WISE) + $100 USD Vacation Credit with MaravillaNayarit.com.</p>
+                <p>Stage Draw Prize: All participants who advance past a stage are automatically entered into a random draw for the same prizes.</p>
+                
+                <p>Notes: Cash prizes require a WISE account and WiseTag to claim. Winners can sign up for a WISE account via the provided link.</p>
+
+                <h3>4. Airline Miles Disclaimer</h3>
+                <p>The Grand and Bonus Prizes depend on Turkish Airlines awarding miles as part of the "One Million Miles" campaign. If Turkish Airlines cancels or refuses to award miles, the organizers are not liable and the prize is void. Miles cannot be transferred directly to winners; organizers will book flights on their behalf. Flights must be booked no later than December 31, 2026. All travel is subject to Turkish Airlines' rules and policies. Additional airline fees and taxes must be paid by the winner at booking. Any changes requested by the winner will incur a $150 USD fee per ticket plus airline charges.</p>
+
+                <h3>5. Entry & Verification</h3>
+                <p>Participants must solve each stage puzzle, submit the correct password, and complete the acknowledgment form to advance. The first correct solver is determined by the timestamp (UTC) of form submission. Stage Draw entries include all participants who advance past that stage. Grand and Bonus Prize winners must have successfully completed all 15 stages and riddles.</p>
+
+                <h3>6. Contest Duration</h3>
+                <p>The contest begins with the release of the first video and officially closes on June 30, 2026 if no Grand Prize winner has been declared earlier.</p>
+
+                <h3>7. Publicity</h3>
+                <p>By participating, entrants agree that the organizers may use their names, social media handles, likenesses, and country of residence in promotional materials without additional compensation, unless prohibited by law.</p>
+
+                <h3>8. Taxes & Fees</h3>
+                <p>Winners are responsible for any taxes, fees, or charges associated with their prizes. For airline bookings, winners must cover airport taxes and surcharges not included in the miles award.</p>
+
+                <h3>9. General Conditions</h3>
+                <p>By participating, entrants agree to these Terms & Conditions. The organizers may modify, suspend, or terminate the contest in the event of unforeseen circumstances. Decisions of the organizers are final and binding in all matters. The organizers are not responsible for technical issues, internet outages, or other errors that may affect participation or results.</p>
+
+                <h3>10. Governing Law</h3>
+                <p>The contest is governed by the laws of Canada and Mexico.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Authentication Modal -->
+    <div id="auth-modal" class="auth-modal">
+        <div class="auth-modal-content">
+            <div class="auth-header">
+                <h2 id="auth-title">Join the Game!</h2>
+                <button class="auth-close" onclick="authUI.closeModal()">&times;</button>
+            </div>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" onclick="authUI.showTab('signup')">Sign Up</button>
+                <button class="auth-tab" onclick="authUI.showTab('signin')">Sign In</button>
+            </div>
+
+            <div id="auth-signup" class="auth-form active">
+                <form onsubmit="authUI.handleSignUp(event)">
+                    <input type="text" id="signup-username" placeholder="Username" required>
+                    <input type="email" id="signup-email" placeholder="Email" required>
+                    <input type="password" id="signup-password" placeholder="Password (min 6 characters)" required minlength="6">
+                    <button type="submit" class="auth-btn primary">Create Account & Start Playing</button>
+                </form>
+            </div>
+
+            <div id="auth-signin" class="auth-form">
+                <form onsubmit="authUI.handleSignIn(event)">
+                    <input type="email" id="signin-email" placeholder="Email" required>
+                    <input type="password" id="signin-password" placeholder="Password" required>
+                    <button type="submit" class="auth-btn primary">Sign In</button>
+                </form>
+
+                <p class="auth-link">
+                    <a href="#" onclick="authUI.showForgotPassword()">Forgot your password?</a>
+                </p>
+            </div>
+
+            <div id="auth-forgot" class="auth-form">
+                <p>Enter your email address and we'll send you a link to reset your password.</p>
+                <form onsubmit="authUI.handleForgotPassword(event)">
+                    <input type="email" id="forgot-email" placeholder="Email" required>
+                    <button type="submit" class="auth-btn primary">Send Reset Link</button>
+                </form>
+                <p class="auth-link">
+                    <a href="#" onclick="authUI.showTab('signin')">Back to Sign In</a>
+                </p>
+            </div>
+
+            <div id="auth-message" class="auth-message"></div>
+        </div>
+    </div>
+
+    <!-- Load External Scripts -->
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+<script src="confetti-guard.js"></script>
+<script src="script.js"></script>
+
+<div id="password-reset-modal" class="reset-modal hidden">
+    <div class="reset-modal-backdrop"></div>
+    <div class="reset-modal-panel">
+        <h2 class="reset-modal-title">Set a New Password</h2>
+        <p class="reset-modal-text">
+            Enter a new password to finish resetting your account and get back into the game.
+        </p>
+
+        <form id="password-reset-form">
+            <label class="reset-modal-label">
+                New password
+                <div class="reset-modal-input-wrap">
+                    <input
+                        id="password-reset-input"
+                        type="password"
+                        required
+                        minlength="8"
+                        autocomplete="new-password"
+                        class="reset-modal-input"
+                        placeholder="At least 8 characters"
+                    />
+                    <button type="button" id="password-reset-toggle" class="reset-modal-toggle">👁</button>
+                </div>
+            </label>
+
+            <p id="password-reset-error" class="reset-modal-error hidden"></p>
+            <p id="password-reset-success" class="reset-modal-success hidden"></p>
+
+            <div class="reset-modal-actions">
+                <button type="button" id="password-reset-cancel" class="reset-modal-btn secondary">Cancel</button>
+                <button type="submit" id="password-reset-submit" class="reset-modal-btn primary">Save & Continue</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="hint-popup" class="hint-hidden">
+    <div class="hint-box">
+        <p class="hint-title">Need a hint?</p>
+        <p class="hint-text">
+            If you're stuck, go to YouTube and comment 'I need a hint!' Joel will give you a nudge.
+        </p>
+        <div class="hint-actions">
+            <button id="hint-yes-btn" class="hint-btn hint-btn-yes">Yes, open YouTube</button>
+            <button id="hint-no-btn" class="hint-btn hint-btn-no">No thanks</button>
+        </div>
+    </div>
+</div>
+
+<!-- Solve Celebration Modal -->
+<div id="solveCelebrationModal" class="solve-celebration-backdrop hidden">
+    <div class="solve-celebration-modal">
+        <div class="solve-celebration-header">
+            <h2 id="solveCelebrationTitle" class="solve-celebration-title">Stage solved!</h2>
+        </div>
+        <div class="solve-celebration-body">
+            <p id="solveCelebrationBody" class="solve-celebration-message"></p>
+        </div>
+        <div class="solve-celebration-actions">
+            <button id="solveCelebrationPrimary" class="solve-celebration-btn primary">Continue</button>
+        </div>
+    </div>
+</div>
+
+<!-- My Profile Modal -->
+<div id="profileModalBackdrop" class="profile-modal-backdrop hidden">
+  <div class="profile-modal">
+    <div class="profile-modal-header">
+      <h2>My Profile</h2>
+      <button class="profile-modal-close" data-profile-close>&times;</button>
+    </div>
+
+    <div id="profileForm" class="profile-modal-body">
+      <label class="profile-field">
+        <span>Display name</span>
+        <input id="profileDisplayName" type="text" maxlength="40" placeholder="Enter your display name" />
+        <small class="profile-helper-text">Max 10 characters (including spaces).</small>
+        <p id="profileDisplayNameError" class="profile-error hidden" style="color: #e60000; font-size: 0.85rem; margin-top: 4px;"></p>
+      </label>
+
+      <div class="profile-field">
+        <span>Choose an avatar</span>
+        <div id="profileAvatarGrid" class="profile-avatar-grid">
+          <!-- filled from JS using STOCK_AVATARS -->
+        </div>
+      </div>
+
+      <div class="profile-field">
+        <span>Or upload your own</span>
+        <input id="profileAvatarUpload" type="file" accept="image/*" />
+        <p class="profile-hint">Square images ~512×512 look best.</p>
+      </div>
+
+      <button id="profileSaveButton" type="button" class="btn btn-primary profile-save-btn">
+        Save changes
+      </button>
+
+      <button id="profileCancelBtn" type="button" class="btn-secondary profile-cancel-btn" data-profile-close>
+        Cancel
+      </button>
+    </div>
+
+      <div class="profile-actions">
+        <button type="button"
+                id="changePasswordToggle"
+                class="profile-link-button">
+          Change password
+        </button>
+
+        <div id="passwordChangeSection"
+             class="password-change-section"
+             style="display: none;">
+          <div id="passwordChangeForm">
+            <div class="form-row">
+              <label for="currentPassword">Current password</label>
+              <input
+                type="password"
+                id="currentPassword"
+                name="currentPassword"
+                autocomplete="current-password"
+                required
+              />
+            </div>
+
+            <div class="form-row">
+              <label for="newPassword">New password</label>
+              <input
+                type="password"
+                id="newPassword"
+                name="newPassword"
+                autocomplete="new-password"
+                required
+              />
+            </div>
+
+            <div class="form-row">
+              <label for="confirmNewPassword">Confirm new password</label>
+              <input
+                type="password"
+                id="confirmNewPassword"
+                name="confirmNewPassword"
+                autocomplete="new-password"
+                required
+              />
+            </div>
+
+            <div id="passwordChangeFeedback"
+                 class="password-change-feedback"></div>
+
+            <div class="password-change-actions">
+              <button type="button"
+                      id="savePasswordChangeBtn"
+                      class="btn btn-primary">
+                Save new password
+              </button>
+              <button type="button"
+                      id="cancelPasswordChange"
+                      class="btn btn-secondary">
+                Cancel
+              </button>
+            </div>
+          </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+
+</html>
