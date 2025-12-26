@@ -1787,7 +1787,7 @@ const SECOND_RIDDLE_CLUES = {
     7: "A whisper called before we flew, A brand appeared, then left our view. The clue was fleeting, yet it's true— One word, four numbers—seen and heard by few.",
     8: "A sign of steel, a steady hand, The numbers bold, the prices stand. For blade and shear, combine their wit— Old phrase says, 'two bits!'",
     9: "Between the floors we rose in steel, A glowing screen revealed the deal. Not where we slept, nor where we flew, but a city that flashed and vanished from view. Catch the name in that blink-short quirk, the word you seek is one place: no space.",
-    10: "This is just a placeholder (you can just use that for now and I can update stage by stage). If you get stuck, go back to the video on YouTube and comment that you need help! Joel will give you a nudge.",
+    10: "This clue isn’t spoken, it shines in the night. Two words are written next to neon so bright. No need to listen, just read what you see — What’s the first word staring back at thee?",
     11: "This is just a placeholder (you can just use that for now and I can update stage by stage). If you get stuck, go back to the video on YouTube and comment that you need help! Joel will give you a nudge.",
     12: "This is just a placeholder (you can just use that for now and I can update stage by stage). If you get stuck, go back to the video on YouTube and comment that you need help! Joel will give you a nudge.",
     13: "This is just a placeholder (you can just use that for now and I can update stage by stage). If you get stuck, go back to the video on YouTube and comment that you need help! Joel will give you a nudge.",
