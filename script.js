@@ -2260,9 +2260,9 @@ function initializeSupabase() {
         
         // Environment detection for stage_control queries
         window.STAGE_ENV =
-          (location.hostname === 'localhost' || location.hostname.includes('127.0.0.1'))
-            ? 'dev'
-            : 'prod';
+          location.hostname === 'theaccidentalretiree.app'
+            ? 'prod'
+            : 'dev';
 
         // Initialize auth system
         supabaseAuth = {
