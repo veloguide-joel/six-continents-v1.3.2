@@ -1777,6 +1777,33 @@ window.hasAutoStartedGame = false;
 const SUPABASE_URL = window.SUPABASE_URL || 'https://vlcjilzgntxweomnyfgd.supabase.co';
 const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsY2ppbHpnbnR4d2VvbW55ZmdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE5MTM0MzUsImV4cCI6MjA3NzQ4OTQzNX0.MeIJpGfdAGqQwx9t0_Tdog9W-Z1cWX3z4cUffeoQW-c';
 
+/**
+ * ADMIN CHECK AUDIT:
+ * ==================
+ * Current Implementation in script.js (INDEX.HTML ONLY)
+ * 
+ * Function: AdminManager.isAdmin() (line ~1823)
+ * Check Method: Simple email string comparison
+ * Database Query: NONE - uses hardcoded email constant
+ * Expected Value: Email string must exactly match ADMIN_EMAIL constant
+ * Storage: Stored as const ADMIN_EMAIL
+ * 
+ * Current Flow:
+ * 1. User clicks "Play Game" button (line 3340-3350)
+ * 2. Check: supabaseAuth.user.email === ADMIN_EMAIL
+ * 3. If true: calls showAdmin() → displays adminContainer
+ * 4. If false: calls startContestForSignedInUser() → shows game
+ * 
+ * ISSUES WITH CURRENT IMPLEMENTATION:
+ * - No database lookup (hardcoded email only)
+ * - Cannot add/remove admins without code changes
+ * - Not using public.admin_emails table
+ * - Will conflict with new /admin.html approach which queries public.admin_emails
+ * 
+ * NOTE: /admin.html (NEW) uses checkAdminAccess() which queries public.admin_emails table
+ * This is a DUPLICATE admin system that should be consolidated.
+ */
+
 // Admin email for role detection
 const ADMIN_EMAIL = 'hola@theaccidentalretiree.mx';
 
@@ -1819,6 +1846,11 @@ class AdminManager {
     }
 
     // Check if current user is admin
+    // FUNCTION: AdminManager.isAdmin()
+    // MECHANISM: Direct string comparison (NO database lookup)
+    // CONDITION: supabaseAuth.user.email === ADMIN_EMAIL (hardcoded const)
+    // RESULT: Returns boolean true/false
+    // STORAGE: Flag not stored; computed on each call
     isAdmin() {
         return supabaseAuth && supabaseAuth.user && supabaseAuth.user.email === ADMIN_EMAIL;
     }
@@ -3166,36 +3198,14 @@ function startContestForSignedInUser() {
     }
 }
 
-// CRITICAL FIX: Admin panel show function
+// LEGACY ADMIN UI - DISABLED
+// Admin access has been moved to /admin.html for better security and management.
+// This function is kept for reference only and should never be called.
+// If triggered, it logs a warning and does nothing.
 function showAdmin() {
-    if (window.__adminShown) {
-        console.log('[UI] Admin already shown, skipping');
-        return;
-    }
-    
-    console.log('[UI] Showing admin panel');
-    window.__adminShown = true;
-    window.__gameShown = false;
-    
-    document.getElementById('landingPage').style.display = 'none';
-    document.getElementById('gameContainer').style.display = 'none';
-    document.getElementById('adminContainer').style.display = 'block';
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    if (supabaseAuth && supabaseAuth.user) {
-        const userName = supabaseAuth.user.user_metadata?.username ||
-            supabaseAuth.user.user_metadata?.full_name ||
-            supabaseAuth.user.email.split('@')[0];
-        document.getElementById('adminUserName').textContent = userName;
-    }
-
-    // Load admin data
-    if (adminManager) {
-        setTimeout(() => {
-            adminManager.loadStageData();
-        }, 500);
-    }
+    console.warn('[ADMIN] showAdmin() called but legacy admin UI is disabled. Use /admin.html');
+    // Do NOT show admin container - exit silently
+    return;
 }
 
 // Contest App Configuration
@@ -3342,11 +3352,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     document.getElementById('playGameBtn').onclick = (e) => {
         e?.preventDefault?.();
         if (supabaseAuth && supabaseAuth.isAuthenticated()) {
-            if (supabaseAuth.user.email === ADMIN_EMAIL) {
-                showAdmin();
-            } else {
-                startContestForSignedInUser();
-            }
+            // LEGACY ADMIN UI DISABLED
+            // The main site no longer provides admin access.
+            // Admins must use /admin.html for stage control.
+            // All users (including admin email) proceed to normal game flow.
+            console.warn('[ADMIN] Legacy admin UI disabled. Use /admin.html instead');
+            startContestForSignedInUser();
         } else {
             authUI.showModal();
         }
