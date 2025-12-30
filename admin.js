@@ -632,7 +632,6 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = {
-        stage: stageNum,
         notes: notes,
         updated_at: now,
         updated_by: 'admin_panel'
@@ -640,7 +639,8 @@ class StageControlModule {
 
       const { data, error } = await this.supabase
         .from('stage_control')
-        .upsert([payload], { onConflict: 'stage' });
+        .update(payload)
+        .eq('stage', stageNum);
 
       if (error) {
         console.error(`[ADMIN] updateStageNotes error:`, error);
