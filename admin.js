@@ -340,8 +340,8 @@ class StageControlModule {
       // Fetch all stage control records
       const { data: stageRecords, error } = await this.supabase
         .from('stage_control')
-        .select('stage_number, is_enabled, notes, updated_at, updated_by')
-        .order('stage_number');
+        .select('stage, is_enabled, notes, updated_at, updated_by')
+        .order('stage');
 
       if (error) {
         console.error('[ADMIN] fetchStageControl query error:', error);
@@ -352,7 +352,7 @@ class StageControlModule {
       const recordsMap = {};
       if (stageRecords) {
         stageRecords.forEach(record => {
-          recordsMap[record.stage_number] = record;
+          recordsMap[record.stage] = record;
         });
       }
 
@@ -364,7 +364,7 @@ class StageControlModule {
         } else {
           // Default for missing stage
           stages.push({
-            stage_number: i,
+            stage: i,
             is_enabled: false,
             notes: '',
             updated_at: new Date().toISOString(),
@@ -391,7 +391,7 @@ class StageControlModule {
     const defaults = [];
     for (let i = 1; i <= 16; i++) {
       defaults.push({
-        stage_number: i,
+        stage: i,
         is_enabled: false,
         notes: '',
         updated_at: new Date().toISOString(),
@@ -414,7 +414,7 @@ class StageControlModule {
       // Fetch all solves for riddle 1 (canonical solve indicator)
       const { data: solves, error } = await this.supabase
         .from('solves')
-        .select('stage_number, riddle_number')
+        .select('stage, riddle_number')
         .eq('riddle_number', 1);
 
       if (error) {
@@ -430,8 +430,8 @@ class StageControlModule {
 
       if (solves) {
         solves.forEach(solve => {
-          if (solve.stage_number >= 1 && solve.stage_number <= 16) {
-            counts[solve.stage_number] = (counts[solve.stage_number] || 0) + 1;
+          if (solve.stage >= 1 && solve.stage <= 16) {
+            counts[solve.stage] = (counts[solve.stage] || 0) + 1;
           }
         });
       }
@@ -498,7 +498,7 @@ class StageControlModule {
       grid.innerHTML = '';
 
       stages.forEach(stage => {
-        const stageNum = stage.stage_number;
+        const stageNum = stage.stage;
         const solveCount = counts[stageNum] || 0;
         const isEnabled = stage.is_enabled === true;
         const statusText = isEnabled ? 'Live' : 'Disabled';
@@ -595,15 +595,17 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = {
-        stage_number: stageNum,
+        stage: stageNum,
         is_enabled: enabled,
+        enabled_at: enabled ? now : null,
+        disabled_at: !enabled ? now : null,
         updated_at: now,
         updated_by: 'admin_panel'
       };
 
       const { data, error } = await this.supabase
         .from('stage_control')
-        .upsert([payload], { onConflict: 'stage_number' });
+        .upsert([payload], { onConflict: 'stage' });
 
       if (error) {
         console.error(`[ADMIN] updateStageEnabled error:`, error);
@@ -630,7 +632,7 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = {
-        stage_number: stageNum,
+        stage: stageNum,
         notes: notes,
         updated_at: now,
         updated_by: 'admin_panel'
@@ -638,7 +640,7 @@ class StageControlModule {
 
       const { data, error } = await this.supabase
         .from('stage_control')
-        .upsert([payload], { onConflict: 'stage_number' });
+        .upsert([payload], { onConflict: 'stage' });
 
       if (error) {
         console.error(`[ADMIN] updateStageNotes error:`, error);
@@ -665,15 +667,17 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = stageNumbers.map(stageNum => ({
-        stage_number: stageNum,
+        stage: stageNum,
         is_enabled: enabled,
+        enabled_at: enabled ? now : null,
+        disabled_at: !enabled ? now : null,
         updated_at: now,
         updated_by: 'admin_panel'
       }));
 
       const { data, error } = await this.supabase
         .from('stage_control')
-        .upsert(payload, { onConflict: 'stage_number' });
+        .upsert(payload, { onConflict: 'stage' });
 
       if (error) {
         console.error(`[ADMIN] bulkUpdateStages error:`, error);
