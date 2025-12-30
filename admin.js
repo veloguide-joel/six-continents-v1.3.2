@@ -329,10 +329,13 @@ class StageControlModule {
     this.stages = [];
     this.solversCounts = {};
     
+    // Use local const for convenience - read from window.STAGE_ENV set by admin.html
+    this.STAGE_ENV = window.STAGE_ENV || 'dev';
+    
     // Initialize write lock for production safety
     this.initializeWriteLock();
     
-    console.log('[ADMIN] StageControlModule initialized');
+    console.log('[ADMIN] StageControlModule initialized with STAGE_ENV =', this.STAGE_ENV);
   }
 
   /**
@@ -392,7 +395,7 @@ class StageControlModule {
       const { data: stageRecords, error } = await this.supabase
         .from('stage_control')
         .select('stage, is_enabled, notes, updated_at, updated_by')
-        .eq('environment', window.STAGE_ENV)
+        .eq('environment', this.STAGE_ENV)
         .order('stage');
 
       if (error) {
@@ -649,7 +652,7 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = {
-        environment: window.STAGE_ENV,
+        environment: this.STAGE_ENV,
         stage: stageNum,
         is_enabled: enabled,
         enabled_at: enabled ? now : null,
@@ -687,7 +690,7 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = {
-        environment: window.STAGE_ENV,
+        environment: this.STAGE_ENV,
         stage: stageNum,
         notes: notes,
         updated_at: now,
@@ -723,7 +726,7 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = stageNumbers.map(stageNum => ({
-        environment: window.STAGE_ENV,
+        environment: this.STAGE_ENV,
         stage: stageNum,
         is_enabled: enabled,
         enabled_at: enabled ? now : null,
