@@ -704,9 +704,18 @@ class StageControlModule {
       toggles.forEach(toggle => {
         toggle.addEventListener('click', async (e) => {
           e.preventDefault();
+          
           const stageNum = parseInt(toggle.dataset.stage);
-          const currentEnabled = toggle.dataset.enabled === 'true';
-          const newEnabled = !currentEnabled;
+          
+          // Prevent double-clicks by checking saving flag
+          if (toggle.dataset.saving === '1') {
+            console.log(`[ADMIN] Stage ${stageNum} update already in progress, ignoring click`);
+            return;
+          }
+
+          // Get CURRENT state from DOM, not stale data attribute
+          const previousEnabled = toggle.dataset.enabled === 'true';
+          const newEnabled = !previousEnabled;
 
           // Find the card and UI elements
           const card = document.getElementById(`stage-card-${stageNum}`);
@@ -716,12 +725,14 @@ class StageControlModule {
           }
 
           const badge = card.querySelector('.stage-status');
-          const previousEnabled = currentEnabled;
 
           try {
+            // Mark as saving to prevent double-clicks
+            toggle.dataset.saving = '1';
+            toggle.disabled = true;
+
             // Step 1: Optimistic UI update - immediately show new state
             console.log(`[ADMIN] Optimistic update: stage ${stageNum} to ${newEnabled}`);
-            toggle.disabled = true;
             toggle.dataset.enabled = newEnabled;
             toggle.classList.toggle('enabled', newEnabled);
 
@@ -744,12 +755,22 @@ class StageControlModule {
             // Step 3: Handle result
             if (result.success) {
               console.log(`[ADMIN] Stage ${stageNum} update successful`);
+              
+              // Update in-memory stage object
+              const stageIndex = this.stages.findIndex(s => s.stage === stageNum);
+              if (stageIndex >= 0) {
+                this.stages[stageIndex].is_enabled = newEnabled;
+                this.stages[stageIndex].enabled_at = newEnabled ? new Date().toISOString() : null;
+                this.stages[stageIndex].disabled_at = !newEnabled ? new Date().toISOString() : null;
+                this.stages[stageIndex].updated_at = new Date().toISOString();
+                this.stages[stageIndex].updated_by = 'admin_panel';
+                console.log(`[ADMIN] Updated in-memory stage ${stageNum}:`, this.stages[stageIndex]);
+              }
+              
               showStatusMessage(`✓ Stage ${stageNum} ${newEnabled ? 'enabled' : 'disabled'}`);
-              toggle.disabled = false;
             } else {
               // Revert on failure
               console.error(`[ADMIN] Update failed, reverting stage ${stageNum}`);
-              toggle.disabled = false;
               toggle.dataset.enabled = previousEnabled;
               toggle.classList.toggle('enabled', previousEnabled);
 
@@ -768,7 +789,6 @@ class StageControlModule {
           } catch (handlerErr) {
             console.error(`[ADMIN] Toggle handler exception:`, handlerErr);
             // Revert on exception
-            toggle.disabled = false;
             toggle.dataset.enabled = previousEnabled;
             toggle.classList.toggle('enabled', previousEnabled);
             if (badge) {
@@ -780,6 +800,11 @@ class StageControlModule {
             const revertBorderColor = previousEnabled ? '#4caf50' : '#f48fb1';
             card.style.borderLeft = `4px solid ${revertBorderColor}`;
             showStatusMessage(`✗ Error: ${handlerErr.message}`);
+          } finally {
+            // ALWAYS re-enable the toggle and clear saving flag
+            toggle.disabled = false;
+            toggle.dataset.saving = '0';
+            console.log(`[ADMIN] Toggle ${stageNum} re-enabled (saving flag cleared)`);
           }
         });
       });
