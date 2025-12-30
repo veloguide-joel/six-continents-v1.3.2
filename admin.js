@@ -3,6 +3,12 @@
 // It will not interfere with non-admin pages and does not register global listeners
 import { supabase } from './supabase-config.js';
 
+// Environment detection for stage_control queries
+const STAGE_ENV =
+  (location.hostname === 'localhost' || location.hostname.includes('127.0.0.1'))
+    ? 'dev'
+    : 'prod';
+
 // Safety check: only execute if #app element exists (indicator of admin.html context)
 const isAdminContext = () => document.getElementById('app') !== null;
 
@@ -385,10 +391,11 @@ class StageControlModule {
     try {
       console.log('[ADMIN] Fetching stage control data...');
 
-      // Fetch all stage control records
+      // Fetch all stage control records for current environment
       const { data: stageRecords, error } = await this.supabase
         .from('stage_control')
         .select('stage, is_enabled, notes, updated_at, updated_by')
+        .eq('environment', STAGE_ENV)
         .order('stage');
 
       if (error) {
@@ -645,6 +652,8 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = {
+        environment: STAGE_ENV,
+        stage: stageNum,
         is_enabled: enabled,
         enabled_at: enabled ? now : null,
         disabled_at: !enabled ? now : null,
@@ -654,8 +663,7 @@ class StageControlModule {
 
       const { data, error } = await this.supabase
         .from('stage_control')
-        .update(payload)
-        .eq('stage', stageNum);
+        .upsert(payload, { onConflict: 'environment,stage' });
 
       if (error) {
         console.error(`[ADMIN] updateStageEnabled error:`, error);
@@ -682,6 +690,8 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = {
+        environment: STAGE_ENV,
+        stage: stageNum,
         notes: notes,
         updated_at: now,
         updated_by: 'admin_panel'
@@ -689,8 +699,7 @@ class StageControlModule {
 
       const { data, error } = await this.supabase
         .from('stage_control')
-        .update(payload)
-        .eq('stage', stageNum);
+        .upsert(payload, { onConflict: 'environment,stage' });
 
       if (error) {
         console.error(`[ADMIN] updateStageNotes error:`, error);
@@ -717,6 +726,7 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = stageNumbers.map(stageNum => ({
+        environment: STAGE_ENV,
         stage: stageNum,
         is_enabled: enabled,
         enabled_at: enabled ? now : null,
@@ -727,7 +737,7 @@ class StageControlModule {
 
       const { data, error } = await this.supabase
         .from('stage_control')
-        .upsert(payload, { onConflict: 'stage' });
+        .upsert(payload, { onConflict: 'environment,stage' });
 
       if (error) {
         console.error(`[ADMIN] bulkUpdateStages error:`, error);

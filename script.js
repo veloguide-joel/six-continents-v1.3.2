@@ -2257,6 +2257,12 @@ function initializeSupabase() {
         // Use idempotent singleton to prevent redeclaration crash if script loads twice
         window.__supabaseClient = window.__supabaseClient || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         supabase = window.__supabaseClient;
+        
+        // Environment detection for stage_control queries
+        window.STAGE_ENV =
+          (location.hostname === 'localhost' || location.hostname.includes('127.0.0.1'))
+            ? 'dev'
+            : 'prod';
 
         // Initialize auth system
         supabaseAuth = {
@@ -2703,6 +2709,7 @@ function localLogSolveFallback(payload) {
                     const { data, error } = await supabase
                         .from('stage_control')
                         .select('stage, is_enabled')
+                        .eq('environment', window.STAGE_ENV || 'prod')
                         .order('stage', { ascending: true });
 
                     if (error) {
