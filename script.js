@@ -1789,7 +1789,6 @@ const SECOND_RIDDLE_CLUES = {
     9: "Between the floors we rose in steel, A glowing screen revealed the deal. Not where we slept, nor where we flew, but a city that flashed and vanished from view. Catch the name in that blink-short quirk, the word you seek is one place: no space.",
     10: "This clue isn’t spoken, it shines in the night. Two words are written next to neon so bright. No need to listen, just read what you see — What’s the first word staring back at thee?",
     11: "11: "A quiet moment, poured just right.\nCareful — it’s not what keeps you up all night.\n\nOne plus one is two, we all agree,\nBut one and two-thirds tells you what to see.",
-",
     12: "This is just a placeholder (you can just use that for now and I can update stage by stage). If you get stuck, go back to the video on YouTube and comment that you need help! Joel will give you a nudge.",
     13: "This is just a placeholder (you can just use that for now and I can update stage by stage). If you get stuck, go back to the video on YouTube and comment that you need help! Joel will give you a nudge.",
     14: "This is just a placeholder (you can just use that for now and I can update stage by stage). If you get stuck, go back to the video on YouTube and comment that you need help! Joel will give you a nudge.",
