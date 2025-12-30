@@ -315,6 +315,279 @@ class AdminApp {
 const adminApp = new AdminApp();
 
 /**
+ * ===================================================================
+ * STAGE CONTROL MODULE
+ * ===================================================================
+ * Manages stage data fetching, solver counts, and UI rendering
+ */
+class StageControlModule {
+  constructor(adminAppInstance) {
+    this.supabase = adminAppInstance.supabase;
+    this.stages = [];
+    this.solversCounts = {};
+    console.log('[ADMIN] StageControlModule initialized');
+  }
+
+  /**
+   * Fetch stage control data from public.stage_control table
+   * Creates default entries for missing stages
+   * @returns {Promise<Array>} - Array of stage objects [1..16]
+   */
+  async fetchStageControl() {
+    try {
+      console.log('[ADMIN] Fetching stage control data...');
+
+      // Fetch all stage control records
+      const { data: stageRecords, error } = await this.supabase
+        .from('stage_control')
+        .select('stage_number, is_enabled, notes, updated_at, updated_by')
+        .order('stage_number');
+
+      if (error) {
+        console.error('[ADMIN] fetchStageControl query error:', error);
+        return this.createDefaultStages();
+      }
+
+      // Create map for quick lookup
+      const recordsMap = {};
+      if (stageRecords) {
+        stageRecords.forEach(record => {
+          recordsMap[record.stage_number] = record;
+        });
+      }
+
+      // Build complete array 1-16, filling gaps with defaults
+      const stages = [];
+      for (let i = 1; i <= 16; i++) {
+        if (recordsMap[i]) {
+          stages.push(recordsMap[i]);
+        } else {
+          // Default for missing stage
+          stages.push({
+            stage_number: i,
+            is_enabled: false,
+            notes: '',
+            updated_at: new Date().toISOString(),
+            updated_by: 'system'
+          });
+        }
+      }
+
+      this.stages = stages;
+      console.log('[ADMIN] Stage control data loaded:', stages.length, 'stages');
+      return stages;
+    } catch (err) {
+      console.error('[ADMIN] fetchStageControl exception:', err);
+      return this.createDefaultStages();
+    }
+  }
+
+  /**
+   * Create default stage array (all disabled)
+   * @returns {Array}
+   */
+  createDefaultStages() {
+    console.log('[ADMIN] Creating default stages (all disabled)');
+    const defaults = [];
+    for (let i = 1; i <= 16; i++) {
+      defaults.push({
+        stage_number: i,
+        is_enabled: false,
+        notes: '',
+        updated_at: new Date().toISOString(),
+        updated_by: 'system'
+      });
+    }
+    this.stages = defaults;
+    return defaults;
+  }
+
+  /**
+   * Fetch solver counts from public.solves table
+   * Counts rows per stage (solves with riddle_number = 1, the canonical solve)
+   * @returns {Promise<Object>} - Map { stageNumber: count }
+   */
+  async fetchSolversCounts() {
+    try {
+      console.log('[ADMIN] Fetching solver counts...');
+
+      // Fetch all solves for riddle 1 (canonical solve indicator)
+      const { data: solves, error } = await this.supabase
+        .from('solves')
+        .select('stage_number, riddle_number')
+        .eq('riddle_number', 1);
+
+      if (error) {
+        console.error('[ADMIN] fetchSolversCounts query error:', error);
+        return this.createDefaultCounts();
+      }
+
+      // Count solves per stage
+      const counts = {};
+      for (let i = 1; i <= 16; i++) {
+        counts[i] = 0;
+      }
+
+      if (solves) {
+        solves.forEach(solve => {
+          if (solve.stage_number >= 1 && solve.stage_number <= 16) {
+            counts[solve.stage_number] = (counts[solve.stage_number] || 0) + 1;
+          }
+        });
+      }
+
+      this.solversCounts = counts;
+      console.log('[ADMIN] Solver counts loaded:', counts);
+      return counts;
+    } catch (err) {
+      console.error('[ADMIN] fetchSolversCounts exception:', err);
+      return this.createDefaultCounts();
+    }
+  }
+
+  /**
+   * Create default counts (all zeros)
+   * @returns {Object}
+   */
+  createDefaultCounts() {
+    console.log('[ADMIN] Creating default solver counts (all zeros)');
+    const defaults = {};
+    for (let i = 1; i <= 16; i++) {
+      defaults[i] = 0;
+    }
+    this.solversCounts = defaults;
+    return defaults;
+  }
+
+  /**
+   * Format timestamp for display
+   * @param {string} isoString - ISO timestamp
+   * @returns {string} - Formatted date
+   */
+  formatTimestamp(isoString) {
+    try {
+      if (!isoString) return 'Never';
+      const date = new Date(isoString);
+      return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      return 'Invalid date';
+    }
+  }
+
+  /**
+   * Render stage cards into #stageGrid
+   * @param {Array} stages - Stage control data
+   * @param {Object} counts - Solver counts map
+   */
+  renderStageGrid(stages, counts) {
+    try {
+      console.log('[ADMIN] Rendering stage grid...');
+
+      const grid = document.getElementById('stageGrid');
+      if (!grid) {
+        console.error('[ADMIN] #stageGrid not found');
+        return;
+      }
+
+      grid.innerHTML = '';
+
+      stages.forEach(stage => {
+        const stageNum = stage.stage_number;
+        const solveCount = counts[stageNum] || 0;
+        const isEnabled = stage.is_enabled === true;
+        const statusText = isEnabled ? 'Live' : 'Disabled';
+        const statusClass = isEnabled ? 'live' : 'disabled';
+        const borderColor = isEnabled ? '#4caf50' : '#f48fb1';
+
+        const card = document.createElement('div');
+        card.className = 'stage-card';
+        card.id = `stage-card-${stageNum}`;
+        card.style.borderLeft = `4px solid ${borderColor}`;
+        card.innerHTML = `
+          <div class="stage-card-header">
+            <div class="stage-card-title">Stage ${stageNum}</div>
+            <div class="stage-card-toggle">
+              <button
+                class="toggle-switch ${isEnabled ? 'enabled' : ''}"
+                data-stage="${stageNum}"
+                data-enabled="${isEnabled}"
+                title="Toggle stage enabled/disabled"
+              ></button>
+              <span class="stage-status ${statusClass}">${statusText}</span>
+            </div>
+          </div>
+
+          <div class="stage-card-info">
+            <div class="stage-info-item">
+              <span class="stage-info-label">Solvers</span>
+              <span>${solveCount}</span>
+            </div>
+            <div class="stage-info-item">
+              <span class="stage-info-label">Last Updated</span>
+              <span>${this.formatTimestamp(stage.updated_at)}</span>
+            </div>
+            <div class="stage-info-item">
+              <span class="stage-info-label">Updated By</span>
+              <span>${stage.updated_by || '—'}</span>
+            </div>
+            <div class="stage-info-item">
+              <span class="stage-info-label">Stage Number</span>
+              <span>${stageNum}</span>
+            </div>
+          </div>
+
+          <div class="stage-card-notes">
+            <div class="stage-card-notes-label">Notes</div>
+            <textarea
+              data-stage="${stageNum}"
+              placeholder="Add admin notes for this stage..."
+            >${stage.notes || ''}</textarea>
+            <button
+              class="update-notes-btn"
+              data-stage="${stageNum}"
+              title="Save notes for this stage"
+            >
+              Update Notes
+            </button>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+
+      console.log('[ADMIN] Stage data loaded successfully (${stages.length} stages)');
+    } catch (err) {
+      console.error('[ADMIN] renderStageGrid exception:', err);
+    }
+  }
+
+  /**
+   * Load all stage data and render
+   * @returns {Promise<void>}
+   */
+  async loadAndRender() {
+    try {
+      console.log('[ADMIN] Loading stage control data...');
+      const stages = await this.fetchStageControl();
+      const counts = await this.fetchSolversCounts();
+      this.renderStageGrid(stages, counts);
+      console.log('[ADMIN] Stage data loaded successfully (16 stages)');
+    } catch (err) {
+      console.error('[ADMIN] loadAndRender exception:', err);
+    }
+  }
+}
+
+// Export singleton instance
+const stageControl = new StageControlModule(adminApp);
+
+/**
  * Sets a status message that persists and never clears unless explicitly updated
  * @param {string} text - The status message to display
  */
