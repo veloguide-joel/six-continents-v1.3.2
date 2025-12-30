@@ -595,7 +595,6 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = {
-        stage: stageNum,
         is_enabled: enabled,
         enabled_at: enabled ? now : null,
         disabled_at: !enabled ? now : null,
@@ -605,7 +604,8 @@ class StageControlModule {
 
       const { data, error } = await this.supabase
         .from('stage_control')
-        .upsert([payload], { onConflict: 'stage' });
+        .update(payload)
+        .eq('stage', stageNum);
 
       if (error) {
         console.error(`[ADMIN] updateStageEnabled error:`, error);
@@ -708,15 +708,78 @@ class StageControlModule {
           const currentEnabled = toggle.dataset.enabled === 'true';
           const newEnabled = !currentEnabled;
 
-          showStatusMessage(`Updating stage ${stageNum}...`);
-          const result = await this.updateStageEnabled(stageNum, newEnabled);
+          // Find the card and UI elements
+          const card = document.getElementById(`stage-card-${stageNum}`);
+          if (!card) {
+            console.warn(`[ADMIN] Card not found for stage ${stageNum}`);
+            return;
+          }
 
-          if (result.success) {
-            showStatusMessage(`✓ Stage ${stageNum} ${newEnabled ? 'enabled' : 'disabled'}`);
-            // Re-render to reflect changes
-            setTimeout(() => this.loadAndRender(), 500);
-          } else {
-            showStatusMessage(`✗ Error updating stage ${stageNum}: ${result.error}`);
+          const badge = card.querySelector('.stage-status');
+          const previousEnabled = currentEnabled;
+
+          try {
+            // Step 1: Optimistic UI update - immediately show new state
+            console.log(`[ADMIN] Optimistic update: stage ${stageNum} to ${newEnabled}`);
+            toggle.disabled = true;
+            toggle.dataset.enabled = newEnabled;
+            toggle.classList.toggle('enabled', newEnabled);
+
+            if (badge) {
+              const newStatusText = newEnabled ? 'Live' : 'Disabled';
+              const newStatusClass = newEnabled ? 'live' : 'disabled';
+              badge.textContent = newStatusText;
+              badge.className = `stage-status ${newStatusClass}`;
+            }
+
+            // Update card border color
+            const newBorderColor = newEnabled ? '#4caf50' : '#f48fb1';
+            card.style.borderLeft = `4px solid ${newBorderColor}`;
+
+            showStatusMessage(`Updating stage ${stageNum}...`);
+
+            // Step 2: Perform database update
+            const result = await this.updateStageEnabled(stageNum, newEnabled);
+
+            // Step 3: Handle result
+            if (result.success) {
+              console.log(`[ADMIN] Stage ${stageNum} update successful`);
+              showStatusMessage(`✓ Stage ${stageNum} ${newEnabled ? 'enabled' : 'disabled'}`);
+              toggle.disabled = false;
+            } else {
+              // Revert on failure
+              console.error(`[ADMIN] Update failed, reverting stage ${stageNum}`);
+              toggle.disabled = false;
+              toggle.dataset.enabled = previousEnabled;
+              toggle.classList.toggle('enabled', previousEnabled);
+
+              if (badge) {
+                const revertStatusText = previousEnabled ? 'Live' : 'Disabled';
+                const revertStatusClass = previousEnabled ? 'live' : 'disabled';
+                badge.textContent = revertStatusText;
+                badge.className = `stage-status ${revertStatusClass}`;
+              }
+
+              const revertBorderColor = previousEnabled ? '#4caf50' : '#f48fb1';
+              card.style.borderLeft = `4px solid ${revertBorderColor}`;
+
+              showStatusMessage(`✗ Error: ${result.error}`);
+            }
+          } catch (handlerErr) {
+            console.error(`[ADMIN] Toggle handler exception:`, handlerErr);
+            // Revert on exception
+            toggle.disabled = false;
+            toggle.dataset.enabled = previousEnabled;
+            toggle.classList.toggle('enabled', previousEnabled);
+            if (badge) {
+              const revertStatusText = previousEnabled ? 'Live' : 'Disabled';
+              const revertStatusClass = previousEnabled ? 'live' : 'disabled';
+              badge.textContent = revertStatusText;
+              badge.className = `stage-status ${revertStatusClass}`;
+            }
+            const revertBorderColor = previousEnabled ? '#4caf50' : '#f48fb1';
+            card.style.borderLeft = `4px solid ${revertBorderColor}`;
+            showStatusMessage(`✗ Error: ${handlerErr.message}`);
           }
         });
       });
@@ -735,7 +798,6 @@ class StageControlModule {
 
           if (result.success) {
             showStatusMessage(`✓ Notes saved for stage ${stageNum}`);
-            setTimeout(() => this.loadAndRender(), 500);
           } else {
             showStatusMessage(`✗ Error saving notes: ${result.error}`);
           }
