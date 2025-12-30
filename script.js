@@ -2700,10 +2700,14 @@ function localLogSolveFallback(payload) {
                 try {
                     console.log('[STAGE_CONTROL] Loading stage control data...');
                     
+                    // Use window.STAGE_ENV set by index.html (set before script.js loads)
+                    const STAGE_ENV = window.STAGE_ENV || 'dev';
+                    console.log('[STAGE_CONTROL] Using STAGE_ENV =', STAGE_ENV);
+                    
                     const { data, error } = await supabase
                         .from('stage_control')
                         .select('stage, is_enabled')
-                        .eq('environment', window.STAGE_ENV || 'prod')
+                        .eq('environment', STAGE_ENV)
                         .order('stage', { ascending: true });
 
                     if (error) {
