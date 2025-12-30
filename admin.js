@@ -582,10 +582,213 @@ class StageControlModule {
       console.error('[ADMIN] loadAndRender exception:', err);
     }
   }
+
+  /**
+   * Update a single stage's enabled status
+   * @param {number} stageNum - Stage number (1-16)
+   * @param {boolean} enabled - New enabled state
+   * @returns {Promise<{success: boolean, error: string|null}>}
+   */
+  async updateStageEnabled(stageNum, enabled) {
+    try {
+      console.log(`[ADMIN] Updating stage ${stageNum} enabled to ${enabled}...`);
+
+      const now = new Date().toISOString();
+      const payload = {
+        stage_number: stageNum,
+        is_enabled: enabled,
+        updated_at: now,
+        updated_by: 'admin_panel'
+      };
+
+      const { data, error } = await this.supabase
+        .from('stage_control')
+        .upsert([payload], { onConflict: 'stage_number' });
+
+      if (error) {
+        console.error(`[ADMIN] updateStageEnabled error:`, error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`[ADMIN] Stage ${stageNum} updated successfully`);
+      return { success: true, error: null };
+    } catch (err) {
+      console.error(`[ADMIN] updateStageEnabled exception:`, err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Update a single stage's notes
+   * @param {number} stageNum - Stage number (1-16)
+   * @param {string} notes - New notes text
+   * @returns {Promise<{success: boolean, error: string|null}>}
+   */
+  async updateStageNotes(stageNum, notes) {
+    try {
+      console.log(`[ADMIN] Updating notes for stage ${stageNum}...`);
+
+      const now = new Date().toISOString();
+      const payload = {
+        stage_number: stageNum,
+        notes: notes,
+        updated_at: now,
+        updated_by: 'admin_panel'
+      };
+
+      const { data, error } = await this.supabase
+        .from('stage_control')
+        .upsert([payload], { onConflict: 'stage_number' });
+
+      if (error) {
+        console.error(`[ADMIN] updateStageNotes error:`, error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`[ADMIN] Notes for stage ${stageNum} updated successfully`);
+      return { success: true, error: null };
+    } catch (err) {
+      console.error(`[ADMIN] updateStageNotes exception:`, err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Batch update multiple stages with same enabled state
+   * @param {Array<number>} stageNumbers - Stage numbers to update
+   * @param {boolean} enabled - New enabled state
+   * @returns {Promise<{success: boolean, error: string|null}>}
+   */
+  async bulkUpdateStages(stageNumbers, enabled) {
+    try {
+      console.log(`[ADMIN] Bulk updating ${stageNumbers.length} stages to enabled=${enabled}...`);
+
+      const now = new Date().toISOString();
+      const payload = stageNumbers.map(stageNum => ({
+        stage_number: stageNum,
+        is_enabled: enabled,
+        updated_at: now,
+        updated_by: 'admin_panel'
+      }));
+
+      const { data, error } = await this.supabase
+        .from('stage_control')
+        .upsert(payload, { onConflict: 'stage_number' });
+
+      if (error) {
+        console.error(`[ADMIN] bulkUpdateStages error:`, error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`[ADMIN] Bulk update completed for ${stageNumbers.length} stages`);
+      return { success: true, error: null };
+    } catch (err) {
+      console.error(`[ADMIN] bulkUpdateStages exception:`, err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Wire up event handlers for toggle switches and notes buttons
+   */
+  attachEventHandlers() {
+    try {
+      console.log('[ADMIN] Attaching stage card event handlers...');
+
+      // Toggle switches
+      const toggles = document.querySelectorAll('.toggle-switch');
+      toggles.forEach(toggle => {
+        toggle.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const stageNum = parseInt(toggle.dataset.stage);
+          const currentEnabled = toggle.dataset.enabled === 'true';
+          const newEnabled = !currentEnabled;
+
+          showStatusMessage(`Updating stage ${stageNum}...`);
+          const result = await this.updateStageEnabled(stageNum, newEnabled);
+
+          if (result.success) {
+            showStatusMessage(`✓ Stage ${stageNum} ${newEnabled ? 'enabled' : 'disabled'}`);
+            // Re-render to reflect changes
+            setTimeout(() => this.loadAndRender(), 500);
+          } else {
+            showStatusMessage(`✗ Error updating stage ${stageNum}: ${result.error}`);
+          }
+        });
+      });
+
+      // Notes update buttons
+      const notesButtons = document.querySelectorAll('.update-notes-btn');
+      notesButtons.forEach(button => {
+        button.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const stageNum = parseInt(button.dataset.stage);
+          const textarea = document.querySelector(`textarea[data-stage="${stageNum}"]`);
+          const notes = textarea ? textarea.value.trim() : '';
+
+          showStatusMessage(`Saving notes for stage ${stageNum}...`);
+          const result = await this.updateStageNotes(stageNum, notes);
+
+          if (result.success) {
+            showStatusMessage(`✓ Notes saved for stage ${stageNum}`);
+            setTimeout(() => this.loadAndRender(), 500);
+          } else {
+            showStatusMessage(`✗ Error saving notes: ${result.error}`);
+          }
+        });
+      });
+
+      console.log('[ADMIN] Event handlers attached successfully');
+    } catch (err) {
+      console.error('[ADMIN] attachEventHandlers exception:', err);
+    }
+  }
 }
 
 // Export singleton instance
 const stageControl = new StageControlModule(adminApp);
+
+/**
+ * Shows a status message at the top of the page
+ * Auto-dismisses after 4 seconds or when new message arrives
+ * @param {string} message - Message to display
+ */
+function showStatusMessage(message) {
+  let statusDiv = document.getElementById('status-message');
+
+  if (!statusDiv) {
+    statusDiv = document.createElement('div');
+    statusDiv.id = 'status-message';
+    statusDiv.style.cssText = `
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #e8f4f8;
+      border-left: 4px solid #0288d1;
+      padding: 12px 16px;
+      border-radius: 2px;
+      color: #01579b;
+      font-size: 13px;
+      font-family: system-ui, -apple-system, sans-serif;
+      z-index: 1000;
+      max-width: 90%;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    `;
+    document.body.appendChild(statusDiv);
+  }
+
+  statusDiv.textContent = message;
+  statusDiv.style.display = 'block';
+
+  // Auto-dismiss after 4 seconds
+  if (statusDiv.dismissTimeout) {
+    clearTimeout(statusDiv.dismissTimeout);
+  }
+  statusDiv.dismissTimeout = setTimeout(() => {
+    statusDiv.style.display = 'none';
+  }, 4000);
+}
 
 /**
  * Sets a status message that persists and never clears unless explicitly updated
@@ -859,9 +1062,9 @@ function renderAdminShell(userEmail) {
   // Add tab click handlers
   const tabButtons = appContainer.querySelectorAll('.admin-tab');
   tabButtons.forEach(button => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       const tabId = button.dataset.tabId;
-      renderTabContent(tabId);
+      await renderTabContent(tabId);
       
       // Update active tab styling
       tabButtons.forEach(b => {
@@ -883,7 +1086,7 @@ function renderAdminShell(userEmail) {
  * Renders content for a specific tab
  * @param {string} tabId - The tab identifier
  */
-function renderTabContent(tabId) {
+async function renderTabContent(tabId) {
   const contentContainer = document.getElementById('admin-content');
   if (!contentContainer) return;
 
@@ -894,6 +1097,155 @@ function renderTabContent(tabId) {
     'test-users': 'Test Users'
   };
 
+  // Handle Stage Control tab specially
+  if (tabId === 'stage-control') {
+    const content = `
+      <div style="margin-bottom: 20px;">
+        <h2 style="margin: 0 0 16px 0;">Stage Control</h2>
+        
+        <!-- Bulk Operations Bar -->
+        <div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+          <button id="btnEnableAll" style="
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.2s;
+          " onmouseover="this.style.background='#45a049'" onmouseout="this.style.background='#4caf50'">
+            Enable All Stages
+          </button>
+          <button id="btnDisableAll" style="
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.2s;
+          " onmouseover="this.style.background='#d32f2f'" onmouseout="this.style.background='#f44336'">
+            Disable All Stages
+          </button>
+          <button id="btnEnable1to5" style="
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.2s;
+          " onmouseover="this.style.background='#0b7dda'" onmouseout="this.style.background='#2196f3'">
+            Enable 1–5
+          </button>
+          <button id="btnDisable6to16" style="
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.2s;
+          " onmouseover="this.style.background='#e68900'" onmouseout="this.style.background='#ff9800'">
+            Disable 6–16
+          </button>
+          <button id="btnRefreshStages" style="
+            background: #666;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.2s;
+          " onmouseover="this.style.background='#555'" onmouseout="this.style.background='#666'">
+            Refresh Data
+          </button>
+        </div>
+
+        <!-- Stage Grid -->
+        <div id="stageGrid" style="
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+          gap: 16px;
+        ">
+          <!-- Stages will be rendered here -->
+        </div>
+      </div>
+    `;
+
+    contentContainer.innerHTML = content;
+
+    // Load and render stage data
+    showStatusMessage('Loading stages…');
+    await stageControl.loadAndRender();
+    stageControl.attachEventHandlers();
+
+    // Wire up bulk operation buttons
+    document.getElementById('btnEnableAll')?.addEventListener('click', async () => {
+      showStatusMessage('Enabling all stages...');
+      const result = await stageControl.bulkUpdateStages([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], true);
+      if (result.success) {
+        showStatusMessage('✓ All stages enabled');
+        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers()), 500);
+      } else {
+        showStatusMessage(`✗ Error: ${result.error}`);
+      }
+    });
+
+    document.getElementById('btnDisableAll')?.addEventListener('click', async () => {
+      showStatusMessage('Disabling all stages...');
+      const result = await stageControl.bulkUpdateStages([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], false);
+      if (result.success) {
+        showStatusMessage('✓ All stages disabled');
+        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers()), 500);
+      } else {
+        showStatusMessage(`✗ Error: ${result.error}`);
+      }
+    });
+
+    document.getElementById('btnEnable1to5')?.addEventListener('click', async () => {
+      showStatusMessage('Enabling stages 1–5...');
+      const result = await stageControl.bulkUpdateStages([1,2,3,4,5], true);
+      if (result.success) {
+        showStatusMessage('✓ Stages 1–5 enabled');
+        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers()), 500);
+      } else {
+        showStatusMessage(`✗ Error: ${result.error}`);
+      }
+    });
+
+    document.getElementById('btnDisable6to16')?.addEventListener('click', async () => {
+      showStatusMessage('Disabling stages 6–16...');
+      const result = await stageControl.bulkUpdateStages([6,7,8,9,10,11,12,13,14,15,16], false);
+      if (result.success) {
+        showStatusMessage('✓ Stages 6–16 disabled');
+        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers()), 500);
+      } else {
+        showStatusMessage(`✗ Error: ${result.error}`);
+      }
+    });
+
+    document.getElementById('btnRefreshStages')?.addEventListener('click', async () => {
+      showStatusMessage('Refreshing stage data...');
+      await stageControl.loadAndRender();
+      stageControl.attachEventHandlers();
+      showStatusMessage('✓ Refresh complete');
+    });
+
+    return;
+  }
+
+  // Other tabs - placeholder content
   const content = `
     <h2>${tabLabels[tabId]}</h2>
     <p style="color: #666; margin-top: 10px;">Placeholder for ${tabLabels[tabId]} panel</p>
