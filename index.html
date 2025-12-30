@@ -483,6 +483,14 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 <script src="confetti-guard.js"></script>
+
+<!-- Stage Control Environment Setup (must run before script.js) -->
+<script>
+  const host = location.hostname;
+  window.STAGE_ENV = host === "theaccidentalretiree.app" ? "prod" : "dev";
+  console.log("[GAME] STAGE_ENV =", window.STAGE_ENV, "host =", host);
+</script>
+
 <script src="script.js"></script>
 
 <div id="password-reset-modal" class="reset-modal hidden">

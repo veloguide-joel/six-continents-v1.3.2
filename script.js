@@ -2257,12 +2257,6 @@ function initializeSupabase() {
         // Use idempotent singleton to prevent redeclaration crash if script loads twice
         window.__supabaseClient = window.__supabaseClient || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         supabase = window.__supabaseClient;
-        
-        // Environment detection for stage_control queries
-        window.STAGE_ENV =
-          location.hostname === 'theaccidentalretiree.app'
-            ? 'prod'
-            : 'dev';
 
         // Initialize auth system
         supabaseAuth = {
