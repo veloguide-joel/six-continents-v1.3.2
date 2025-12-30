@@ -325,7 +325,55 @@ class StageControlModule {
     this.supabase = adminAppInstance.supabase;
     this.stages = [];
     this.solversCounts = {};
+    
+    // Initialize write lock for production safety
+    this.initializeWriteLock();
+    
     console.log('[ADMIN] StageControlModule initialized');
+  }
+
+  /**
+   * Initialize write lock guard - prevents accidental writes to production from localhost
+   * Lock is ON by default if running locally, can be overridden with ?unlock=YESIMREADY
+   */
+  initializeWriteLock() {
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === 'localhost' || hostname.startsWith('127.0.0.1');
+    
+    if (isLocalhost) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasUnlockKey = urlParams.get('unlock') === 'YESIMREADY';
+      
+      window.__ADMIN_WRITE_LOCKED = !hasUnlockKey;
+      
+      console.log(`[ADMIN] Write lock initialized: isLocalhost=${isLocalhost}, locked=${window.__ADMIN_WRITE_LOCKED}, hasUnlockKey=${hasUnlockKey}`);
+      
+      if (window.__ADMIN_WRITE_LOCKED) {
+        console.warn('[ADMIN] ⚠️ WRITE LOCKED: Localhost detected pointing at production Supabase');
+      }
+    } else {
+      window.__ADMIN_WRITE_LOCKED = false;
+      console.log('[ADMIN] Write lock disabled: running on production host');
+    }
+  }
+
+  /**
+   * Check if writes are allowed
+   * @returns {boolean} - true if writes are allowed, false if locked
+   */
+  isWriteAllowed() {
+    return !window.__ADMIN_WRITE_LOCKED;
+  }
+
+  /**
+   * Get lock status message for display
+   * @returns {string|null} - Lock message or null if not locked
+   */
+  getLockMessage() {
+    if (window.__ADMIN_WRITE_LOCKED) {
+      return 'WRITE LOCKED: Localhost is pointed at PRODUCTION Supabase. No changes will be saved.';
+    }
+    return null;
   }
 
   /**
@@ -576,7 +624,9 @@ class StageControlModule {
       console.log('[ADMIN] Loading stage control data...');
       const stages = await this.fetchStageControl();
       const counts = await this.fetchSolversCounts();
+      this.stages = stages;
       this.renderStageGrid(stages, counts);
+      this.attachEventHandlers(this.writeLocked); // Pass write lock status
       console.log('[ADMIN] Stage data loaded successfully (16 stages)');
     } catch (err) {
       console.error('[ADMIN] loadAndRender exception:', err);
@@ -694,16 +744,29 @@ class StageControlModule {
 
   /**
    * Wire up event handlers for toggle switches and notes buttons
+   * @param {boolean} isLocked - Whether write operations are locked
    */
-  attachEventHandlers() {
+  attachEventHandlers(isLocked = false) {
     try {
-      console.log('[ADMIN] Attaching stage card event handlers...');
+      console.log('[ADMIN] Attaching stage card event handlers... (isLocked=' + isLocked + ')');
 
       // Toggle switches
       const toggles = document.querySelectorAll('.toggle-switch');
       toggles.forEach(toggle => {
+        if (isLocked) {
+          toggle.disabled = true;
+          toggle.style.cursor = 'not-allowed';
+          toggle.style.opacity = '0.5';
+          toggle.title = 'Write operations locked. Check banner above.';
+        }
+
         toggle.addEventListener('click', async (e) => {
           e.preventDefault();
+          
+          if (isLocked) {
+            showStatusMessage('✗ Write locked: Localhost pointing at production.');
+            return;
+          }
           
           const stageNum = parseInt(toggle.dataset.stage);
           
@@ -812,8 +875,21 @@ class StageControlModule {
       // Notes update buttons
       const notesButtons = document.querySelectorAll('.update-notes-btn');
       notesButtons.forEach(button => {
+        if (isLocked) {
+          button.disabled = true;
+          button.style.cursor = 'not-allowed';
+          button.style.opacity = '0.5';
+          button.title = 'Write operations locked. Check banner above.';
+        }
+
         button.addEventListener('click', async (e) => {
           e.preventDefault();
+          
+          if (isLocked) {
+            showStatusMessage('✗ Write locked: Localhost pointing at production.');
+            return;
+          }
+          
           const stageNum = parseInt(button.dataset.stage);
           const textarea = document.querySelector(`textarea[data-stage="${stageNum}"]`);
           const notes = textarea ? textarea.value.trim() : '';
@@ -1190,9 +1266,28 @@ async function renderTabContent(tabId) {
 
   // Handle Stage Control tab specially
   if (tabId === 'stage-control') {
+    const isLocked = !stageControl.isWriteAllowed();
+    const lockMessage = stageControl.getLockMessage();
+    const lockBannerHtml = isLocked ? `
+      <div style="
+        background-color: #fff3cd;
+        border-left: 4px solid #ff6b6b;
+        padding: 12px 16px;
+        margin-bottom: 16px;
+        border-radius: 2px;
+        color: #ff0000;
+        font-size: 13px;
+        font-weight: 600;
+      ">
+        ⚠️ ${lockMessage}
+      </div>
+    ` : '';
+
     const content = `
       <div style="margin-bottom: 20px;">
         <h2 style="margin: 0 0 16px 0;">Stage Control</h2>
+        
+        ${lockBannerHtml}
         
         <!-- Bulk Operations Bar -->
         <div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
@@ -1202,11 +1297,12 @@ async function renderTabContent(tabId) {
             border: none;
             padding: 8px 14px;
             border-radius: 3px;
-            cursor: pointer;
+            cursor: ${isLocked ? 'not-allowed' : 'pointer'};
             font-size: 12px;
             font-weight: 600;
             transition: background 0.2s;
-          " onmouseover="this.style.background='#45a049'" onmouseout="this.style.background='#4caf50'">
+            opacity: ${isLocked ? '0.5' : '1'};
+          " onmouseover="this.style.background='${isLocked ? '#4caf50' : '#45a049'}'" onmouseout="this.style.background='#4caf50'" ${isLocked ? 'disabled' : ''}>
             Enable All Stages
           </button>
           <button id="btnDisableAll" style="
@@ -1215,11 +1311,12 @@ async function renderTabContent(tabId) {
             border: none;
             padding: 8px 14px;
             border-radius: 3px;
-            cursor: pointer;
+            cursor: ${isLocked ? 'not-allowed' : 'pointer'};
             font-size: 12px;
             font-weight: 600;
             transition: background 0.2s;
-          " onmouseover="this.style.background='#d32f2f'" onmouseout="this.style.background='#f44336'">
+            opacity: ${isLocked ? '0.5' : '1'};
+          " onmouseover="this.style.background='${isLocked ? '#f44336' : '#d32f2f'}'" onmouseout="this.style.background='#f44336'" ${isLocked ? 'disabled' : ''}>
             Disable All Stages
           </button>
           <button id="btnEnable1to5" style="
@@ -1228,11 +1325,12 @@ async function renderTabContent(tabId) {
             border: none;
             padding: 8px 14px;
             border-radius: 3px;
-            cursor: pointer;
+            cursor: ${isLocked ? 'not-allowed' : 'pointer'};
             font-size: 12px;
             font-weight: 600;
             transition: background 0.2s;
-          " onmouseover="this.style.background='#0b7dda'" onmouseout="this.style.background='#2196f3'">
+            opacity: ${isLocked ? '0.5' : '1'};
+          " onmouseover="this.style.background='${isLocked ? '#2196f3' : '#0b7dda'}'" onmouseout="this.style.background='#2196f3'" ${isLocked ? 'disabled' : ''}>
             Enable 1–5
           </button>
           <button id="btnDisable6to16" style="
@@ -1241,11 +1339,12 @@ async function renderTabContent(tabId) {
             border: none;
             padding: 8px 14px;
             border-radius: 3px;
-            cursor: pointer;
+            cursor: ${isLocked ? 'not-allowed' : 'pointer'};
             font-size: 12px;
             font-weight: 600;
             transition: background 0.2s;
-          " onmouseover="this.style.background='#e68900'" onmouseout="this.style.background='#ff9800'">
+            opacity: ${isLocked ? '0.5' : '1'};
+          " onmouseover="this.style.background='${isLocked ? '#ff9800' : '#e68900'}'" onmouseout="this.style.background='#ff9800'" ${isLocked ? 'disabled' : ''}>
             Disable 6–16
           </button>
           <button id="btnRefreshStages" style="
@@ -1279,48 +1378,66 @@ async function renderTabContent(tabId) {
     // Load and render stage data
     showStatusMessage('Loading stages…');
     await stageControl.loadAndRender();
-    stageControl.attachEventHandlers();
+    
+    // Pass lock status to event handler attachment
+    stageControl.attachEventHandlers(isLocked);
 
     // Wire up bulk operation buttons
     document.getElementById('btnEnableAll')?.addEventListener('click', async () => {
+      if (!stageControl.isWriteAllowed()) {
+        showStatusMessage('✗ Write locked: Localhost pointing at production.');
+        return;
+      }
       showStatusMessage('Enabling all stages...');
       const result = await stageControl.bulkUpdateStages([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], true);
       if (result.success) {
         showStatusMessage('✓ All stages enabled');
-        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers()), 500);
+        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers(stageControl.writeLocked)), 500);
       } else {
         showStatusMessage(`✗ Error: ${result.error}`);
       }
     });
 
     document.getElementById('btnDisableAll')?.addEventListener('click', async () => {
+      if (!stageControl.isWriteAllowed()) {
+        showStatusMessage('✗ Write locked: Localhost pointing at production.');
+        return;
+      }
       showStatusMessage('Disabling all stages...');
       const result = await stageControl.bulkUpdateStages([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], false);
       if (result.success) {
         showStatusMessage('✓ All stages disabled');
-        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers()), 500);
+        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers(stageControl.writeLocked)), 500);
       } else {
         showStatusMessage(`✗ Error: ${result.error}`);
       }
     });
 
     document.getElementById('btnEnable1to5')?.addEventListener('click', async () => {
+      if (!stageControl.isWriteAllowed()) {
+        showStatusMessage('✗ Write locked: Localhost pointing at production.');
+        return;
+      }
       showStatusMessage('Enabling stages 1–5...');
       const result = await stageControl.bulkUpdateStages([1,2,3,4,5], true);
       if (result.success) {
         showStatusMessage('✓ Stages 1–5 enabled');
-        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers()), 500);
+        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers(stageControl.writeLocked)), 500);
       } else {
         showStatusMessage(`✗ Error: ${result.error}`);
       }
     });
 
     document.getElementById('btnDisable6to16')?.addEventListener('click', async () => {
+      if (!stageControl.isWriteAllowed()) {
+        showStatusMessage('✗ Write locked: Localhost pointing at production.');
+        return;
+      }
       showStatusMessage('Disabling stages 6–16...');
       const result = await stageControl.bulkUpdateStages([6,7,8,9,10,11,12,13,14,15,16], false);
       if (result.success) {
         showStatusMessage('✓ Stages 6–16 disabled');
-        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers()), 500);
+        setTimeout(() => stageControl.loadAndRender().then(() => stageControl.attachEventHandlers(stageControl.writeLocked)), 500);
       } else {
         showStatusMessage(`✗ Error: ${result.error}`);
       }
@@ -1329,7 +1446,7 @@ async function renderTabContent(tabId) {
     document.getElementById('btnRefreshStages')?.addEventListener('click', async () => {
       showStatusMessage('Refreshing stage data...');
       await stageControl.loadAndRender();
-      stageControl.attachEventHandlers();
+      stageControl.attachEventHandlers(stageControl.writeLocked);
       showStatusMessage('✓ Refresh complete');
     });
 
