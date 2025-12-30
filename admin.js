@@ -3,11 +3,8 @@
 // It will not interfere with non-admin pages and does not register global listeners
 import { supabase } from './supabase-config.js';
 
-// Environment detection for stage_control queries
-const STAGE_ENV =
-  (location.hostname === 'localhost' || location.hostname.includes('127.0.0.1'))
-    ? 'dev'
-    : 'prod';
+// NOTE: STAGE_ENV is set in admin.html before this module loads
+// It's available as window.STAGE_ENV
 
 // Safety check: only execute if #app element exists (indicator of admin.html context)
 const isAdminContext = () => document.getElementById('app') !== null;
@@ -395,7 +392,7 @@ class StageControlModule {
       const { data: stageRecords, error } = await this.supabase
         .from('stage_control')
         .select('stage, is_enabled, notes, updated_at, updated_by')
-        .eq('environment', STAGE_ENV)
+        .eq('environment', window.STAGE_ENV)
         .order('stage');
 
       if (error) {
@@ -652,7 +649,7 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = {
-        environment: STAGE_ENV,
+        environment: window.STAGE_ENV,
         stage: stageNum,
         is_enabled: enabled,
         enabled_at: enabled ? now : null,
@@ -690,7 +687,7 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = {
-        environment: STAGE_ENV,
+        environment: window.STAGE_ENV,
         stage: stageNum,
         notes: notes,
         updated_at: now,
@@ -726,7 +723,7 @@ class StageControlModule {
 
       const now = new Date().toISOString();
       const payload = stageNumbers.map(stageNum => ({
-        environment: STAGE_ENV,
+        environment: window.STAGE_ENV,
         stage: stageNum,
         is_enabled: enabled,
         enabled_at: enabled ? now : null,

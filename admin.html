@@ -529,6 +529,21 @@
   <!-- Supabase Config -->
   <script type="module" src="./supabase-config.js"></script>
 
+  <!-- Stage Control Environment Setup (must run before admin.js) -->
+  <script>
+    // Stage control environment for admin panel
+    // Local dev + previews must never write to prod rows
+    const host = location.hostname;
+    window.STAGE_ENV =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host.endsWith(".vercel.app")
+        ? "dev"
+        : "prod";
+
+    console.log("[ADMIN] STAGE_ENV =", window.STAGE_ENV, "host =", host);
+  </script>
+
   <!-- Admin Entry Point -->
   <script type="module" src="./admin.js"></script>
 </body>
