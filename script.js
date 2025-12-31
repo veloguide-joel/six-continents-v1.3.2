@@ -2674,6 +2674,9 @@ async function onUserSignedIn(user) {
         // Queue leaderboard refresh if available
         try { typeof queueLeaderboardRefresh === 'function' && queueLeaderboardRefresh('signed_in'); } catch (e) { /* noop */ }
 
+        // Post-login success marker with diagnostics
+        console.log('[AUTH] post-login init complete | email=' + user.email + ' | stage_env=' + (window.STAGE_ENV || 'undefined'));
+
     } catch (err) {
         console.error('[AUTH] onUserSignedIn error:', err);
     }
