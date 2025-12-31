@@ -344,22 +344,17 @@ class StageControlModule {
    */
   initializeWriteLock() {
     const hostname = window.location.hostname;
-    const isLocalhost = hostname === 'localhost' || hostname.startsWith('127.0.0.1');
+    const stageEnv = this.STAGE_ENV;
     
-    if (isLocalhost) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const hasUnlockKey = urlParams.get('unlock') === 'YESIMREADY';
-      
-      window.__ADMIN_WRITE_LOCKED = !hasUnlockKey;
-      
-      console.log(`[ADMIN] Write lock initialized: isLocalhost=${isLocalhost}, locked=${window.__ADMIN_WRITE_LOCKED}, hasUnlockKey=${hasUnlockKey}`);
-      
-      if (window.__ADMIN_WRITE_LOCKED) {
-        console.warn('[ADMIN] ⚠️ WRITE LOCKED: Localhost detected pointing at production Supabase');
-      }
+    // Lock writes if: staging ENV is 'prod' AND hostname is NOT production domain
+    // Safe to write if: ENV is 'dev' (localhost/Vercel preview) OR on production domain
+    if (stageEnv === 'prod' && hostname !== 'theaccidentalretiree.app') {
+      window.__ADMIN_WRITE_LOCKED = true;
+      console.warn(`[ADMIN] ⚠️ WRITE LOCKED: STAGE_ENV is 'prod' but hostname is '${hostname}' (not production domain)`);
+      console.warn('[ADMIN] This prevents accidental writes to production from staging/preview deployments');
     } else {
       window.__ADMIN_WRITE_LOCKED = false;
-      console.log('[ADMIN] Write lock disabled: running on production host');
+      console.log(`[ADMIN] Write lock disabled: STAGE_ENV='${stageEnv}', hostname='${hostname}'`);
     }
   }
 
@@ -377,7 +372,7 @@ class StageControlModule {
    */
   getLockMessage() {
     if (window.__ADMIN_WRITE_LOCKED) {
-      return 'WRITE LOCKED: Localhost is pointed at PRODUCTION Supabase. No changes will be saved.';
+      return 'WRITE LOCKED: Production environment detected on non-production domain. No changes will be saved.';
     }
     return null;
   }
