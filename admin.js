@@ -461,11 +461,10 @@ class StageControlModule {
     try {
       console.log('[ADMIN] Fetching solver counts...');
 
-      // Fetch all solves for riddle 1 (canonical solve indicator)
+      // Fetch all solves and count by stage
       const { data: solves, error } = await this.supabase
         .from('solves')
-        .select('stage, riddle_number')
-        .eq('riddle_number', 1);
+        .select('stage');
 
       if (error) {
         console.error('[ADMIN] fetchSolversCounts query error:', error);

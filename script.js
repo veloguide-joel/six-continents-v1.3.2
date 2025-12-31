@@ -565,17 +565,8 @@ function wireHeaderAuthUI(user) {
   }
 
   if (signOutBtn) {
-    // Use the ContestApp instance's handleSignOut method if available
-    if (window.contestApp && typeof window.contestApp.handleSignOut === 'function') {
-      signOutBtn.onclick = () => window.contestApp.handleSignOut();
-    } else {
-      // Fallback to direct Supabase signOut
-      signOutBtn.onclick = async () => {
-        console.log('[HEADER] Sign out clicked (fallback)');
-        await supabase.auth.signOut();
-        showLanding();
-      };
-    }
+    // Wire hard sign-out handler (bind exactly once)
+    signOutBtn.onclick = hardSignOut;
     console.log('[HEADER] Sign out button wired');
   } else {
     console.warn('[HEADER] btnSignOut not found in DOM');
@@ -587,6 +578,51 @@ function wireHeaderAuthUI(user) {
     console.log('[HEADER] User label updated');
   } else if (!emailSpan) {
     console.warn('[HEADER] journeyUserEmail span not found in DOM');
+  }
+}
+
+// ===== HARD SIGN-OUT HANDLER =====
+async function hardSignOut() {
+  console.log('[AUTH] Sign out clicked');
+
+  try {
+    // Step 1: Sign out from Supabase
+    try {
+      await supabase.auth.signOut();
+      console.log('[AUTH] supabase.auth.signOut() complete');
+    } catch (err) {
+      console.error('[AUTH] Error during supabase.auth.signOut():', err);
+      // Continue anyway
+    }
+
+    // Step 2: Clear in-memory cached state
+    console.log('[AUTH] clearing memory');
+    currentProfile = null;
+    currentUser = null;
+    currentStage = 1;
+    solvedStages = {};
+    if (window.contestApp) {
+      window.contestApp.currentStage = 1;
+    }
+    if (progressManager) {
+      progressManager.localProgress = {};
+    }
+
+    // Step 3: Clear all storage
+    console.log('[AUTH] clearing storage');
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // Step 4: Force UI to logged-out state
+    console.log('[AUTH] signOut complete');
+    showLanding();
+
+    // Step 5: Reload page
+    console.log('[AUTH] reload after sign out');
+    window.location.reload();
+  } catch (err) {
+    console.error('[AUTH] Unexpected error in hardSignOut:', err);
+    window.location.reload();
   }
 }
 // ===== END HEADER AUTH UI WIRING =====
