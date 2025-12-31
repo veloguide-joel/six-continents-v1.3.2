@@ -2264,13 +2264,13 @@ function initializeSupabase() {
             isAuthenticated: () => !!supabaseAuth.user,
 
             async signInWithEmail(email, password) {
-                console.log('[AUTH] Attempting sign in for:', email);
+                console.log('[AUTH] signIn starting for:', email);
                 const { data, error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) {
-                    console.error('[AUTH] Sign in error:', error);
+                    console.error('[AUTH] signIn API error:', error.message);
                     throw error;
                 }
-                console.log('[AUTH] Sign in successful:', data.user?.email);
+                console.log('[AUTH] signIn API call success, user:', data.user?.email);
                 // Record login via RPC (best-effort, do not block login flow)
                 try {
                     const user = data.user || data.session?.user;
@@ -2985,19 +2985,32 @@ class AuthUI {
         }
         
         this.isProcessing = true;
+        console.log('[AUTH] signIn started for:', document.getElementById('signin-email').value);
         
         const email = document.getElementById('signin-email').value;
         const password = document.getElementById('signin-password').value;
+        let timeoutId = null;
 
         try {
             this.showMessage('Signing in...', 'info');
             
+            const timeoutPromise = new Promise((_, reject) => {
+                timeoutId = setTimeout(() => {
+                    console.log('[AUTH] timeout fired (10s)');
+                    reject(new Error('Sign in timeout'));
+                }, 10000);
+            });
+            
             const result = await Promise.race([
                 supabaseAuth.signInWithEmail(email, password),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Sign in timeout')), 10000)
-                )
+                timeoutPromise
             ]);
+            
+            // Clear timeout on success
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                console.log('[AUTH] signIn success - timeout cleared');
+            }
             
             this.showMessage('Welcome back!', 'success');
             setTimeout(() => {
@@ -3005,7 +3018,12 @@ class AuthUI {
                 // Auth state change will handle showing appropriate interface
             }, 1500);
         } catch (error) {
-            console.error('Sign in error:', error);
+            // Clear timeout on failure
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                console.log('[AUTH] signIn failed - timeout cleared');
+            }
+            console.error('[AUTH] signIn failed:', error);
             this.showMessage(error.message || 'Failed to sign in. Please try again.', 'error');
         } finally {
             this.isProcessing = false;
