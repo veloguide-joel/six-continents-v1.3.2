@@ -643,7 +643,12 @@ class StageControlModule {
    */
   async updateStageEnabled(stageNum, enabled) {
     try {
-      console.log(`[ADMIN] Updating stage ${stageNum} enabled to ${enabled}...`);
+      // SAFETY: Hard assert that STAGE_ENV is valid
+      if (!this.STAGE_ENV || !['dev', 'prod'].includes(this.STAGE_ENV)) {
+        throw new Error(`[ADMIN SAFETY] Invalid STAGE_ENV: '${this.STAGE_ENV}'. Must be 'dev' or 'prod'. This is a critical misconfiguration.`);
+      }
+
+      console.log(`[ADMIN] Updating stage ${stageNum} enabled to ${enabled}... (STAGE_ENV=${this.STAGE_ENV})`);
 
       const now = new Date().toISOString();
       const payload = {
@@ -681,7 +686,12 @@ class StageControlModule {
    */
   async updateStageNotes(stageNum, notes) {
     try {
-      console.log(`[ADMIN] Updating notes for stage ${stageNum}...`);
+      // SAFETY: Hard assert that STAGE_ENV is valid
+      if (!this.STAGE_ENV || !['dev', 'prod'].includes(this.STAGE_ENV)) {
+        throw new Error(`[ADMIN SAFETY] Invalid STAGE_ENV: '${this.STAGE_ENV}'. Must be 'dev' or 'prod'. This is a critical misconfiguration.`);
+      }
+
+      console.log(`[ADMIN] Updating notes for stage ${stageNum}... (STAGE_ENV=${this.STAGE_ENV})`);
 
       const now = new Date().toISOString();
       const payload = {
@@ -717,7 +727,12 @@ class StageControlModule {
    */
   async bulkUpdateStages(stageNumbers, enabled) {
     try {
-      console.log(`[ADMIN] Bulk updating ${stageNumbers.length} stages to enabled=${enabled}...`);
+      // SAFETY: Hard assert that STAGE_ENV is valid
+      if (!this.STAGE_ENV || !['dev', 'prod'].includes(this.STAGE_ENV)) {
+        throw new Error(`[ADMIN SAFETY] Invalid STAGE_ENV: '${this.STAGE_ENV}'. Must be 'dev' or 'prod'. This is a critical misconfiguration.`);
+      }
+
+      console.log(`[ADMIN] Bulk updating ${stageNumbers.length} stages to enabled=${enabled}... (STAGE_ENV=${this.STAGE_ENV})`);
 
       const now = new Date().toISOString();
       const payload = stageNumbers.map(stageNum => ({
