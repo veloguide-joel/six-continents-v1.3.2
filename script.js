@@ -25,6 +25,19 @@ const app = {
   }
 };
 
+// ===== SIGN-IN TIMEOUT MANAGEMENT =====
+// Module-level variables for robust timeout handling across async callbacks
+let signInTimeoutId = null;
+let signInResolved = false;
+
+function clearSignInTimeout(reason) {
+  if (signInTimeoutId !== null) {
+    clearTimeout(signInTimeoutId);
+    signInTimeoutId = null;
+    console.log(`[AUTH] timeout cleared: ${reason}`);
+  }
+}
+
 // ===== MY PROFILE MODULE =====
 // Stock avatars configuration
 const AVATAR_BASE_URL = 'https://vlcjilzgntxweomnyfgd.supabase.co/storage/v1/object/public/avatars/';
@@ -2389,6 +2402,12 @@ function initializeSupabase() {
         supabase.auth.onAuthStateChange((event, session) => {
   console.log('[AUTH] State changed:', event, session?.user?.email || null);
 
+  // Handle SIGNED_IN event: immediately clear timeout and mark resolved
+  if (event === 'SIGNED_IN') {
+    clearSignInTimeout('auth_state_signed_in');
+    signInResolved = true;
+  }
+
   // Special case: password recovery flow
   if (event === 'PASSWORD_RECOVERY') {
     console.log('[AUTH] PASSWORD_RECOVERY detected; showing password reset modal');
@@ -2992,15 +3011,32 @@ class AuthUI {
         
         const email = document.getElementById('signin-email').value;
         const password = document.getElementById('signin-password').value;
-        let timeoutId = null;
 
         try {
             this.showMessage('Signing in...', 'info');
             
+            // Initialize timeout tracking
+            signInResolved = false;
+            
             const timeoutPromise = new Promise((_, reject) => {
-                timeoutId = setTimeout(() => {
+                signInTimeoutId = setTimeout(async () => {
                     console.log('[AUTH] timeout fired (10s)');
-                    reject(new Error('Sign in timeout'));
+                    
+                    // Before failing, check if session actually exists
+                    try {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (session) {
+                            console.log('[AUTH] timeout fired but session exists; ignoring error');
+                            return;  // Don't reject; session is valid
+                        }
+                    } catch (err) {
+                        console.warn('[AUTH] getSession error in timeout handler:', err);
+                    }
+                    
+                    // Only reject if we haven't already resolved and no session exists
+                    if (!signInResolved) {
+                        reject(new Error('Sign in timeout'));
+                    }
                 }, 10000);
             });
             
@@ -3010,10 +3046,7 @@ class AuthUI {
             ]);
             
             // Clear timeout on success
-            if (timeoutId) {
-                clearTimeout(timeoutId);
-                console.log('[AUTH] signIn success - timeout cleared');
-            }
+            clearSignInTimeout('api_success');
             
             this.showMessage('Welcome back!', 'success');
             setTimeout(() => {
@@ -3022,10 +3055,8 @@ class AuthUI {
             }, 1500);
         } catch (error) {
             // Clear timeout on failure
-            if (timeoutId) {
-                clearTimeout(timeoutId);
-                console.log('[AUTH] signIn failed - timeout cleared');
-            }
+            clearSignInTimeout('api_failure');
+            
             console.error('[AUTH] signIn failed:', error);
             this.showMessage(error.message || 'Failed to sign in. Please try again.', 'error');
         } finally {
