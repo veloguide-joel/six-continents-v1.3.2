@@ -6,6 +6,32 @@ import { supabase } from './supabase-config.js';
 // NOTE: STAGE_ENV is set in admin.html before this module loads
 // It's available as window.STAGE_ENV
 
+// ===== MODULE-LEVEL SESSION STATE =====
+let CURRENT_SESSION = null;
+let AUTH_UNSUB = null;
+let UI_MODE = 'unknown'; // 'signed_out' | 'signed_in'
+
+// Prevent duplicate init loops caused by auth listener firing repeatedly
+window.__ADMIN_BOOTING__ = window.__ADMIN_BOOTING__ || false;
+window.__ADMIN_BOOTED__  = window.__ADMIN_BOOTED__  || false;
+
+/**
+ * Get the root container for UI rendering
+ * @returns {Element} - Root element for admin UI
+ */
+function getRoot() {
+  return document.getElementById('admin-root') || document.getElementById('app') || document.body;
+}
+
+/**
+ * Set UI mode and log the change
+ * @param {string} mode - 'signed_out' or 'signed_in'
+ */
+function setUIMode(mode) {
+  UI_MODE = mode;
+  console.log('[ADMIN] UI_MODE =', UI_MODE);
+}
+
 // Safety check: only execute if #app element exists (indicator of admin.html context)
 const isAdminContext = () => document.getElementById('app') !== null;
 
@@ -184,133 +210,145 @@ class AdminApp {
 
   /**
    * Show login view, hide app view
+   * DEPRECATED: Use enterSignedOutState() instead
    */
   showLoginView() {
-    console.log('[ADMIN] showLoginView');
-    const loginView = document.getElementById('adminLoginView');
-    const appView = document.getElementById('adminAppView');
-
-    if (loginView) loginView.style.display = 'block';
-    if (appView) appView.style.display = 'none';
+    console.warn('[ADMIN] showLoginView called (deprecated - use enterSignedOutState)');
+    // Only show old elements if not in new session-based UI mode
+    if (UI_MODE === 'unknown') {
+      const loginView = document.getElementById('adminLoginView');
+      const appView = document.getElementById('adminAppView');
+      if (loginView) loginView.style.display = 'block';
+      if (appView) appView.style.display = 'none';
+    }
   }
 
   /**
    * Show app view, hide login view
+   * DEPRECATED: Use enterSignedInState() instead
    * @param {string} userEmail - Authenticated user email
    */
   showAppView(userEmail) {
-    console.log('[ADMIN] showAppView:', userEmail);
-    const loginView = document.getElementById('adminLoginView');
-    const appView = document.getElementById('adminAppView');
+    console.warn('[ADMIN] showAppView called (deprecated - use enterSignedInState)');
+    // Only show old elements if not in new session-based UI mode
+    if (UI_MODE === 'unknown') {
+      const loginView = document.getElementById('adminLoginView');
+      const appView = document.getElementById('adminAppView');
+      if (loginView) loginView.style.display = 'none';
+      if (appView) appView.style.display = 'block';
 
-    if (loginView) loginView.style.display = 'none';
-    if (appView) appView.style.display = 'block';
-
-    // Optional: Update UI with user email
-    const userDisplay = document.getElementById('adminUserEmail');
-    if (userDisplay) {
-      userDisplay.textContent = userEmail;
+      const userDisplay = document.getElementById('adminUserEmail');
+      if (userDisplay) {
+        userDisplay.textContent = userEmail;
+      }
     }
   }
 
   /**
    * Show access denied view
+   * DEPRECATED: Use enterSignedOutState() instead
    * @param {string} userEmail - User email that was denied access
    */
   showAccessDeniedView(userEmail) {
-    console.log('[ADMIN] showAccessDeniedView:', userEmail);
-    const loginView = document.getElementById('adminLoginView');
-    const appView = document.getElementById('adminAppView');
+    console.warn('[ADMIN] showAccessDeniedView called (deprecated - use enterSignedOutState)');
+    // Only show old elements if not in new session-based UI mode
+    if (UI_MODE === 'unknown') {
+      const loginView = document.getElementById('adminLoginView');
+      const appView = document.getElementById('adminAppView');
 
-    if (loginView) {
-      loginView.style.display = 'block';
-      loginView.innerHTML = `
-        <div style="
-          padding: 40px;
-          background: white;
-          border-radius: 8px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-          max-width: 400px;
-          margin: 0 auto;
-          text-align: center;
-        ">
-          <h2 style="color: #d32f2f; margin-bottom: 16px;">Access Denied</h2>
-          <p style="color: #666; margin-bottom: 16px;">
-            Your email <strong>${userEmail}</strong> does not have admin access.
-          </p>
-          <button
-            id="adminSignOutBtn"
-            style="
-              background: #d32f2f;
-              color: white;
-              border: none;
-              padding: 12px 24px;
-              border-radius: 4px;
-              cursor: pointer;
-              font-size: 14px;
-            "
-          >
-            Sign Out
-          </button>
-        </div>
-      `;
+      if (loginView) {
+        loginView.style.display = 'block';
+        loginView.innerHTML = `
+          <div style="
+            padding: 40px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            max-width: 400px;
+            margin: 0 auto;
+            text-align: center;
+          ">
+            <h2 style="color: #d32f2f; margin-bottom: 16px;">Access Denied</h2>
+            <p style="color: #666; margin-bottom: 16px;">
+              Your email <strong>${userEmail}</strong> does not have admin access.
+            </p>
+            <button
+              id="adminSignOutBtn"
+              style="
+                background: #d32f2f;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+              "
+            >
+              Sign Out
+            </button>
+          </div>
+        `;
 
-      const signOutBtn = document.getElementById('adminSignOutBtn');
-      if (signOutBtn) {
-        signOutBtn.addEventListener('click', async () => {
-          await this.signOut();
-          // Auth state change will trigger re-render
-        });
+        const signOutBtn = document.getElementById('adminSignOutBtn');
+        if (signOutBtn) {
+          signOutBtn.addEventListener('click', async () => {
+            await this.signOut();
+          });
+        }
       }
-    }
 
-    if (appView) appView.style.display = 'none';
+      if (appView) appView.style.display = 'none';
+    }
   }
 
   /**
    * Show error view
+   * DEPRECATED: Use enterSignedOutState() instead
    * @param {string} message - Error message
    */
   showErrorView(message) {
-    console.log('[ADMIN] showErrorView:', message);
-    const loginView = document.getElementById('adminLoginView');
-    const appView = document.getElementById('adminAppView');
+    console.warn('[ADMIN] showErrorView called (deprecated - use enterSignedOutState)');
+    // Only show old elements if not in new session-based UI mode
+    if (UI_MODE === 'unknown') {
+      const loginView = document.getElementById('adminLoginView');
+      const appView = document.getElementById('adminAppView');
 
-    if (loginView) {
-      loginView.style.display = 'block';
-      loginView.innerHTML = `
-        <div style="
-          padding: 40px;
-          background: white;
-          border-radius: 8px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-          max-width: 400px;
-          margin: 0 auto;
-          text-align: center;
-        ">
-          <h2 style="color: #d32f2f; margin-bottom: 16px;">Error</h2>
-          <p style="color: #666; margin-bottom: 16px;">
-            ${message || 'An unexpected error occurred.'}
-          </p>
-          <button
-            onclick="location.reload()"
-            style="
-              background: #2196f3;
-              color: white;
-              border: none;
-              padding: 12px 24px;
-              border-radius: 4px;
-              cursor: pointer;
-              font-size: 14px;
-            "
-          >
-            Reload Page
-          </button>
-        </div>
-      `;
+      if (loginView) {
+        loginView.style.display = 'block';
+        loginView.innerHTML = `
+          <div style="
+            padding: 40px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            max-width: 400px;
+            margin: 0 auto;
+            text-align: center;
+          ">
+            <h2 style="color: #d32f2f; margin-bottom: 16px;">Error</h2>
+            <p style="color: #666; margin-bottom: 16px;">
+              ${message || 'An unexpected error occurred.'}
+            </p>
+            <button
+              onclick="location.reload()"
+              style="
+                background: #2196f3;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+              "
+            >
+              Reload Page
+            </button>
+          </div>
+        `;
+      }
+
+      if (appView) appView.style.display = 'none';
     }
-
-    if (appView) appView.style.display = 'none';
   }
 }
 
@@ -557,18 +595,35 @@ class StageControlModule {
         const card = document.createElement('div');
         card.className = 'stage-card';
         card.id = `stage-card-${stageNum}`;
+        card.setAttribute('data-stage-card', stageNum);
         card.style.borderLeft = `4px solid ${borderColor}`;
         card.innerHTML = `
           <div class="stage-card-header">
             <div class="stage-card-title">Stage ${stageNum}</div>
             <div class="stage-card-toggle">
-              <button
-                class="toggle-switch ${isEnabled ? 'enabled' : ''}"
-                data-stage="${stageNum}"
-                data-enabled="${isEnabled}"
-                title="Toggle stage enabled/disabled"
-              ></button>
-              <span class="stage-status ${statusClass}">${statusText}</span>
+              <label class="toggle-switch" style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+                <input
+                  type="checkbox"
+                  class="stage-toggle"
+                  data-stage="${stageNum}"
+                  ${isEnabled ? "checked" : ""}
+                  style="position:absolute; opacity:0; width:0; height:0;"
+                />
+                <span class="toggle-slider"
+                      style="width:46px; height:24px; border-radius:999px; background:${isEnabled ? '#2ecc71' : '#ccc'};
+                             position:relative; display:inline-block; transition:all .2s;">
+                  <span class="toggle-knob"
+                        style="width:20px; height:20px; border-radius:999px; background:white; position:absolute; top:2px;
+                               left:${isEnabled ? '24px' : '2px'}; transition:all .2s;"></span>
+                </span>
+
+                <span class="toggle-label ${isEnabled ? 'live' : 'disabled'}"
+                      style="padding:2px 8px; border-radius:6px; font-size:12px;
+                             background:${isEnabled ? '#dff5e7' : '#f8d7da'};
+                             color:${isEnabled ? '#1b7f3a' : '#a61b2b'};">
+                  ${isEnabled ? "Live" : "Disabled"}
+                </span>
+              </label>
             </div>
           </div>
 
@@ -660,21 +715,107 @@ class StageControlModule {
         updated_by: 'admin_panel'
       };
 
-      const { data, error } = await this.supabase
-        .from('stage_control')
-        .upsert(payload, { onConflict: 'environment,stage' });
+      console.log('[ADMIN] updateStageEnabled inputs:', { stageNum, enabled, STAGE_ENV: this.STAGE_ENV, hostname: window.location.hostname });
+      console.log('[ADMIN] updateStageEnabled payload:', payload);
 
-      if (error) {
-        console.error(`[ADMIN] updateStageEnabled error:`, error);
-        return { success: false, error: error.message };
+      console.log('[ADMIN] updateStageEnabled BEFORE upsert', {
+        stageNum,
+        enabled,
+        env: this.STAGE_ENV,
+        payload
+      });
+
+      let res;
+      try {
+        res = await this.supabase
+          .from('stage_control')
+          .upsert(payload, { onConflict: 'environment,stage' })
+          .select()
+          .single();
+      } catch (e) {
+        console.error('[ADMIN] updateStageEnabled THROW during upsert:', e);
+        return { success: false, error: e.message || String(e) };
       }
 
-      console.log(`[ADMIN] Stage ${stageNum} updated successfully`);
-      return { success: true, error: null };
+      console.log('[ADMIN] updateStageEnabled AFTER upsert', {
+        status: res?.status,
+        statusText: res?.statusText,
+        error: res?.error,
+        data: res?.data
+      });
+
+      if (res.error) {
+        console.error('[ADMIN] updateStageEnabled error:', res.error);
+        return { success: false, error: res.error.message };
+      }
+
+      // Success: apply UI update for this stage card
+      this.applyStageEnabledUI(stageNum, enabled);
+
+      return { success: true, row: res.data };
     } catch (err) {
       console.error(`[ADMIN] updateStageEnabled exception:`, err);
       return { success: false, error: err.message };
     }
+  }
+
+  /**
+   * Update UI for a single stage card (checkbox, pill, styling) after state change
+   * @param {number} stageNum - Stage number
+   * @param {boolean} enabled - New enabled state
+   */
+  applyStageEnabledUI(stageNum, enabled) {
+    const card = document.querySelector(`[data-stage-card="${stageNum}"]`)
+              || document.querySelector(`[data-stage="${stageNum}"]`)
+              || document.getElementById(`stage-card-${stageNum}`);
+
+    if (!card) {
+      console.warn('[ADMIN] applyStageEnabledUI: card not found for stage', stageNum);
+      return;
+    }
+
+    // 1) Update checkbox state
+    const cb = card.querySelector('input[type="checkbox"][data-stage]');
+    if (cb) cb.checked = !!enabled;
+
+    // 2) Update status pill (Live / Disabled)
+    const pill =
+      card.querySelector('.stage-status') ||
+      card.querySelector('.status-pill') ||
+      card.querySelector('[data-stage-status]') ||
+      card.querySelector('.toggle-label');
+
+    if (pill) {
+      pill.textContent = enabled ? 'Live' : 'Disabled';
+      pill.classList.toggle('live', !!enabled);
+      pill.classList.toggle('disabled', !enabled);
+    }
+
+    // 3) Update card styling (border color and classes)
+    const borderColor = enabled ? '#4caf50' : '#f48fb1';
+    card.style.borderLeft = `4px solid ${borderColor}`;
+    card.classList.toggle('stage-disabled', !enabled);
+    card.classList.toggle('stage-enabled', !!enabled);
+
+    // 4) Update slider background color if it exists
+    const slider = card.querySelector('.toggle-slider');
+    if (slider) {
+      slider.style.background = enabled ? '#2ecc71' : '#ccc';
+    }
+
+    // 5) Update slider knob position if it exists
+    const knob = card.querySelector('.toggle-knob');
+    if (knob) {
+      knob.style.left = enabled ? '24px' : '2px';
+    }
+
+    // 6) Update pill background color
+    if (pill) {
+      pill.style.background = enabled ? '#dff5e7' : '#f8d7da';
+      pill.style.color = enabled ? '#1b7f3a' : '#a61b2b';
+    }
+
+    console.log(`[ADMIN] applyStageEnabledUI: stage ${stageNum} UI updated to ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   /**
@@ -769,131 +910,115 @@ class StageControlModule {
     try {
       console.log('[ADMIN] Attaching stage card event handlers... (isLocked=' + isLocked + ')');
 
-      // Toggle switches
-      const toggles = document.querySelectorAll('.toggle-switch');
-      toggles.forEach(toggle => {
-        if (isLocked) {
-          toggle.disabled = true;
-          toggle.style.cursor = 'not-allowed';
-          toggle.style.opacity = '0.5';
-          toggle.title = 'Write operations locked. Check banner above.';
-        }
+      // --- FIX: Define notesButtons early to prevent crash ---
+      const stageGridEl = document.getElementById('stageGrid');
+      const notesButtons = stageGridEl
+        ? stageGridEl.querySelectorAll('button.update-notes-btn, button[data-action="update-notes"]')
+        : [];
+      console.log('[ADMIN] Found ' + notesButtons.length + ' notes buttons');
+      // -------------------------------------------------------
 
-        toggle.addEventListener('click', async (e) => {
-          e.preventDefault();
-          
+      // ========================================================================
+      // STAGE TOGGLE: Bind delegated handler to #stageGrid for checkboxes
+      // ========================================================================
+      const stageGrid = document.getElementById('stageGrid');
+      if (stageGrid && stageGrid.dataset.toggleBound !== '1') {
+        stageGrid.dataset.toggleBound = '1';
+        console.log('[ADMIN] Binding delegated toggle handler to #stageGrid (first time)');
+        
+        stageGrid.addEventListener('change', async (e) => {
+          const el = e.target;
+
+          // Only react to the checkbox we render
+          if (!(el instanceof HTMLInputElement)) return;
+          if (el.type !== 'checkbox') return;
+          if (!el.dataset || !el.dataset.stage) return;
+
+          const stageNum = parseInt(el.dataset.stage, 10);
+          const enabled = !!el.checked;
+
+          console.log(`[ADMIN] Toggle change captured: stage ${stageNum} => ${enabled}`);
+
           if (isLocked) {
             showStatusMessage('✗ Write locked: Localhost pointing at production.');
-            return;
-          }
-          
-          const stageNum = parseInt(toggle.dataset.stage);
-          
-          // Prevent double-clicks by checking saving flag
-          if (toggle.dataset.saving === '1') {
-            console.log(`[ADMIN] Stage ${stageNum} update already in progress, ignoring click`);
+            el.checked = !enabled; // revert
             return;
           }
 
-          // Get CURRENT state from DOM, not stale data attribute
-          const previousEnabled = toggle.dataset.enabled === 'true';
-          const newEnabled = !previousEnabled;
-
-          // Find the card and UI elements
-          const card = document.getElementById(`stage-card-${stageNum}`);
-          if (!card) {
-            console.warn(`[ADMIN] Card not found for stage ${stageNum}`);
+          // Guard: prevent double-clicks while saving
+          if (el.dataset.saving === '1') {
+            console.log(`[ADMIN] Stage ${stageNum} already saving, ignoring click`);
             return;
           }
 
-          const badge = card.querySelector('.stage-status');
+          const previousState = !enabled; // Store the previous state for rollback
 
           try {
             // Mark as saving to prevent double-clicks
-            toggle.dataset.saving = '1';
-            toggle.disabled = true;
-
-            // Step 1: Optimistic UI update - immediately show new state
-            console.log(`[ADMIN] Optimistic update: stage ${stageNum} to ${newEnabled}`);
-            toggle.dataset.enabled = newEnabled;
-            toggle.classList.toggle('enabled', newEnabled);
-
-            if (badge) {
-              const newStatusText = newEnabled ? 'Live' : 'Disabled';
-              const newStatusClass = newEnabled ? 'live' : 'disabled';
-              badge.textContent = newStatusText;
-              badge.className = `stage-status ${newStatusClass}`;
-            }
-
-            // Update card border color
-            const newBorderColor = newEnabled ? '#4caf50' : '#f48fb1';
-            card.style.borderLeft = `4px solid ${newBorderColor}`;
+            el.dataset.saving = '1';
+            el.disabled = true;
 
             showStatusMessage(`Updating stage ${stageNum}...`);
+            
+            // Perform database update
+            const result = await this.updateStageEnabled(stageNum, enabled);
 
-            // Step 2: Perform database update
-            const result = await this.updateStageEnabled(stageNum, newEnabled);
-
-            // Step 3: Handle result
             if (result.success) {
               console.log(`[ADMIN] Stage ${stageNum} update successful`);
-              
-              // Update in-memory stage object
-              const stageIndex = this.stages.findIndex(s => s.stage === stageNum);
-              if (stageIndex >= 0) {
-                this.stages[stageIndex].is_enabled = newEnabled;
-                this.stages[stageIndex].enabled_at = newEnabled ? new Date().toISOString() : null;
-                this.stages[stageIndex].disabled_at = !newEnabled ? new Date().toISOString() : null;
-                this.stages[stageIndex].updated_at = new Date().toISOString();
-                this.stages[stageIndex].updated_by = 'admin_panel';
-                console.log(`[ADMIN] Updated in-memory stage ${stageNum}:`, this.stages[stageIndex]);
-              }
-              
-              showStatusMessage(`✓ Stage ${stageNum} ${newEnabled ? 'enabled' : 'disabled'}`);
+              console.log("[ADMIN] updateStageEnabled success — UI state preserved");
+              showStatusMessage(`✓ Stage ${stageNum} ${enabled ? 'enabled' : 'disabled'}`);
             } else {
-              // Revert on failure
-              console.error(`[ADMIN] Update failed, reverting stage ${stageNum}`);
-              toggle.dataset.enabled = previousEnabled;
-              toggle.classList.toggle('enabled', previousEnabled);
-
-              if (badge) {
-                const revertStatusText = previousEnabled ? 'Live' : 'Disabled';
-                const revertStatusClass = previousEnabled ? 'live' : 'disabled';
-                badge.textContent = revertStatusText;
-                badge.className = `stage-status ${revertStatusClass}`;
-              }
-
-              const revertBorderColor = previousEnabled ? '#4caf50' : '#f48fb1';
-              card.style.borderLeft = `4px solid ${revertBorderColor}`;
-
+              console.error(`[ADMIN] Update failed: ${result.error}`);
               showStatusMessage(`✗ Error: ${result.error}`);
+              // Revert checkbox on failure
+              el.checked = previousState;
             }
-          } catch (handlerErr) {
-            console.error(`[ADMIN] Toggle handler exception:`, handlerErr);
-            // Revert on exception
-            toggle.dataset.enabled = previousEnabled;
-            toggle.classList.toggle('enabled', previousEnabled);
-            if (badge) {
-              const revertStatusText = previousEnabled ? 'Live' : 'Disabled';
-              const revertStatusClass = previousEnabled ? 'live' : 'disabled';
-              badge.textContent = revertStatusText;
-              badge.className = `stage-status ${revertStatusClass}`;
-            }
-            const revertBorderColor = previousEnabled ? '#4caf50' : '#f48fb1';
-            card.style.borderLeft = `4px solid ${revertBorderColor}`;
-            showStatusMessage(`✗ Error: ${handlerErr.message}`);
+          } catch (err) {
+            console.error('[ADMIN] Toggle handler error:', err);
+            showStatusMessage(`✗ Error: ${err.message}`);
+            // Rollback UI so it doesn't lie
+            el.checked = previousState;
           } finally {
-            // ALWAYS re-enable the toggle and clear saving flag
-            toggle.disabled = false;
-            toggle.dataset.saving = '0';
-            console.log(`[ADMIN] Toggle ${stageNum} re-enabled (saving flag cleared)`);
+            // ALWAYS clear saving flag and re-enable, even on error
+            el.dataset.saving = '0';
+            el.disabled = false;
+            console.log(`[ADMIN] Toggle ${stageNum} unlocked (saving flag cleared)`);
           }
         });
-      });
 
-      // Notes update buttons
-      const notesButtons = document.querySelectorAll('.update-notes-btn');
-      notesButtons.forEach(button => {
+        console.log('[ADMIN] Delegated toggle handler bound to #stageGrid');
+      } else if (stageGrid && stageGrid.dataset.toggleBound === '1') {
+        console.log('[ADMIN] Toggle handler already bound, skipping duplicate bind');
+      } else {
+        console.warn('[ADMIN] #stageGrid not found, cannot bind toggle handler');
+      }
+
+      // Apply isLocked styling to all toggles (disable the checkboxes and the labels)
+      if (isLocked) {
+        const toggles = document.querySelectorAll('input.stage-toggle[type="checkbox"]');
+        toggles.forEach(toggle => {
+          toggle.disabled = true;
+        });
+        
+        const labels = document.querySelectorAll('label.toggle-switch');
+        labels.forEach(label => {
+          label.style.cursor = 'not-allowed';
+          label.style.opacity = '0.5';
+          label.title = 'Write operations locked. Check banner above.';
+        });
+      }
+
+      // ========================================================================
+      // NOTES BUTTONS: Bind individually (or use delegation if preferred)
+      // ========================================================================
+      if (notesButtons && notesButtons.length > 0) {
+        notesButtons.forEach(button => {
+          // Guard: prevent duplicate event listeners
+          if (button.dataset.bound === '1') {
+            return;
+          }
+          button.dataset.bound = '1';
+
         if (isLocked) {
           button.disabled = true;
           button.style.cursor = 'not-allowed';
@@ -923,6 +1048,9 @@ class StageControlModule {
           }
         });
       });
+      } else {
+        console.log('[ADMIN] No notes buttons found or notesButtons is empty');
+      }
 
       console.log('[ADMIN] Event handlers attached successfully');
     } catch (err) {
@@ -1010,37 +1138,250 @@ function setStatus(text) {
 }
 
 /**
+ * Locate DOM containers robustly with fallbacks
+ * Returns { loginForm, loginContainer, appContainer }
+ */
+function getContainers() {
+  const loginForm = document.getElementById('admin-login-form') 
+    || document.querySelector('#admin-login-form');
+
+  const appContainer =
+    document.getElementById('adminAppView') ||
+    document.getElementById('adminApp') ||
+    document.getElementById('app') ||
+    document.querySelector('[data-admin-app]') ||
+    document.querySelector('#adminAppContainer');
+
+  const loginContainer =
+    document.getElementById('adminLoginView') ||
+    document.getElementById('adminLoginContainer') ||
+    document.querySelector('[data-admin-login]') ||
+    (loginForm ? loginForm.closest('.admin-login-container') : null);
+
+  console.log('[ADMIN] getContainers():', {
+    loginForm: !!loginForm,
+    loginContainer: loginContainer?.id || 'not-found',
+    appContainer: appContainer?.id || 'not-found'
+  });
+
+  return { loginForm, loginContainer, appContainer };
+}
+
+/**
+ * Show login view - hide admin view
+ * Clean show/hide pattern, no DOM rebuilding
+ */
+function showLoginView() {
+  console.log('[ADMIN] showLoginView()');
+  const { loginContainer, appContainer } = getContainers();
+  
+  if (loginContainer) {
+    loginContainer.style.display = 'block';
+    loginContainer.removeAttribute('aria-hidden');
+  }
+  if (appContainer) {
+    appContainer.style.display = 'none';
+    appContainer.setAttribute('aria-hidden', 'true');
+  }
+}
+
+/**
+ * Show admin view - hide login view
+ * Clean show/hide pattern, no DOM rebuilding
+ */
+function showAdminView() {
+  console.log('[ADMIN] showAdminView()');
+  const { loginContainer, appContainer } = getContainers();
+  
+  if (loginContainer) {
+    loginContainer.style.display = 'none';
+    loginContainer.setAttribute('aria-hidden', 'true');
+  }
+  if (appContainer) {
+    appContainer.style.display = 'block';
+    appContainer.removeAttribute('aria-hidden');
+  }
+}
+
+/**
+ * Enter signed-out state: clear session and show login form
+ * Uses existing #adminLoginView container from HTML
+ * IMPORTANT: Do NOT load any admin data in this function
+ */
+function enterSignedOutState() {
+  console.log('[ADMIN] enterSignedOutState()');
+  
+  // Guard: If session exists, do NOT show login UI
+  if (window.UI_MODE === 'signed_in') {
+    console.warn('[ADMIN] enterSignedOutState blocked: already signed in');
+    return;
+  }
+  
+  setUIMode('signed_out');
+  CURRENT_SESSION = null;
+  
+  // Show login view, hide app view
+  showLoginView();
+  
+  // Wire the login form that's already in the HTML
+  wireLoginForm();
+}
+
+/**
+ * Enter signed-in state: set session and render dashboard + load data
+ * Uses existing #adminAppView container from HTML
+ * SIMPLIFIED: Just show the admin view (no DOM creation/detection)
+ * @param {object} session - Supabase session object
+ */
+async function enterSignedInState(session) {
+  // Guard: prevent duplicate re-init loops from auth listener
+  if (window.__ADMIN_BOOTED__) {
+    console.log("[ADMIN] enterSignedInState(): already booted, skipping re-init");
+    return;
+  }
+  if (window.__ADMIN_BOOTING__) {
+    console.log("[ADMIN] enterSignedInState(): boot already in progress, skipping");
+    return;
+  }
+  window.__ADMIN_BOOTING__ = true;
+
+  try {
+    console.log('[ADMIN] enterSignedInState() DOM check start');
+    
+    const { appContainer, loginContainer } = getContainers();
+    console.log('[ADMIN] enterSignedInState() using appContainer id =', appContainer?.id);
+    
+    if (!appContainer) {
+      console.error('[ADMIN] ERROR: No admin app container found. Admin UI cannot render.');
+      setStatus('Error: Admin container not found.');
+      return;
+    }
+    
+    // Show admin view, hide login view
+    showAdminView();
+    
+    setUIMode('signed_in');
+    CURRENT_SESSION = session;
+    
+    // Check admin access first
+    const adminAccess = await checkAdminAccess();
+    if (!adminAccess) {
+      setStatus('Not authorized. You do not have admin access.');
+      console.log('[ADMIN] Access denied - signing out');
+      setTimeout(async () => {
+        await supabase.auth.signOut();
+      }, 2000);
+      return;
+    }
+    
+    setStatus('Access granted.');
+    const userEmail = session?.user?.email || 'Unknown';
+    
+    // Render dashboard shell into existing appContainer
+    if (appContainer) {
+      renderAdminShell(appContainer, userEmail);
+    }
+    
+    // Then load admin data
+    await initializeAdminData();
+
+    // Mark boot complete
+    window.__ADMIN_BOOTED__ = true;
+    window.__ADMIN_BOOTING__ = false;
+    console.log('[ADMIN] enterSignedInState() boot complete');
+  } catch (err) {
+    console.error('[ADMIN] enterSignedInState() error:', err);
+    window.__ADMIN_BOOTING__ = false;
+  }
+}
+
+/**
+ * Initialize admin dashboard data (stage control, solver counts, etc.)
+ * GUARD: Only runs if session exists and UI_MODE is signed_in
+ */
+async function initializeAdminData() {
+  if (!CURRENT_SESSION) {
+    console.warn('[ADMIN] Blocked initializeAdminData: no session');
+    return;
+  }
+  if (UI_MODE !== 'signed_in') {
+    console.warn('[ADMIN] Blocked initializeAdminData: UI_MODE', UI_MODE);
+    return;
+  }
+  
+  console.log('[ADMIN] initializeAdminData()');
+  // Data loading will happen when user clicks Stage Control tab
+}
+
+/**
  * Sets up auth state change listener
  * Automatically re-renders UI based on auth events
  */
 function setupAuthStateListener() {
-  supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log('Auth state changed:', event);
+  // Unsubscribe from previous listener if it exists
+  if (AUTH_UNSUB) {
+    AUTH_UNSUB();
+    console.log('[ADMIN] Previous auth listener unsubscribed');
+  }
+  
+  AUTH_UNSUB = supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('[ADMIN] Auth state changed:', event, 'session:', !!session);
 
-    if (event === 'SIGNED_IN' && session) {
-      // User just signed in - verify admin access and render dashboard
-      const adminAccess = await checkAdminAccess();
-      
-      if (adminAccess) {
-        setStatus('Access granted.');
-        const userEmail = session.user?.email || 'Unknown';
-        renderAdminShell(userEmail);
+    // Only init on SIGNED_IN or INITIAL_SESSION, and only if not already booted
+    if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+      if (!window.__ADMIN_BOOTED__ && !window.__ADMIN_BOOTING__) {
+        console.log('[ADMIN] Auth listener: session exists, initializing signed-in state');
+        window.UI_MODE = 'signed_in';
+        setUIMode('signed_in');
+        await enterSignedInState(session);
       } else {
-        // Not admin - deny access and sign out immediately
-        setStatus('Not authorized. You do not have admin access.');
-        console.log('[ADMIN] Access denied - signing out');
-        
-        setTimeout(async () => {
-          await supabase.auth.signOut();
-          // SIGNED_OUT event will be triggered and handled below
-        }, 2000);
+        console.log('[ADMIN] Auth event:', event, 'session ok; already booted -> no re-init');
       }
-    } else if (event === 'SIGNED_OUT') {
-      // User signed out - render login form
-      setStatus('');
-      renderLoginForm();
+    } else if (!session) {
+      console.log('[ADMIN] Auth listener: no session, entering signed-out state');
+      window.UI_MODE = 'signed_out';
+      setUIMode('signed_out');
+      await enterSignedOutState();
     }
   });
+}
+
+/**
+ * Hard sign-out for admin: clear auth, storage, and reload
+ */
+async function hardAdminSignOut() {
+  console.log('[ADMIN] hardAdminSignOut initiated');
+  
+  try {
+    // Step 1: Sign out from Supabase
+    try {
+      await supabase.auth.signOut();
+      console.log('[ADMIN] supabase.auth.signOut() complete');
+    } catch (err) {
+      console.error('[ADMIN] Error during supabase.auth.signOut():', err);
+    }
+
+    // Step 2: Clear storage
+    console.log('[ADMIN] clearing storage');
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn('[ADMIN] Error clearing storage:', e);
+    }
+
+    // Step 3: Reset boot flags so re-login will re-initialize
+    window.__ADMIN_BOOTED__ = false;
+    window.__ADMIN_BOOTING__ = false;
+    console.log('[ADMIN] boot flags reset for re-login');
+
+    // Step 4: Return to signed-out state (show login view)
+    console.log('[ADMIN] entering signed-out state');
+    enterSignedOutState();
+  } catch (err) {
+    console.error('[ADMIN] Unexpected error in hardAdminSignOut:', err);
+    enterSignedOutState();
+  }
 }
 
 /**
@@ -1088,31 +1429,41 @@ async function checkAdminAccess() {
 }
 
 /**
- * Renders the login form and attaches event handlers
+ * Wires the login form submit handler
+ * Called via requestAnimationFrame to ensure DOM is ready
  */
-function renderLoginForm() {
-  setStatus('');
-  
-  const appContainer = document.getElementById('app');
-  if (!appContainer) return;
-
-  // The HTML form is already in admin.html, just attach handlers
+function wireLoginForm() {
   const form = document.getElementById('admin-login-form');
+  
+  // Debug: log form detection info
+  console.log('[ADMIN] wireLoginForm debug:', {
+    formViaDOMId: !!form,
+    formViaCSSSelector: !!document.querySelector('#admin-login-form')
+  });
+  
   if (!form) {
-    console.warn('renderLoginForm: #admin-login-form not found in DOM');
+    console.warn('[ADMIN] wireLoginForm: form not found via getElementById', {
+      hasForm: false,
+      idsPresent: !!document.querySelector('#admin-login-form')
+    });
     return;
   }
 
-  // Clear any previous handlers by cloning
-  const newForm = form.cloneNode(true);
-  form.parentNode.replaceChild(newForm, form);
+  // Prevent double-wiring
+  if (form.dataset.wired === '1') {
+    console.log('[ADMIN] Form already wired, skipping');
+    return;
+  }
 
-  // Attach submit handler
-  newForm.addEventListener('submit', async (e) => {
+  // Mark as wired
+  form.dataset.wired = '1';
+
+  // Attach submit handler to form
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const email = newForm.querySelector('#admin-email').value;
-    const password = newForm.querySelector('#admin-password').value;
+    const email = form.querySelector('input[type="email"]').value;
+    const password = form.querySelector('input[type="password"]').value;
 
     if (!email || !password) {
       setStatus('Email and password are required.');
@@ -1149,7 +1500,7 @@ function renderLoginForm() {
         // Sign out after 2 seconds
         setTimeout(async () => {
           await supabase.auth.signOut();
-          renderLoginForm();
+          // Auth listener will handle state change
         }, 2000);
         
         return;
@@ -1157,22 +1508,47 @@ function renderLoginForm() {
 
       setStatus('Access granted. Loading dashboard…');
 
-      // Render dashboard
-      renderAdminShell(data.user.email);
+      // Auth listener will handle session state change and call enterSignedInState
+      // Just wait for that to occur
     } catch (error) {
       console.error('Unexpected login error:', error);
       setStatus(`Unexpected error: ${error.message}`);
     }
   });
+
+  console.log('[ADMIN] Login form handlers wired successfully');
+}
+
+/**
+ * Renders the login form overlay
+ */
+/**
+ * DISABLED: Overlay login form
+ * We now use the existing #adminLoginView container from HTML instead
+ * This function is kept for reference but should NOT be called
+ */
+function renderLoginForm() {
+  console.warn('[ADMIN] renderLoginForm (overlay) called - but we use #adminLoginView now. This should not be called.');
+  // Function disabled - do not append to document.body
 }
 
 /**
  * Renders the admin shell with tab navigation and sign out button
+ * Writes to the provided container instead of #app
+ * @param {Element} container - Container element to render into
  * @param {string} userEmail - The logged-in user's email
  */
-function renderAdminShell(userEmail) {
-  const appContainer = document.getElementById('app');
-  if (!appContainer) return;
+function renderAdminShell(container, userEmail) {
+  // Guard: Only render dashboard when signed in
+  if (UI_MODE !== 'signed_in') {
+    console.warn('[ADMIN] Blocked renderAdminShell: UI_MODE', UI_MODE);
+    return;
+  }
+
+  if (!container) {
+    console.warn('[ADMIN] renderAdminShell: no container provided');
+    return;
+  }
 
   const tabs = [
     { id: 'stage-control', label: 'Stage Control' },
@@ -1182,7 +1558,7 @@ function renderAdminShell(userEmail) {
   ];
 
   // Render shell with tabs and sign out button
-  appContainer.innerHTML = `
+  container.innerHTML = `
     <div style="font-family: system-ui, -apple-system, sans-serif;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #ddd; padding-bottom: 10px;">
         <h1 style="margin: 0;">Admin Dashboard</h1>
@@ -1236,17 +1612,13 @@ function renderAdminShell(userEmail) {
   `;
 
   // Attach sign out handler
-  const signoutBtn = appContainer.querySelector('#admin-signout-btn');
+  const signoutBtn = container.querySelector('#admin-signout-btn');
   if (signoutBtn) {
-    signoutBtn.addEventListener('click', async () => {
-      setStatus('Signing out…');
-      await supabase.auth.signOut();
-      renderLoginForm();
-    });
+    signoutBtn.addEventListener('click', hardAdminSignOut);
   }
 
   // Add tab click handlers
-  const tabButtons = appContainer.querySelectorAll('.admin-tab');
+  const tabButtons = container.querySelectorAll('.admin-tab');
   tabButtons.forEach(button => {
     button.addEventListener('click', async () => {
       const tabId = button.dataset.tabId;
@@ -1273,6 +1645,12 @@ function renderAdminShell(userEmail) {
  * @param {string} tabId - The tab identifier
  */
 async function renderTabContent(tabId) {
+  // Guard: Prevent data loading if not signed in
+  if (!CURRENT_SESSION) {
+    console.warn('[ADMIN] renderTabContent blocked: no active session');
+    return;
+  }
+
   const contentContainer = document.getElementById('admin-content');
   if (!contentContainer) return;
 
@@ -1483,54 +1861,68 @@ async function renderTabContent(tabId) {
 }
 
 async function initAdmin() {
+  console.log('[ADMIN] AdminApp initialize called');
+  
   try {
-    // Set up auth state listener once at startup
-    setupAuthStateListener();
+    // Wire sign-out button once at startup
+    const adminSignOutBtn = document.getElementById('btnAdminSignOut');
+    if (adminSignOutBtn) {
+      adminSignOutBtn.addEventListener('click', hardAdminSignOut);
+      console.log('[ADMIN] hardAdminSignOut handler wired to #btnAdminSignOut');
+    } else {
+      console.warn('[ADMIN] #btnAdminSignOut not found in DOM');
+    }
 
     setStatus('Checking session…');
 
-    // Check for active session first
-    const { data: { user } } = await supabase.auth.getUser();
+    // --- BOOTSTRAP AUTH STATE ON PAGE LOAD ---
+    // IMPORTANT: Explicit session check on load before showing login
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    console.log('[ADMIN] Bootstrap: getSession on load:', { error: sessionError, session: !!session });
 
-    if (!user) {
-      // No active session - show login form
-      setStatus('');
-      renderLoginForm();
-      return;
+    if (sessionError) {
+      console.warn('[ADMIN] getSession error:', sessionError);
     }
 
-    setStatus('Checking admin privileges…');
-
-    // User is logged in - check if they are an admin
-    const adminStatus = await checkAdminAccess();
-
-    if (!adminStatus) {
-      // Logged in but not admin - sign out and show login form
-      setStatus('Not authorized. You do not have admin access.');
-      console.log('[ADMIN] Access denied at init - signing out');
-      
-      setTimeout(async () => {
-        await supabase.auth.signOut();
-        // SIGNED_OUT event will be triggered and handled by listener
-      }, 2000);
-      
-      return;
+    if (session) {
+      // Session exists - enter signed-in state
+      console.log('[ADMIN] Session exists on load, entering signed-in state');
+      window.UI_MODE = 'signed_in';
+      setUIMode('signed_in');
+      await enterSignedInState(session);
+    } else {
+      // No session - show login form
+      console.log('[ADMIN] No session on load, showing login');
+      window.UI_MODE = 'signed_out';
+      setUIMode('signed_out');
+      showLoginView();
+      wireLoginForm();
     }
 
-    setStatus('Access granted.');
-
-    // User is authenticated and is admin - render admin shell
-    const userEmail = user?.email || 'Unknown';
-    renderAdminShell(userEmail);
+    // Set up auth listener to handle state changes
+    // (but it should not fight the bootstrap above)
+    setupAuthStateListener();
   } catch (error) {
-    console.error('Admin init error:', error);
+    console.error('[ADMIN] Admin init error:', error);
     setStatus('Error initializing admin panel.');
-    renderLoginForm();
+    window.UI_MODE = 'signed_out';
+    setUIMode('signed_out');
+    showLoginView();
   }
 }
 
-// Initialize when DOM is ready
+// ============================================================================
+// BOOTSTRAP: Initialize admin app when DOM is ready
+// ============================================================================
 // GUARD: Only initialize if in admin.html context
 if (isAdminContext()) {
-  document.addEventListener('DOMContentLoaded', initAdmin);
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      console.log('[ADMIN] DOMContentLoaded: Starting admin initialization');
+      initAdmin();
+    } catch (e) {
+      console.error('[ADMIN] DOMContentLoaded crash:', e);
+      setStatus('Fatal error: Admin initialization failed.');
+    }
+  });
 }
