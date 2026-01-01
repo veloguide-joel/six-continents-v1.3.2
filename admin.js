@@ -384,9 +384,16 @@ class StageControlModule {
     const hostname = window.location.hostname;
     const stageEnv = this.STAGE_ENV;
     
-    // Lock writes if: staging ENV is 'prod' AND hostname is NOT production domain
+    // Production domain allowlist
+    const PROD_HOSTS = new Set([
+      "theaccidentalretiree.app",
+      "www.theaccidentalretiree.app",
+      "six-continents-v1-3-2-git-main-joel-goralskis-projects.vercel.app"
+    ]);
+    
+    // Lock writes if: staging ENV is 'prod' AND hostname is NOT in production allowlist
     // Safe to write if: ENV is 'dev' (localhost/Vercel preview) OR on production domain
-    if (stageEnv === 'prod' && hostname !== 'theaccidentalretiree.app') {
+    if (stageEnv === 'prod' && !PROD_HOSTS.has(hostname)) {
       window.__ADMIN_WRITE_LOCKED = true;
       console.warn(`[ADMIN] ⚠️ WRITE LOCKED: STAGE_ENV is 'prod' but hostname is '${hostname}' (not production domain)`);
       console.warn('[ADMIN] This prevents accidental writes to production from staging/preview deployments');
