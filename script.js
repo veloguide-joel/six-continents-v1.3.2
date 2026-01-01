@@ -25,6 +25,19 @@ const app = {
   }
 };
 
+// ===== SIGN-IN TIMEOUT MANAGEMENT =====
+// Module-level variables for robust timeout handling across async callbacks
+let signInTimeoutId = null;
+let signInResolved = false;
+
+function clearSignInTimeout(reason) {
+  if (signInTimeoutId !== null) {
+    clearTimeout(signInTimeoutId);
+    signInTimeoutId = null;
+    console.log(`[AUTH] timeout cleared: ${reason}`);
+  }
+}
+
 // ===== MY PROFILE MODULE =====
 // Stock avatars configuration
 const AVATAR_BASE_URL = 'https://vlcjilzgntxweomnyfgd.supabase.co/storage/v1/object/public/avatars/';
@@ -552,17 +565,8 @@ function wireHeaderAuthUI(user) {
   }
 
   if (signOutBtn) {
-    // Use the ContestApp instance's handleSignOut method if available
-    if (window.contestApp && typeof window.contestApp.handleSignOut === 'function') {
-      signOutBtn.onclick = () => window.contestApp.handleSignOut();
-    } else {
-      // Fallback to direct Supabase signOut
-      signOutBtn.onclick = async () => {
-        console.log('[HEADER] Sign out clicked (fallback)');
-        await supabase.auth.signOut();
-        showLanding();
-      };
-    }
+    // Wire hard sign-out handler (bind exactly once)
+    signOutBtn.onclick = hardSignOut;
     console.log('[HEADER] Sign out button wired');
   } else {
     console.warn('[HEADER] btnSignOut not found in DOM');
@@ -574,6 +578,51 @@ function wireHeaderAuthUI(user) {
     console.log('[HEADER] User label updated');
   } else if (!emailSpan) {
     console.warn('[HEADER] journeyUserEmail span not found in DOM');
+  }
+}
+
+// ===== HARD SIGN-OUT HANDLER =====
+async function hardSignOut() {
+  console.log('[AUTH] Sign out clicked');
+
+  try {
+    // Step 1: Sign out from Supabase
+    try {
+      await supabase.auth.signOut();
+      console.log('[AUTH] supabase.auth.signOut() complete');
+    } catch (err) {
+      console.error('[AUTH] Error during supabase.auth.signOut():', err);
+      // Continue anyway
+    }
+
+    // Step 2: Clear in-memory cached state
+    console.log('[AUTH] clearing memory');
+    currentProfile = null;
+    currentUser = null;
+    currentStage = 1;
+    solvedStages = {};
+    if (window.contestApp) {
+      window.contestApp.currentStage = 1;
+    }
+    if (progressManager) {
+      progressManager.localProgress = {};
+    }
+
+    // Step 3: Clear all storage
+    console.log('[AUTH] clearing storage');
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // Step 4: Force UI to logged-out state
+    console.log('[AUTH] signOut complete');
+    showLanding();
+
+    // Step 5: Reload page
+    console.log('[AUTH] reload after sign out');
+    window.location.reload();
+  } catch (err) {
+    console.error('[AUTH] Unexpected error in hardSignOut:', err);
+    window.location.reload();
   }
 }
 // ===== END HEADER AUTH UI WIRING =====
@@ -1777,6 +1826,33 @@ window.hasAutoStartedGame = false;
 const SUPABASE_URL = window.SUPABASE_URL || 'https://vlcjilzgntxweomnyfgd.supabase.co';
 const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsY2ppbHpnbnR4d2VvbW55ZmdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE5MTM0MzUsImV4cCI6MjA3NzQ4OTQzNX0.MeIJpGfdAGqQwx9t0_Tdog9W-Z1cWX3z4cUffeoQW-c';
 
+/**
+ * ADMIN CHECK AUDIT:
+ * ==================
+ * Current Implementation in script.js (INDEX.HTML ONLY)
+ * 
+ * Function: AdminManager.isAdmin() (line ~1823)
+ * Check Method: Simple email string comparison
+ * Database Query: NONE - uses hardcoded email constant
+ * Expected Value: Email string must exactly match ADMIN_EMAIL constant
+ * Storage: Stored as const ADMIN_EMAIL
+ * 
+ * Current Flow:
+ * 1. User clicks "Play Game" button (line 3340-3350)
+ * 2. Check: supabaseAuth.user.email === ADMIN_EMAIL
+ * 3. If true: calls showAdmin() → displays adminContainer
+ * 4. If false: calls startContestForSignedInUser() → shows game
+ * 
+ * ISSUES WITH CURRENT IMPLEMENTATION:
+ * - No database lookup (hardcoded email only)
+ * - Cannot add/remove admins without code changes
+ * - Not using public.admin_emails table
+ * - Will conflict with new /admin.html approach which queries public.admin_emails
+ * 
+ * NOTE: /admin.html (NEW) uses checkAdminAccess() which queries public.admin_emails table
+ * This is a DUPLICATE admin system that should be consolidated.
+ */
+
 // Admin email for role detection
 const ADMIN_EMAIL = 'hola@theaccidentalretiree.mx';
 
@@ -1819,6 +1895,11 @@ class AdminManager {
     }
 
     // Check if current user is admin
+    // FUNCTION: AdminManager.isAdmin()
+    // MECHANISM: Direct string comparison (NO database lookup)
+    // CONDITION: supabaseAuth.user.email === ADMIN_EMAIL (hardcoded const)
+    // RESULT: Returns boolean true/false
+    // STORAGE: Flag not stored; computed on each call
     isAdmin() {
         return supabaseAuth && supabaseAuth.user && supabaseAuth.user.email === ADMIN_EMAIL;
     }
@@ -2232,13 +2313,13 @@ function initializeSupabase() {
             isAuthenticated: () => !!supabaseAuth.user,
 
             async signInWithEmail(email, password) {
-                console.log('[AUTH] Attempting sign in for:', email);
+                console.log('[AUTH] signIn starting for:', email);
                 const { data, error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) {
-                    console.error('[AUTH] Sign in error:', error);
+                    console.error('[AUTH] signIn API error:', error.message);
                     throw error;
                 }
-                console.log('[AUTH] Sign in successful:', data.user?.email);
+                console.log('[AUTH] signIn API call success, user:', data.user?.email);
                 // Record login via RPC (best-effort, do not block login flow)
                 try {
                     const user = data.user || data.session?.user;
@@ -2356,6 +2437,12 @@ function initializeSupabase() {
         // CRITICAL FIX: Auth state listener (replaced with modal-driven recovery flow)
         supabase.auth.onAuthStateChange((event, session) => {
   console.log('[AUTH] State changed:', event, session?.user?.email || null);
+
+  // Handle SIGNED_IN event: immediately clear timeout and mark resolved
+  if (event === 'SIGNED_IN') {
+    clearSignInTimeout('auth_state_signed_in');
+    signInResolved = true;
+  }
 
   // Special case: password recovery flow
   if (event === 'PASSWORD_RECOVERY') {
@@ -2642,6 +2729,9 @@ async function onUserSignedIn(user) {
         // Queue leaderboard refresh if available
         try { typeof queueLeaderboardRefresh === 'function' && queueLeaderboardRefresh('signed_in'); } catch (e) { /* noop */ }
 
+        // Post-login success marker with diagnostics
+        console.log('[AUTH] post-login init complete | email=' + user.email + ' | stage_env=' + (window.STAGE_ENV || 'undefined'));
+
     } catch (err) {
         console.error('[AUTH] onUserSignedIn error:', err);
     }
@@ -2668,9 +2758,14 @@ function localLogSolveFallback(payload) {
                 try {
                     console.log('[STAGE_CONTROL] Loading stage control data...');
                     
+                    // Use window.STAGE_ENV set by index.html (set before script.js loads)
+                    const STAGE_ENV = window.STAGE_ENV || 'dev';
+                    console.log('[STAGE_CONTROL] Using STAGE_ENV =', STAGE_ENV);
+                    
                     const { data, error } = await supabase
                         .from('stage_control')
                         .select('stage, is_enabled')
+                        .eq('environment', STAGE_ENV)
                         .order('stage', { ascending: true });
 
                     if (error) {
@@ -2948,6 +3043,7 @@ class AuthUI {
         }
         
         this.isProcessing = true;
+        console.log('[AUTH] signIn started for:', document.getElementById('signin-email').value);
         
         const email = document.getElementById('signin-email').value;
         const password = document.getElementById('signin-password').value;
@@ -2955,12 +3051,38 @@ class AuthUI {
         try {
             this.showMessage('Signing in...', 'info');
             
+            // Initialize timeout tracking
+            signInResolved = false;
+            
+            const timeoutPromise = new Promise((_, reject) => {
+                signInTimeoutId = setTimeout(async () => {
+                    console.log('[AUTH] timeout fired (10s)');
+                    
+                    // Before failing, check if session actually exists
+                    try {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (session) {
+                            console.log('[AUTH] timeout fired but session exists; ignoring error');
+                            return;  // Don't reject; session is valid
+                        }
+                    } catch (err) {
+                        console.warn('[AUTH] getSession error in timeout handler:', err);
+                    }
+                    
+                    // Only reject if we haven't already resolved and no session exists
+                    if (!signInResolved) {
+                        reject(new Error('Sign in timeout'));
+                    }
+                }, 10000);
+            });
+            
             const result = await Promise.race([
                 supabaseAuth.signInWithEmail(email, password),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Sign in timeout')), 10000)
-                )
+                timeoutPromise
             ]);
+            
+            // Clear timeout on success
+            clearSignInTimeout('api_success');
             
             this.showMessage('Welcome back!', 'success');
             setTimeout(() => {
@@ -2968,7 +3090,10 @@ class AuthUI {
                 // Auth state change will handle showing appropriate interface
             }, 1500);
         } catch (error) {
-            console.error('Sign in error:', error);
+            // Clear timeout on failure
+            clearSignInTimeout('api_failure');
+            
+            console.error('[AUTH] signIn failed:', error);
             this.showMessage(error.message || 'Failed to sign in. Please try again.', 'error');
         } finally {
             this.isProcessing = false;
@@ -3166,36 +3291,14 @@ function startContestForSignedInUser() {
     }
 }
 
-// CRITICAL FIX: Admin panel show function
+// LEGACY ADMIN UI - DISABLED
+// Admin access has been moved to /admin.html for better security and management.
+// This function is kept for reference only and should never be called.
+// If triggered, it logs a warning and does nothing.
 function showAdmin() {
-    if (window.__adminShown) {
-        console.log('[UI] Admin already shown, skipping');
-        return;
-    }
-    
-    console.log('[UI] Showing admin panel');
-    window.__adminShown = true;
-    window.__gameShown = false;
-    
-    document.getElementById('landingPage').style.display = 'none';
-    document.getElementById('gameContainer').style.display = 'none';
-    document.getElementById('adminContainer').style.display = 'block';
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    if (supabaseAuth && supabaseAuth.user) {
-        const userName = supabaseAuth.user.user_metadata?.username ||
-            supabaseAuth.user.user_metadata?.full_name ||
-            supabaseAuth.user.email.split('@')[0];
-        document.getElementById('adminUserName').textContent = userName;
-    }
-
-    // Load admin data
-    if (adminManager) {
-        setTimeout(() => {
-            adminManager.loadStageData();
-        }, 500);
-    }
+    console.warn('[ADMIN] showAdmin() called but legacy admin UI is disabled. Use /admin.html');
+    // Do NOT show admin container - exit silently
+    return;
 }
 
 // Contest App Configuration
@@ -3342,11 +3445,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     document.getElementById('playGameBtn').onclick = (e) => {
         e?.preventDefault?.();
         if (supabaseAuth && supabaseAuth.isAuthenticated()) {
-            if (supabaseAuth.user.email === ADMIN_EMAIL) {
-                showAdmin();
-            } else {
-                startContestForSignedInUser();
-            }
+            // LEGACY ADMIN UI DISABLED
+            // The main site no longer provides admin access.
+            // Admins must use /admin.html for stage control.
+            // All users (including admin email) proceed to normal game flow.
+            console.warn('[ADMIN] Legacy admin UI disabled. Use /admin.html instead');
+            startContestForSignedInUser();
         } else {
             authUI.showModal();
         }
