@@ -414,6 +414,8 @@ async function handleProfileSave(event) {
     event.preventDefault();
   }
 
+  console.log('[PROFILE] saving...');
+
   try {
     // Clear any previous error
     const errorEl = document.getElementById('profileDisplayNameError');
@@ -509,7 +511,7 @@ async function handleProfileSave(event) {
       alert('Failed to save profile. Please try again.');
     } else {
       currentProfile = payload;
-      console.log('[PROFILE] Saved successfully');
+      console.log('[PROFILE] saved ok');
       
       // Update UI using consolidated helper
       applyProfileToUI(payload);
@@ -518,7 +520,7 @@ async function handleProfileSave(event) {
       showToast('Profile updated successfully!', { type: 'success', durationMs: 3000 });
     }
   } catch (err) {
-    console.error('[PROFILE] Save exception:', err);
+    console.error('[PROFILE] save error:', err);
     alert('An error occurred while saving your profile.');
   }
 }
@@ -583,6 +585,9 @@ async function openProfileModal() {
     const uploadInput = document.getElementById("profileAvatarUpload");
     if (uploadInput) uploadInput.value = "";
     renderAvatarGrid(profile);
+
+    // Wire handlers AFTER avatar grid is rendered
+    wireProfileModalControls();
 
     backdrop.classList.remove("hidden");
     console.log('[PROFILE] Modal opened');
@@ -657,6 +662,8 @@ function wireProfileModalControls() {
   
   const backdrop = document.getElementById('profileModalBackdrop');
   const closeBtns = document.querySelectorAll('[data-profile-close]');
+  const saveBtnEls = document.querySelectorAll('#btnSaveProfile');
+  const avatarOptions = document.querySelectorAll('.profile-avatar-option');
 
   // Wire all close buttons (X button and Cancel button)
   if (closeBtns && closeBtns.length > 0) {
@@ -669,6 +676,48 @@ function wireProfileModalControls() {
     console.log(`[PROFILE] Wired ${closeBtns.length} close button(s)`);
   } else {
     console.warn('[PROFILE] No close buttons found with [data-profile-close]');
+  }
+
+  // Wire avatar option clicks
+  if (avatarOptions && avatarOptions.length > 0) {
+    avatarOptions.forEach((btn) => {
+      btn.onclick = (evt) => {
+        evt.preventDefault();
+        const avatarKey = btn.dataset.avatarKey;
+        
+        // Remove 'selected' class from all avatars
+        document.querySelectorAll('.profile-avatar-option').forEach((el) => {
+          el.classList.remove('selected');
+        });
+        
+        // Add 'selected' class to clicked avatar
+        btn.classList.add('selected');
+        
+        console.log('[PROFILE] avatar selected:', { avatarKey });
+      };
+    });
+    console.log(`[PROFILE] Wired ${avatarOptions.length} avatar option(s)`);
+  } else {
+    console.warn('[PROFILE] No avatar options found');
+  }
+
+  // Wire save button
+  if (saveBtnEls && saveBtnEls.length > 0) {
+    saveBtnEls.forEach((btn) => {
+      // Remove old handlers by cloning the element
+      const newBtn = btn.cloneNode(true);
+      btn.parentNode.replaceChild(newBtn, btn);
+      
+      // Add new handler
+      newBtn.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        console.log('[PROFILE] save button clicked');
+        handleProfileSave(evt);
+      });
+    });
+    console.log(`[PROFILE] Wired save button`);
+  } else {
+    console.warn('[PROFILE] Save button not found');
   }
 
   // Optional: click on the dark backdrop closes modal
