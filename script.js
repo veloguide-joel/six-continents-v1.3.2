@@ -1,6 +1,33 @@
 // BUILD-ID 2025-11-12-logout+LB
 console.log("BUILD-ID 2025-11-12-logout+LB");
 
+// ✅ Import createMarketingTracker from window (loaded as non-blocking defer script)
+// If marketing.js fails to load, function won't exist but app will still work
+const createMarketingTracker = window.createMarketingTracker || (() => {
+  console.warn("[MARKETING] createMarketingTracker not available (script load failed or deferred)");
+  return {
+    session_id: null,
+    variant: null,
+    log: () => {},
+    logLpViewOnce: () => {},
+  };
+});
+
+// --- Page mode detection (LP variants should NOT run full game UI) ---
+const IS_LP_VARIANT = /\/lp-[ab]\.html$/i.test(window.location.pathname) ||
+                      /lp-[ab]\.html/i.test(window.location.href);
+
+// --- Auto-enter game flag (set after successful auth, cleared after use) ---
+const SC_AUTO_ENTER_GAME_KEY = "SC_AUTO_ENTER_GAME";
+
+// --- Auth modal default tab (remember which tab to show after signout) ---
+const AUTH_MODAL_DEFAULT_TAB_KEY = "authModalDefaultTabOnce";
+// values: "signin" | "signup"
+
+// --- CANONICAL GLOBAL SOLVED STATE (for journey progress rendering) ---
+window.__SOLVED_STAGES = [];
+window.__MAX_SOLVED_STAGE = 0;
+
 // ---------------------------
 // ACCIDENTAL RETIREE CONTEST APP
 // Auth + Leaderboard stabilized 2025-11-12
@@ -8,7 +35,101 @@ console.log("BUILD-ID 2025-11-12-logout+LB");
 // - Auto leaderboard refresh working
 // - Stage advance + DB save confirmed
 // - Duplicates removed (single landing render)
+// A/B Landing Page Testing + Event Tracking Added 2025-01-02
 // ---------------------------
+
+// ===== MARKETING EVENT LOGGER =====
+class MarketingEventLogger {
+  constructor(supabaseClient) {
+    this.supabase = supabaseClient;
+    this.sessionId = this.getOrCreateSessionId();
+    this.variant = this.getVariant();
+    this.initialized = false;
+  }
+
+  getOrCreateSessionId() {
+    let sessionId = localStorage.getItem('lp_session_id');
+    if (!sessionId) {
+      sessionId = this.generateUUID();
+      localStorage.setItem('lp_session_id', sessionId);
+    }
+    return sessionId;
+  }
+
+  getVariant() {
+    return localStorage.getItem('lp_variant') || 'default';
+  }
+
+  generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  async logEvent(eventName, metadata = {}) {
+    if (!this.supabase) {
+      console.warn('[MARKETING] Supabase not initialized, event not logged:', eventName);
+      return;
+    }
+
+    try {
+      const { error } = await this.supabase
+        .from('marketing_events')
+        .insert({
+          session_id: this.sessionId,
+          variant: this.variant,
+          event: eventName,
+          meta: metadata,
+        });
+
+      if (error) {
+        console.error('[MARKETING] Failed to log event:', eventName, error);
+      } else {
+        console.log('[MARKETING] Event logged:', eventName, { variant: this.variant, meta: metadata });
+      }
+    } catch (err) {
+      console.error('[MARKETING] Error logging event:', err);
+    }
+  }
+
+  async onPageLoad() {
+    this.logEvent('lp_view', {
+      url: window.location.href,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  async onCtaClick() {
+    this.logEvent('cta_click', {
+      button: 'play_game',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  async onSignupStarted() {
+    this.logEvent('signup_started', {
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  async onSignupSuccess(userId) {
+    this.logEvent('signup_success', {
+      user_id: userId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+let marketingEventLogger = null;
+
+// ===== SOLVES LOADING GATE =====
+// Module-level promise to ensure DB solves load before journey renders
+let solvesLoadedResolve = null;
+const solvesLoadedPromise = new Promise((resolve) => {
+  solvesLoadedResolve = resolve;
+});
 
 // Legacy shim so old code doesn't crash if it calls app.ensureAtNextUnsolved
 const app = {
@@ -154,6 +275,137 @@ async function loadUserProfile() {
   } catch (err) {
     console.error('[PROFILE] Load exception:', err);
     return null;
+  }
+}
+
+// ===== STAGE PROGRESS HELPERS =====
+async function fetchDbCurrentStage(userId) {
+  try {
+    // Source of truth: profiles.current_stage
+    const { data: prof, error: pErr } = await window.supabaseClient
+      .from("profiles")
+      .select("current_stage")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!pErr && prof?.current_stage != null) {
+      const n = Number(prof.current_stage);
+      if (Number.isFinite(n) && n >= 1) return n;
+    }
+
+    // Fallback: derive from solves (highest stage)
+    const { data: solves, error: sErr } = await window.supabaseClient
+      .from("solves")
+      .select("stage")
+      .eq("user_id", userId)
+      .order("stage", { ascending: false })
+      .limit(1);
+
+    if (!sErr && solves?.length) {
+      const n = Number(solves[0].stage);
+      if (Number.isFinite(n) && n >= 1) return n;
+    }
+
+    return 1;
+  } catch (e) {
+    console.warn("[PROGRESS] fetchDbCurrentStage failed:", e);
+    return 1;
+  }
+}
+
+async function restoreStageFromSolves(userId) {
+  try {
+    const MAX_STAGE = 16;
+    
+    // Query solves table for this user
+    const { data: solves, error } = await window.supabaseClient
+      .from("solves")
+      .select("stage")
+      .eq("user_id", userId);
+
+    if (error) {
+      console.warn("[PROGRESS] restoreStageFromSolves query failed:", error);
+      return 1;
+    }
+
+    // If no solves, start at stage 1
+    if (!solves || solves.length === 0) {
+      console.log("[PROGRESS] No solved stages found, starting at stage 1 (source: DB)");
+      return 1;
+    }
+
+    // Find max solved stage
+    const stages = solves.map(s => Number(s.stage)).filter(n => Number.isFinite(n));
+    const maxStage = Math.max(...stages);
+    const restoredStage = Math.min(maxStage + 1, MAX_STAGE);
+
+    console.log("[PROGRESS] max solved stage:", maxStage, "(source: DB)");
+    console.log("[PROGRESS] restored current stage:", restoredStage, "(source: DB)");
+
+    return restoredStage;
+  } catch (e) {
+    console.warn("[PROGRESS] restoreStageFromSolves failed:", e);
+    return 1;
+  }
+}
+
+async function computeNextUnsolvedFromSolves(userId) {
+  try {
+    const MAX_STAGE = 16;
+
+    // Query all solved stages from DB
+    const { data: solves, error } = await window.supabaseClient
+      .from("solves")
+      .select("stage")
+      .eq("user_id", userId);
+
+    if (error) {
+      console.warn("[NAV] Failed to query solves for nav:", error);
+      return 1;
+    }
+
+    // Build set of solved stages
+    const solvedSet = new Set(
+      (solves || []).map(s => Number(s.stage)).filter(n => Number.isFinite(n) && n >= 1 && n <= MAX_STAGE)
+    );
+
+    // ✅ STORE GLOBALLY for Journey Progress UI to use
+    window.__dbSolvedSet = solvedSet;
+    window.__dbSolvedArray = Array.from(solvedSet).sort((a, b) => a - b);
+    
+    // ✅ Set canonical global solved state (for journey progress rendering)
+    window.__SOLVED_STAGES = window.__dbSolvedArray;
+    window.__MAX_SOLVED_STAGE = Math.max(...window.__dbSolvedArray, 0);
+    console.log("[JOURNEY] Global solved stages set:", window.__SOLVED_STAGES, "max:", window.__MAX_SOLVED_STAGE);
+
+    console.log("[NAV] solvedSet:", window.__dbSolvedArray);
+
+    // Find next unsolved stage
+    for (let i = 1; i <= MAX_STAGE; i++) {
+      if (!solvedSet.has(i)) {
+        console.log("[NAV] next unsolved computed:", i);
+        // ✅ SIGNAL that solves have loaded (gate open)
+        if (typeof solvesLoadedResolve === 'function') {
+          solvesLoadedResolve();
+        }
+        return i;
+      }
+    }
+
+    // All stages solved, return MAX_STAGE
+    console.log("[NAV] All stages solved, returning:", MAX_STAGE);
+    // ✅ SIGNAL that solves have loaded (gate open)
+    if (typeof solvesLoadedResolve === 'function') {
+      solvesLoadedResolve();
+    }
+    return MAX_STAGE;
+  } catch (e) {
+    console.warn("[NAV] computeNextUnsolvedFromSolves failed:", e);
+    // ✅ SIGNAL that solves have loaded even on error (gate open)
+    if (typeof solvesLoadedResolve === 'function') {
+      solvesLoadedResolve();
+    }
+    return 1;
   }
 }
 
@@ -310,18 +562,26 @@ function renderAvatarGrid(profile) {
 
 async function openProfileModal() {
   try {
+    // --- Defensive checks for required profile DOM elements ---
+    const modal = document.getElementById("profileModal");
+    const displayNameEl = document.getElementById("profileDisplayName");
+    const saveBtn = document.getElementById("btnSaveProfile");
     const backdrop = document.getElementById("profileModalBackdrop");
-    const displayInput = document.getElementById("profileDisplayName");
-    const uploadInput = document.getElementById("profileAvatarUpload");
 
-    if (!backdrop || !displayInput || !uploadInput) {
-      console.warn('[PROFILE] Modal elements not found');
+    if (!modal || !displayNameEl || !saveBtn || !backdrop) {
+      console.warn("[PROFILE] Missing profile DOM elements", {
+        profileModal: !!modal,
+        profileDisplayName: !!displayNameEl,
+        btnSaveProfile: !!saveBtn,
+        profileModalBackdrop: !!backdrop,
+      });
       return;
     }
 
     const profile = (await loadUserProfile()) || {};
-    displayInput.value = profile.display_name || "";
-    uploadInput.value = "";
+    displayNameEl.value = profile.display_name || "";
+    const uploadInput = document.getElementById("profileAvatarUpload");
+    if (uploadInput) uploadInput.value = "";
     renderAvatarGrid(profile);
 
     backdrop.classList.remove("hidden");
@@ -362,7 +622,7 @@ function initProfileUI() {
   
   const profileBtn = document.getElementById("profileTriggerBtn");
   const backdrop = document.getElementById("profileModalBackdrop");
-  const saveBtn = document.getElementById("profileSaveButton");
+  const saveBtn = document.getElementById("btnSaveProfile");
   const cancelBtns = backdrop?.querySelectorAll("[data-profile-close]");
   const changePasswordBtn = document.getElementById("profileChangePasswordBtn");
 
@@ -552,7 +812,7 @@ function wireHeaderAuthUI(user) {
   console.log('[HEADER] Wiring header auth UI for user:', user?.email || 'unknown');
   
   // Buttons / email in header
-  const profileBtn = document.getElementById('btnProfile');
+  const profileBtn = document.getElementById('btnMyProfile');
   const signOutBtn = document.getElementById('btnSignOut');
   const emailSpan  = document.getElementById('journeyUserEmail');
 
@@ -561,7 +821,7 @@ function wireHeaderAuthUI(user) {
     profileBtn.onclick = openProfileModal;
     console.log('[HEADER] Profile button wired');
   } else {
-    console.warn('[HEADER] btnProfile not found in DOM');
+    console.warn('[HEADER] btnMyProfile not found in DOM');
   }
 
   if (signOutBtn) {
@@ -579,14 +839,87 @@ function wireHeaderAuthUI(user) {
   } else if (!emailSpan) {
     console.warn('[HEADER] journeyUserEmail span not found in DOM');
   }
+
+  // Wire profile button with defensive fallbacks
+  (function wireProfileButton() {
+    const btn = document.getElementById("btnMyProfile");
+
+    if (!btn) {
+      console.warn("[PROFILE] My Profile button not found in DOM");
+      return;
+    }
+
+    btn.addEventListener("click", () => {
+      console.log("[PROFILE] My Profile clicked");
+
+      if (typeof openProfileModal === "function") {
+        openProfileModal();
+        return;
+      }
+
+      if (typeof profileUI?.open === "function") {
+        profileUI.open();
+        return;
+      }
+
+      if (typeof showProfile === "function") {
+        showProfile();
+        return;
+      }
+
+      console.warn("[PROFILE] No profile open handler found");
+    });
+  })();
+}
+
+// ===== SHARED STORAGE HELPER =====
+/**
+ * Clear Supabase auth tokens and app state from storage
+ * Surgical approach: avoids localStorage.clear() to prevent collateral issues
+ */
+function clearSupabaseAuthStorage() {
+  try {
+    // Remove Supabase auth tokens (common patterns)
+    const keys = Object.keys(localStorage);
+    for (const k of keys) {
+      if (
+        k.startsWith("sb-") && k.includes("-auth-token")
+      ) {
+        localStorage.removeItem(k);
+      }
+    }
+
+    // Optional: if you store app state keys, clear them explicitly
+    const appKeys = [
+      "UI_MODE",
+      "ADMIN_UI_MODE",
+      "stage_cache",
+      "leaderboard_cache",
+      "user_cache"
+    ];
+    for (const k of appKeys) {
+      if (localStorage.getItem(k) !== null) localStorage.removeItem(k);
+    }
+  } catch (e) {
+    console.warn("[SIGNOUT] storage clear warning:", e);
+  }
+
+  try {
+    // If you use sessionStorage anywhere, clear app keys there too
+    sessionStorage.removeItem("UI_MODE");
+    sessionStorage.removeItem("ADMIN_UI_MODE");
+  } catch (e) {
+    // ignore
+  }
 }
 
 // ===== HARD SIGN-OUT HANDLER =====
+// ===== HARD SIGN-OUT HANDLER (Full Cache Clear) =====
 async function hardSignOut() {
-  console.log('[AUTH] Sign out clicked');
-
   try {
-    // Step 1: Sign out from Supabase
+    console.log('[AUTH] Starting full sign out...');
+
+    // Step 1: Supabase sign out
     try {
       await supabase.auth.signOut();
       console.log('[AUTH] supabase.auth.signOut() complete');
@@ -608,21 +941,56 @@ async function hardSignOut() {
       progressManager.localProgress = {};
     }
 
-    // Step 3: Clear all storage
+    // Step 3: Clear app-specific localStorage keys (be explicit—don't nuke everything)
     console.log('[AUTH] clearing storage');
-    localStorage.clear();
+    const keysToClear = [
+      "SC_AUTO_ENTER_GAME",
+      "sc_lp_variant",
+      "sc_session_id",
+      "sc_lp_view_once",
+      "current_stage",
+      "solved_stages",
+      "stageProgress",
+      "progress",
+      "test_user",
+      "wrongAttempts",
+      "lp_session_id",
+      "lp_variant",
+    ];
+
+    keysToClear.forEach((k) => localStorage.removeItem(k));
+
+    // Clear session-only flags (dedupe, etc.)
     sessionStorage.clear();
 
-    // Step 4: Force UI to logged-out state
+    // Step 4: Clear Supabase auth tokens from storage
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith("sb-") && k.includes("-auth-token")) {
+        localStorage.removeItem(k);
+      }
+    });
+
+    // Step 5: Clean URL hash if it contains auth tokens
+    if (location.hash && /access_token|refresh_token|type/.test(location.hash)) {
+      history.replaceState({}, document.title, location.pathname + location.search);
+    }
+
+    // Step 6: Force UI to logged-out state
     console.log('[AUTH] signOut complete');
+    try {
+      hasAutoStartedGame = false;
+      window.hasAutoStartedGame = false;
+    } catch (e) {
+      // noop
+    }
     showLanding();
 
-    // Step 5: Reload page
+    // Step 7: Reload to index.html
     console.log('[AUTH] reload after sign out');
-    window.location.reload();
+    window.location.href = "./index.html";
   } catch (err) {
     console.error('[AUTH] Unexpected error in hardSignOut:', err);
-    window.location.reload();
+    window.location.href = "./index.html";
   }
 }
 // ===== END HEADER AUTH UI WIRING =====
@@ -782,11 +1150,11 @@ document.addEventListener('DOMContentLoaded', () => {
 // Complete the ContestApp class
 class ContestApp {
     constructor() {
-        this.currentStage = 1;
+        this.currentStage = Number(window.currentStage) || 1;
         this.solvedStages = [];
         this.firstRiddleSolved = [];
         this.modalCurrentStage = null;
-        this.init();
+        // NOTE: init() is called manually after DB restore in startContestForSignedInUser()
     }
 
     async init() {
@@ -800,12 +1168,31 @@ class ContestApp {
     }
 
     loadInitialProgress() {
+        // ✅ If stage was restored from DB (or set by login flow), DO NOT override it
+        const preset = Number(window.currentStage) || Number(this.currentStage) || 1;
+        if (preset > 1) {
+            this.currentStage = preset;
+            console.log("[ContestApp] Skipping localStorage stage calc, preset stage:", preset);
+            // Still load solved stages from localStorage for UI rendering
+            this.solvedStages = this.getSolvedStagesFromLocal();
+            this.firstRiddleSolved = this.getFirstRiddleSolvedFromLocal();
+            return;
+        }
+
+        // Only run localStorage-based progress loading if stage is 1 (new user)
         this.solvedStages = this.getSolvedStagesFromLocal();
         this.firstRiddleSolved = this.getFirstRiddleSolvedFromLocal();
         
-        // CRITICAL: Set current stage to the first unsolved stage
-        this.currentStage = this.findNextUnsolvedStage() || 1;
-        console.log(`[ContestApp] Initial current stage set to: ${this.currentStage}`);
+        // IMPORTANT: Only compute stage if it hasn't been set externally (e.g., from DB restore)
+        // If stage was set from DB (via window.currentStage), DO NOT override it with localStorage
+        const stageIsPreset = this.currentStage > 1;
+        if (!stageIsPreset) {
+            // Only compute from localStorage if no stage is set
+            this.currentStage = this.findNextUnsolvedStage() || 1;
+            console.log(`[ContestApp] loadInitialProgress: computed stage from localStorage: ${this.currentStage}`);
+        } else {
+            console.log(`[ContestApp] loadInitialProgress: respecting pre-set stage: ${this.currentStage}`);
+        }
     }
 
     getSolvedStagesFromLocal() {
@@ -978,17 +1365,20 @@ try {
         console.log(`[ADVANCE] Current stage set to: ${stage}`);
     }
 
-        // Ensure the app is positioned at the next unsolved stage
-        ensureAtNextUnsolved(reason = "auto") {
+        // Ensure the app is positioned at the next unsolved stage (using DB data, not localStorage)
+        async ensureAtNextUnsolved(reason = "auto") {
             try {
-                const solved = (typeof progressManager?.getSolvedStages === "function"
-                    ? progressManager.getSolvedStages()
-                    : this.solvedStages) || [];
+                const userId = supabaseAuth?.user?.id;
+                if (!userId || !window.supabaseClient) {
+                    console.warn("[NAV] No user ID or client, cannot compute next unsolved");
+                    return;
+                }
 
-                const next = computeNextUnsolvedStage(solved, 16);
-                if (this.currentStage !== next) {
-                    console.log(`[NAV] Jumping to next unsolved: ${next} (${reason})`);
-                    this.currentStage = next;
+                // Query DB for next unsolved
+                const nextStage = await computeNextUnsolvedFromSolves(userId);
+                if (this.currentStage !== nextStage) {
+                    console.log(`[NAV] Jumping to next unsolved: ${nextStage} (${reason})`);
+                    this.currentStage = nextStage;
                     if (typeof this.renderCurrentStage === "function") this.renderCurrentStage();
                 }
             } catch (e) {
@@ -1047,6 +1437,9 @@ try {
             // Show first riddle input
             document.getElementById('inputSection').style.display = 'flex';
         }
+
+        // Re-attach profile button handler after stage render
+        wireProfileButton();
     }
 
     // Show success panel
@@ -1088,17 +1481,28 @@ try {
             grid.appendChild(tile);
         }
         
+        // ✅ Apply canonical solved state to cards after render
+        this.applySolvedStatesToCards();
+        
         // Update Stage 16 separately
         updateStage16();
     }
 
     // Create individual stage tile
     createStageTile(stage) {
+        // ✅ Use canonical global solved state
+        const solvedStages = window.__SOLVED_STAGES || [];
+        const solvedSet = new Set(solvedStages);
+        const currentStage = window.contestApp?.currentStage || this.currentStage || 1;
+        
         const tile = document.createElement('div');
         tile.className = 'stage-tile';
+        tile.setAttribute('data-stage', stage);  // ✅ Stable selector
         
-        const isSolved = this.isSolved(stage);
-        const isUnlocked = this.isUnlocked(stage);
+        // Canonical unlock/solve logic
+        const isSolved = solvedSet.has(stage);
+        const isCurrent = stage === currentStage;
+        const isUnlocked = stage <= currentStage;
         const isAdminDisabled = this.isAdminDisabled(stage);
         
         if (isSolved) {
@@ -1155,6 +1559,35 @@ try {
         return tile;
     }
 
+    // ✅ Apply canonical solved state to all rendered cards
+    applySolvedStatesToCards() {
+        const solvedStages = window.__SOLVED_STAGES || [];
+        console.log("[JOURNEY] Applying solved states to cards using:", solvedStages);
+        
+        solvedStages.forEach(stage => {
+            const card = document.querySelector(`[data-stage="${stage}"]`);
+            if (card) {
+                // Set status text
+                const statusEl = card.querySelector('.stage-status');
+                if (statusEl) {
+                    statusEl.textContent = 'Solved';
+                    statusEl.className = 'stage-status stage-status-label is-solved';
+                }
+                
+                // Update badge with checkmark
+                const iconEl = card.querySelector('.stage-icon');
+                if (iconEl) {
+                    iconEl.textContent = '✓';
+                    iconEl.className = 'stage-icon solved';
+                }
+                
+                // Add solved class to card
+                card.classList.add('solved');
+                console.log(`[JOURNEY] Applied solved state to stage ${stage}`);
+            }
+        });
+    }
+
     // Open stage modal
     openStageModal(stage) {
         this.modalCurrentStage = stage;
@@ -1173,8 +1606,11 @@ try {
 
     // Update progress bar
     updateProgress() {
-        const solvedCount = this.solvedStages.length;
+        // ✅ Use canonical global solved state
+        const solvedCount = window.__SOLVED_STAGES.length;
         const percentage = (solvedCount / CONFIG.total) * 100;
+        
+        console.log("[JOURNEY] updateProgress using:", window.__SOLVED_STAGES, "count:", solvedCount);
         
         const progressCountEl = document.getElementById('progressCount');
         if (progressCountEl) {
@@ -1187,13 +1623,17 @@ try {
 
     // Update stage progress UI (horizontal bar with dots)
     updateStageProgressUI() {
+        // ✅ Use canonical global solved state
+        const solvedStages = window.__SOLVED_STAGES;
+        console.log("[JOURNEY] renderJourneyProgress using:", solvedStages);
+        
         const labelEl = document.querySelector('.stage-progress-label');
         const fillEl = document.querySelector('.stage-progress-fill');
         const dotsEl = document.querySelector('.stage-progress-dots');
         
         // Update label text (if it exists)
         if (labelEl) {
-            if (this.currentStage === 1 && this.solvedStages.length === 0) {
+            if (this.currentStage === 1 && solvedStages.length === 0) {
                 labelEl.textContent = 'Your Journey: Not started yet';
             } else {
                 labelEl.textContent = `Your Journey: Stage ${this.currentStage} of 15`;
@@ -1201,7 +1641,7 @@ try {
         }
         
         // Calculate completion ratio (based on stages 1-15 only)
-        const solvedCount = this.solvedStages.filter(s => s <= 15).length;
+        const solvedCount = solvedStages.filter(s => s <= 15).length;
         const ratio = solvedCount / 15;
         
         // Update progress bar fill (if it exists)
@@ -1216,7 +1656,7 @@ try {
                 const dot = document.createElement('span');
                 dot.className = 'stage-dot';
                 
-                if (this.solvedStages.includes(i)) {
+                if (solvedStages.includes(i)) {
                     dot.classList.add('stage-dot-complete');
                 } else if (i === this.currentStage) {
                     dot.classList.add('stage-dot-current');
@@ -1299,21 +1739,41 @@ try {
     // Bind event handlers
     bindEvents() {
         // First riddle submission
-        document.getElementById('submitBtn').onclick = () => this.handleFirstRiddleSubmit();
-        document.getElementById('answerInput').onkeypress = (e) => {
-            if (e.key === 'Enter') this.handleFirstRiddleSubmit();
-        };
+        const submitBtn = document.getElementById('submitBtn');
+        if (submitBtn) {
+            submitBtn.onclick = () => this.handleFirstRiddleSubmit();
+        }
+
+        const answerInput = document.getElementById('answerInput');
+        if (answerInput) {
+            answerInput.onkeypress = (e) => {
+                if (e.key === 'Enter') this.handleFirstRiddleSubmit();
+            };
+        }
         
         // Second riddle submission
-        document.getElementById('secondRiddleSubmit').onclick = () => this.handleSecondRiddleSubmit();
-        document.getElementById('secondRiddleInput').onkeypress = (e) => {
-            if (e.key === 'Enter') this.handleSecondRiddleSubmit();
-        };
+        const secondRiddleSubmit = document.getElementById('secondRiddleSubmit');
+        if (secondRiddleSubmit) {
+            secondRiddleSubmit.onclick = () => this.handleSecondRiddleSubmit();
+        }
+
+        const secondRiddleInput = document.getElementById('secondRiddleInput');
+        if (secondRiddleInput) {
+            secondRiddleInput.onkeypress = (e) => {
+                if (e.key === 'Enter') this.handleSecondRiddleSubmit();
+            };
+        }
         
         // Modal close
-        document.getElementById('closeModal').onclick = () => {
-            document.getElementById('stageModal').style.display = 'none';
-        };
+        const closeModal = document.getElementById('closeModal');
+        if (closeModal) {
+            closeModal.onclick = () => {
+                const stageModal = document.getElementById('stageModal');
+                if (stageModal) {
+                    stageModal.style.display = 'none';
+                }
+            };
+        }
         
         // Sign out buttons - NOTE: Regular user sign out is now handled by wireHeaderAuthUI()
         // Only wire admin sign out here
@@ -1522,22 +1982,23 @@ function incrementWrongAttempts() {
 
 let __signingOut = false;
 // --- Minimal hard sign-out (fixed) ---
-async function signOutHard() {
-    try { await supabase.auth.signOut({ scope: "local" }); } catch (_){ }
-    try {
-        localStorage.clear();
-        sessionStorage.clear();
-        Object.keys(localStorage).forEach(k => {
-            if (k.startsWith("sb-") && k.includes("-auth-token")) localStorage.removeItem(k);
-        });
-        if (location.hash && /access_token|refresh_token|type/.test(location.hash)) {
-            history.replaceState({}, document.title, location.pathname + location.search);
-        }
-    } catch (_){ }
-    try { typeof showLanding === "function" && showLanding(); } catch (_){ }
-    // Reset auto-start guard when signing out so subsequent sessions may auto-start again
-    try { hasAutoStartedGame = false; window.hasAutoStartedGame = false; } catch (e) { /* noop */ }
-    console.log("[SIGNOUT] Completed (minimal)");
+async function hardGameSignOut() {
+  console.log("[SIGNOUT] initiated");
+  try {
+    await supabase.auth.signOut();
+  } catch (e) {
+    console.warn("[SIGNOUT] supabase signOut warning:", e);
+  }
+
+  clearSupabaseAuthStorage();
+
+  // Set flag to show Sign In tab when modal opens
+  try {
+    localStorage.setItem(AUTH_MODAL_DEFAULT_TAB_KEY, "signin");
+  } catch (e) {}
+
+  // Force a clean landing state (not history back)
+  location.replace("/index.html");
 }
 
 // Compute next unsolved stage helper
@@ -2299,6 +2760,22 @@ async function handlePasswordResetFromAuthState(session) {
 }
 
 function initializeSupabase() {
+    // Defensive checks
+    if (!window.supabase) {
+        console.error("[SUPABASE] Supabase library not loaded");
+        return null;
+    }
+
+    if (!SUPABASE_URL) {
+        console.error("[SUPABASE] SUPABASE_URL is not defined");
+        return null;
+    }
+
+    if (!SUPABASE_ANON_KEY) {
+        console.error("[SUPABASE] SUPABASE_ANON_KEY is not defined");
+        return null;
+    }
+
     if (window.supabase) {
         console.log('[SUPABASE] Initializing with URL:', SUPABASE_URL);
         console.log('[SUPABASE] Using key ending in:', SUPABASE_ANON_KEY.slice(-10));
@@ -2306,6 +2783,45 @@ function initializeSupabase() {
         // Use idempotent singleton to prevent redeclaration crash if script loads twice
         window.__supabaseClient = window.__supabaseClient || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         supabase = window.__supabaseClient;
+
+        // --- Make legacy globals available (script.js is now a module) ---
+        window.supabase = supabase;
+        window.supabaseClient = supabase;
+        window.supabaseAuth = supabase.auth;
+
+        // --- Marketing tracker ---
+        window.marketing = createMarketingTracker(supabase);
+        window.marketing.logLpViewOnce();
+
+        // Track CTA click(s) on landing page
+        (function wireCtaTracking() {
+          const selectors = [
+            "#playGameBtn",
+            "#play-game",
+            "#cta",
+            ".cta",
+            'a[href*="signup"]',
+            'button[data-cta="play"]',
+            'button[data-cta="signup"]'
+          ];
+
+          const ctaEl = selectors
+            .map((s) => document.querySelector(s))
+            .find(Boolean);
+
+          if (!ctaEl) {
+            // Don't fail the app if we can't find it
+            console.warn("[marketing] CTA element not found (add an id like #playGameBtn to your button)");
+            return;
+          }
+
+          ctaEl.addEventListener("click", () => {
+            window.marketing?.log("cta_click", {
+              selector: ctaEl.id ? `#${ctaEl.id}` : (ctaEl.className ? `.${ctaEl.className}` : "unknown"),
+              text: (ctaEl.innerText || "").trim().slice(0, 80),
+            });
+          });
+        })();
 
         // Initialize auth system
         supabaseAuth = {
@@ -2337,6 +2853,10 @@ function initializeSupabase() {
                 console.log('[AUTH] Attempting sign up for:', email);
                 
                 try {
+                    window.marketing?.log("signup_started", {
+                      method: "email",
+                    });
+
                     const { data, error } = await supabase.auth.signUp({
                         email,
                         password,
@@ -2350,6 +2870,10 @@ function initializeSupabase() {
                         console.error('[AUTH] Sign up error:', error);
                         throw error;
                     }
+
+                    window.marketing?.log("signup_success", {
+                      user_id: data?.user?.id || null,
+                    });
                     
                     console.log('[AUTH] Sign up response:', data);
                     
@@ -2454,8 +2978,9 @@ function initializeSupabase() {
 
   // Normal signed-in / initial session flow
   if (session?.user) {
-    console.log('[AUTH] Regular user detected, delegating to onUserSignedIn');
-    onUserSignedIn(session.user);
+    console.log('[AUTH] Regular user detected, delegating to startContestForSignedInUser');
+    supabaseAuth.user = session.user;
+    startContestForSignedInUser();
     return;
   }
 
@@ -2590,6 +3115,13 @@ function initializeSupabase() {
 // Reusable post-login handler: centralizes what to do when a user is signed in
 async function onUserSignedIn(user) {
     try {
+        // --- LP variant redirect: if user signs in on landing page, go to index.html ---
+        if (IS_LP_VARIANT) {
+            console.log("[LP] Auth success on LP variant — redirecting to index.html");
+            window.location.href = "./index.html";
+            return;
+        }
+
         console.log('[AUTH] onUserSignedIn for', user?.email || user?.id || '<unknown>');
 
         // Ensure global auth user is set
@@ -2972,6 +3504,42 @@ const termsModal = {
     }
 };
 
+// ===== AUTH MODAL TAB HELPERS =====
+/**
+ * Get the default tab to show in auth modal, consuming the one-shot flag
+ * @returns {string} - "signin" or "signup"
+ */
+function getAuthModalDefaultTab() {
+  try {
+    const v = localStorage.getItem(AUTH_MODAL_DEFAULT_TAB_KEY);
+    if (v === "signin" || v === "signup") {
+      localStorage.removeItem(AUTH_MODAL_DEFAULT_TAB_KEY); // one-shot
+      return v;
+    }
+  } catch (e) {}
+  return "signup"; // default for new visitors
+}
+
+/**
+ * Switch the auth modal to a specific tab (signin or signup)
+ * @param {string} tab - "signin" or "signup"
+ */
+function switchAuthTab(tab) {
+  const isSignIn = tab === "signin";
+
+  // Toggle active classes on tab buttons
+  document.querySelectorAll('.auth-tab').forEach((btn, idx) => {
+    btn.classList.toggle('active', (idx === 0 && !isSignIn) || (idx === 1 && isSignIn));
+  });
+
+  // Toggle active class on forms
+  document.getElementById('auth-signup')?.classList.toggle('active', !isSignIn);
+  document.getElementById('auth-signin')?.classList.toggle('active', isSignIn);
+
+  // Update title
+  document.getElementById('auth-title').textContent = isSignIn ? 'Welcome Back!' : 'Join the Game!';
+}
+
 // FIXED: Auth UI with better error handling and timeout management
 class AuthUI {
     constructor() {
@@ -2981,7 +3549,10 @@ class AuthUI {
     showModal() {
         const modal = document.getElementById('auth-modal');
         modal.classList.add('show');
-        this.showTab('signup');
+        
+        // Check for default tab preference from previous signout
+        const defaultTab = getAuthModalDefaultTab();
+        this.showTab(defaultTab);
     }
 
     closeModal() {
@@ -3085,6 +3656,7 @@ class AuthUI {
             clearSignInTimeout('api_success');
             
             this.showMessage('Welcome back!', 'success');
+            localStorage.setItem(SC_AUTO_ENTER_GAME_KEY, "1");
             setTimeout(() => {
                 this.closeModal();
                 // Auth state change will handle showing appropriate interface
@@ -3134,6 +3706,7 @@ class AuthUI {
                 }, 3000);
             } else {
                 this.showMessage('Account created! Let\'s start your journey!', 'success');
+                localStorage.setItem(SC_AUTO_ENTER_GAME_KEY, "1");
                 setTimeout(() => {
                     this.closeModal();
                     // Auth state change will handle showing appropriate interface
@@ -3207,11 +3780,28 @@ function showLanding() {
     document.getElementById('adminContainer').style.display = 'none';
 }
 
-function showGame() {
-  if (window.__gameShown) {
-    console.log('[UI] Game already shown, skipping');
+// ===== PROFILE BUTTON WIRING (Re-attach after DOM re-renders) =====
+function wireProfileButton() {
+  const btn = document.getElementById("btnMyProfile");
+  
+  if (!btn) {
+    console.warn("[PROFILE] btnMyProfile not found");
     return;
   }
+  
+  btn.onclick = () => {
+    console.log("[PROFILE] My Profile clicked");
+    if (typeof openProfileModal === "function") {
+      openProfileModal();
+    } else {
+      console.warn("[PROFILE] openProfileModal function not found");
+    }
+  };
+  
+  console.log("[PROFILE] Button wired successfully");
+}
+
+function showGame() {
   console.log('[UI] Showing game');
   window.__gameShown = true;
   window.__adminShown = false;
@@ -3226,15 +3816,25 @@ function showGame() {
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
+  // Update user label in header (gracefully handle missing elements)
   if (supabaseAuth && supabaseAuth.user) {
-    const userName = supabaseAuth.user.user_metadata?.username ||
-      supabaseAuth.user.user_metadata?.full_name ||
-      supabaseAuth.user.email.split('@')[0];
     const userNameEl = document.getElementById('userName');
-    if (userNameEl) {
-      userNameEl.textContent = userName;
+    const journeyEmailEl = document.getElementById('journeyUserEmail');
+
+    // NEVER fail showGame just because a label element is missing
+    if (!userNameEl && !journeyEmailEl) {
+      console.warn("[UI] showGame: missing user label elements (#userName / #journeyUserEmail)");
     } else {
-      console.warn('[UI] showGame: missing element #userName');
+      const label = (currentProfile?.display_name || supabaseAuth.user.user_metadata?.username || supabaseAuth.user.email || "").trim();
+
+      if (userNameEl) {
+        userNameEl.textContent = label;
+        userNameEl.style.display = "";
+      }
+
+      if (journeyEmailEl) {
+        journeyEmailEl.textContent = label;
+      }
     }
   }
 
@@ -3248,11 +3848,21 @@ function showGame() {
       console.warn('[UI] Leaderboard render on showGame failed:', err);
     }
   }, 500);
+
+  // Re-attach profile button handler after DOM is stable
+  wireProfileButton();
 }
 
 // Centralized function to start the contest UI for a signed-in user
-function startContestForSignedInUser() {
+async function startContestForSignedInUser() {
     try {
+        // --- LP variant guard: prevent game UI init on landing pages ---
+        if (IS_LP_VARIANT) {
+            console.log("[LP] startContestForSignedInUser called on LP — redirecting");
+            window.location.href = "./index.html";
+            return;
+        }
+
         console.log('[UI] startContestForSignedInUser called');
 
         if (!(supabaseAuth && supabaseAuth.isAuthenticated())) {
@@ -3263,29 +3873,145 @@ function startContestForSignedInUser() {
             return;
         }
 
-        // Ensure ContestApp exists and is initialized (idempotent)
+        // --- Restore user's current stage from database (MUST happen before app init) ---
+        const userId = supabaseAuth?.user?.id;
+        if (userId && window.supabaseClient) {
+            try {
+                const restoredStage = await restoreStageFromSolves(userId);
+                window.currentStage = restoredStage;
+                if (window.contestApp) {
+                    window.contestApp.currentStage = restoredStage;
+                }
+                console.log(`[UI] currentStage set to ${restoredStage} (source: DB)`);
+            } catch (err) {
+                console.warn("[PROGRESS] Failed to restore stage from solves:", err);
+                window.currentStage = 1;
+                console.log(`[UI] currentStage set to 1 (source: default/error)`);
+            }
+        } else {
+            window.currentStage = 1;
+            console.log(`[UI] currentStage set to 1 (source: no userId/client)`);
+        }
+
+        // Ensure ContestApp exists (idempotent - create only once)
         if (!window.__appInitialized) {
-            console.log('[UI] Initializing ContestApp before starting game');
+            console.log('[UI] Creating ContestApp (will init after stage is confirmed)');
             window.contestApp = new ContestApp();
             try { window.app = window.contestApp; } catch (e) { /* noop */ }
             window.__appInitialized = true;
         }
 
-        // Show the game container (this hides landing)
-        if (typeof showGame === 'function') showGame();
+        // Set stage on app from DB-restored value
+        if (window.contestApp) {
+            window.contestApp.currentStage = window.currentStage;
+            console.log(`[UI] Set app currentStage to: ${window.currentStage}`);
+        }
 
-        // Position app at next unsolved and render current stage
+        // Compute correct next unsolved stage from DB BEFORE rendering
+        // CRITICAL: Await solvesLoadedPromise to ensure DB loads before journey renders
         try {
             if (window.contestApp && typeof window.contestApp.ensureAtNextUnsolved === 'function') {
-                window.contestApp.ensureAtNextUnsolved('start');
+                console.log('[UI] Computing next unsolved stage from DB...');
+                await window.contestApp.ensureAtNextUnsolved('start');
             }
-            if (window.contestApp && typeof window.contestApp.renderCurrentStage === 'function') {
-                window.contestApp.renderCurrentStage();
-                window.contestApp.updateProgress && window.contestApp.updateProgress();
+            
+            // ✅ GATE: Wait for DB solves to fully load before rendering
+            console.log('[UI] Waiting for DB solves to load...');
+            await Promise.race([
+              solvesLoadedPromise,
+              new Promise(resolve => setTimeout(resolve, 3000)) // 3s timeout fallback
+            ]);
+            console.log('[UI] DB solves loaded, proceeding with render');
+        } catch (err) {
+            console.warn('[UI] ensureAtNextUnsolved error (non-fatal):', err);
+        }
+
+        // ✅ Ensure Journey Progress uses DB solves (not localStorage)
+        try {
+            const solvedArr = window.__dbSolvedArray || [];
+            window.solvedStages = solvedArr;
+
+            if (window.contestApp) {
+                window.contestApp.solvedStages = solvedArr;
+                window.contestApp.solvedSet = window.__dbSolvedSet;
+            }
+
+            console.log("[JOURNEY] Applied DB solves to UI:", solvedArr);
+
+            // Force refresh of journey UI now that DB solves are known
+            if (typeof renderJourneyProgress === "function") {
+                renderJourneyProgress(solvedArr);
+            }
+            if (window.contestApp && typeof window.contestApp.renderJourneyProgress === "function") {
+                window.contestApp.renderJourneyProgress();
+            }
+            if (window.contestApp && typeof window.contestApp.renderJourneyCards === "function") {
+                window.contestApp.renderJourneyCards();
+            }
+            // ✅ CRITICAL: Force journey cards re-render with DB data
+            if (window.contestApp && typeof window.contestApp.renderStagesGrid === "function") {
+                console.log("[JOURNEY] Re-rendering journey stages grid with DB data");
+                window.contestApp.renderStagesGrid();
+            }
+            
+            // ✅ DEFENSIVE RE-RENDER: Force all journey UI to refresh after DB load
+            console.log("[JOURNEY] Running defensive re-render of all journey components");
+            setTimeout(() => {
+              try {
+                if (window.contestApp && typeof window.contestApp.renderStagesGrid === "function") {
+                  window.contestApp.renderStagesGrid();
+                }
+                if (window.contestApp && typeof window.contestApp.applySolvedStatesToCards === "function") {
+                  console.log("[JOURNEY] Defensive: applying solved states to cards with globals:", window.__SOLVED_STAGES);
+                  window.contestApp.applySolvedStatesToCards();
+                }
+                if (window.contestApp && typeof window.contestApp.renderJourneyProgress === "function") {
+                  window.contestApp.renderJourneyProgress();
+                }
+                if (window.contestApp && typeof window.contestApp.updateStageProgressUI === "function") {
+                  console.log("[JOURNEY] Defensive: calling updateStageProgressUI with globals:", window.__SOLVED_STAGES);
+                  window.contestApp.updateStageProgressUI();
+                }
+                if (window.contestApp && typeof window.contestApp.updateProgress === "function") {
+                  window.contestApp.updateProgress();
+                }
+                console.log("[JOURNEY] Defensive re-render complete");
+              } catch (e) {
+                console.warn("[JOURNEY] Defensive re-render warning:", e);
+              }
+            }, 100);
+        } catch (e) {
+            console.warn("[JOURNEY] Failed to apply solvedSet to UI", e);
+        }
+
+        // NOW init() the app - this renders UI with correct stage
+        try {
+            if (window.contestApp && typeof window.contestApp.init === 'function' && !window.__contestAppInitCalled) {
+                console.log('[UI] Calling ContestApp.init() after stage confirmation');
+                window.contestApp.init();
+                window.__contestAppInitCalled = true;
             }
         } catch (err) {
-            console.warn('[UI] startContestForSignedInUser render error (non-fatal):', err);
+            console.warn('[UI] ContestApp.init() error (non-fatal):', err);
         }
+
+        // Show the game container (this hides landing) - AFTER stage and UI are correct
+        if (typeof showGame === 'function') {
+            console.log('[UI] Showing game UI');
+            showGame();
+        }
+
+        // Update progress display
+        try {
+            if (window.contestApp && typeof window.contestApp.updateProgress === 'function') {
+                window.contestApp.updateProgress();
+            }
+        } catch (err) {
+            console.warn('[UI] updateProgress error (non-fatal):', err);
+        }
+
+        // Re-attach profile button handler after game initialization
+        wireProfileButton();
     } catch (err) {
         console.error('[UI] startContestForSignedInUser error:', err);
     }
@@ -3441,25 +4167,56 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize auth UI
     authUI = new AuthUI();
     
+    // Expose authUI for any legacy onclick handlers in HTML
+    window.authUI = authUI;
+    
+    // Initialize marketing event logger
+    marketingEventLogger = new MarketingEventLogger(supabase);
+    await marketingEventLogger.onPageLoad();
+    
     // Bind landing page events
-    document.getElementById('playGameBtn').onclick = (e) => {
-        e?.preventDefault?.();
-        if (supabaseAuth && supabaseAuth.isAuthenticated()) {
-            // LEGACY ADMIN UI DISABLED
-            // The main site no longer provides admin access.
-            // Admins must use /admin.html for stage control.
-            // All users (including admin email) proceed to normal game flow.
-            console.warn('[ADMIN] Legacy admin UI disabled. Use /admin.html instead');
-            startContestForSignedInUser();
-        } else {
-            authUI.showModal();
-        }
-    };
+    const playGameBtn = document.getElementById('playGameBtn');
+    if (playGameBtn) {
+        playGameBtn.onclick = (e) => {
+            e?.preventDefault?.();
+            
+            // Log CTA click event
+            if (marketingEventLogger) {
+                marketingEventLogger.onCtaClick();
+            }
+            
+            if (supabaseAuth && supabaseAuth.isAuthenticated()) {
+                // LEGACY ADMIN UI DISABLED
+                // The main site no longer provides admin access.
+                // Admins must use /admin.html for stage control.
+                // All users (including admin email) proceed to normal game flow.
+                console.warn('[ADMIN] Legacy admin UI disabled. Use /admin.html instead');
+                startContestForSignedInUser();
+            } else {
+                // Log signup started when opening auth modal
+                if (marketingEventLogger) {
+                    marketingEventLogger.onSignupStarted();
+                }
+                authUI.showModal();
+            }
+        };
+    }
     
     // Bind footer links
-    document.getElementById('howToPlayLink').onclick = () => howToPlayModal.open();
-    document.getElementById('termsLink').onclick = () => termsModal.open();
-    document.getElementById('howToPlayLinkGame').onclick = () => howToPlayModal.open();
+    const howToPlayLink = document.getElementById('howToPlayLink');
+    if (howToPlayLink) {
+        howToPlayLink.onclick = () => howToPlayModal.open();
+    }
+
+    const termsLink = document.getElementById('termsLink');
+    if (termsLink) {
+        termsLink.onclick = () => termsModal.open();
+    }
+
+    const howToPlayLinkGame = document.getElementById('howToPlayLinkGame');
+    if (howToPlayLinkGame) {
+        howToPlayLinkGame.onclick = () => howToPlayModal.open();
+    }
 
     // Bind the real sign-out button to the class handler
     const btn = document.querySelector("[data-action='signout']") || document.getElementById("btnSignOut");
@@ -3467,7 +4224,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       if (typeof app?.handleSignOut === "function") {
         btn.onclick = (e) => app.handleSignOut(e);
       } else {
-        btn.onclick = (e) => signOutHard();
+        btn.onclick = (e) => hardGameSignOut();
       }
       console.log("[SIGNOUT] Button bound");
     }
@@ -3497,10 +4254,16 @@ window.addEventListener('load', async function () {
   }
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      console.log('[LOAD] Session found on load:', session.user.email);
-      supabaseAuth.user = session.user;
-      onUserSignedIn(session.user);
+    const autoEnter = localStorage.getItem(SC_AUTO_ENTER_GAME_KEY) === "1";
+
+    if (session?.user || autoEnter) {
+      localStorage.removeItem(SC_AUTO_ENTER_GAME_KEY);
+      console.log('[LOAD] Session/autoEnter found — skipping landing, entering game');
+      if (session?.user) {
+        supabaseAuth.user = session.user;
+      }
+      startContestForSignedInUser();
+      return;
     } else {
       console.log('[LOAD] No existing session found on load; showing landing');
       showLanding();

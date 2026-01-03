@@ -357,25 +357,44 @@ class AuthUI {
     }
 
     showTab(tab) {
+        // Get all tab buttons and forms
+        const tabBtns = document.querySelectorAll('.auth-tab');
+        const signInPanel = document.getElementById('auth-signin');
+        const signUpPanel = document.getElementById('auth-signup');
+        const authTitle = document.getElementById('auth-title');
+
+        // Guard: Check if critical elements exist
+        if (!tabBtns.length || !signInPanel || !signUpPanel || !authTitle) {
+            console.warn("[AuthUI] Missing tab elements in modal. Cannot switch tabs.", {
+                tabBtns: tabBtns.length,
+                signInPanel: !!signInPanel,
+                signUpPanel: !!signUpPanel,
+                authTitle: !!authTitle,
+            });
+            return;
+        }
+
         // Hide all forms
         document.querySelectorAll('.auth-form').forEach(form => {
             form.classList.remove('active');
         });
         
         // Remove active class from all tabs
-        document.querySelectorAll('.auth-tab').forEach(tabBtn => {
+        tabBtns.forEach(tabBtn => {
             tabBtn.classList.remove('active');
         });
 
         // Show selected form and tab
         if (tab === 'signin') {
-            document.getElementById('auth-signin').classList.add('active');
-            document.querySelector('.auth-tab:first-child').classList.add('active');
-            document.getElementById('auth-title').textContent = 'Sign In to Sync Progress';
+            signInPanel.classList.add('active');
+            const firstTab = tabBtns[0];
+            if (firstTab) firstTab.classList.add('active');
+            authTitle.textContent = 'Sign In to Sync Progress';
         } else if (tab === 'signup') {
-            document.getElementById('auth-signup').classList.add('active');
-            document.querySelector('.auth-tab:last-child').classList.add('active');
-            document.getElementById('auth-title').textContent = 'Create Account to Sync';
+            signUpPanel.classList.add('active');
+            const lastTab = tabBtns[tabBtns.length - 1];
+            if (lastTab) lastTab.classList.add('active');
+            authTitle.textContent = 'Create Account to Sync';
         }
 
         this.clearMessage();
@@ -444,6 +463,11 @@ class AuthUI {
         try {
             this.showMessage('Creating account...', 'info');
             const result = await supabaseAuth.signUpWithEmail(email, password, { full_name: name });
+            
+            // Log signup success event
+            if (window.marketingEventLogger && result.user) {
+                window.marketingEventLogger.onSignupSuccess(result.user.id);
+            }
             
             // Since email confirmation is disabled, the user should be signed in immediately
             if (result.user && !result.user.email_confirmed_at) {

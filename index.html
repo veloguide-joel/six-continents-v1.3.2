@@ -72,6 +72,46 @@
 </head>
 
 <body>
+    <script>
+        // A/B Landing Page Router
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            const lpParam = params.get('lp');
+            
+            if (lpParam === 'auto') {
+                // Auto-assign variant and redirect
+                const storedVariant = localStorage.getItem('lp_variant');
+                let variant;
+                
+                if (storedVariant) {
+                    // Use existing variant
+                    variant = storedVariant;
+                } else {
+                    // Randomly assign to A or B
+                    variant = Math.random() < 0.5 ? 'a' : 'b';
+                    localStorage.setItem('lp_variant', variant);
+                }
+                
+                // Initialize session if needed
+                if (!localStorage.getItem('lp_session_id')) {
+                    localStorage.setItem('lp_session_id', generateUUID());
+                }
+                
+                // Redirect to variant page
+                window.location.href = `/lp-${variant}.html`;
+            }
+        })();
+        
+        // Simple UUID generator
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+    </script>
+
     <div id="global-toast" class="global-toast hidden">
         <p id="global-toast-message"></p>
     </div>
@@ -196,10 +236,11 @@
                             <div class="ar-header-avatar-circle">
                                 <img id="headerAvatarImg" src="" alt="Profile avatar">
                             </div>
+                            <span id="userName" style="display:none"></span>
                             <span id="journeyUserEmail" class="stage-header__user-name"></span>
                         </div>
                         <div class="stage-header__actions">
-                            <button id="btnProfile" type="button" class="btn-profile">My Profile</button>
+                            <button id="btnMyProfile" type="button" class="btn-profile">My Profile</button>
                             <button id="btnSignOut" type="button">Sign Out</button>
                         </div>
                     </div>
@@ -491,7 +532,11 @@
   console.log("[GAME] STAGE_ENV =", window.STAGE_ENV, "host =", host);
 </script>
 
-<script src="script.js"></script>
+<!-- Marketing tracking (optional, non-blocking) -->
+<script defer src="./marketing.js" onerror="console.warn('[MARKETING] marketing.js failed to load (ok, tracking disabled)');"></script>
+
+<!-- Main app (must load after config and supabase) -->
+<script type="module" src="./script.js"></script>
 
 <div id="password-reset-modal" class="reset-modal hidden">
     <div class="reset-modal-backdrop"></div>
@@ -559,7 +604,7 @@
 
 <!-- My Profile Modal -->
 <div id="profileModalBackdrop" class="profile-modal-backdrop hidden">
-  <div class="profile-modal">
+  <div id="profileModal" class="profile-modal">
     <div class="profile-modal-header">
       <h2>My Profile</h2>
       <button class="profile-modal-close" data-profile-close>&times;</button>
@@ -586,7 +631,7 @@
         <p class="profile-hint">Square images ~512×512 look best.</p>
       </div>
 
-      <button id="profileSaveButton" type="button" class="btn btn-primary profile-save-btn">
+      <button id="btnSaveProfile" type="button" class="btn btn-primary profile-save-btn">
         Save changes
       </button>
 

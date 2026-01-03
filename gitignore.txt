@@ -87,3 +87,6 @@ jspm_packages/
 # Local development
 .DS_Store
 Thumbs.db
+
+# Local snapshots (not tracked in git)
+_snapshots/

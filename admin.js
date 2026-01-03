@@ -16,6 +16,46 @@ window.__ADMIN_BOOTING__ = window.__ADMIN_BOOTING__ || false;
 window.__ADMIN_BOOTED__  = window.__ADMIN_BOOTED__  || false;
 
 /**
+ * Clear Supabase auth tokens and app state from storage
+ * Surgical approach: avoids localStorage.clear() to prevent collateral issues
+ */
+function clearSupabaseAuthStorage() {
+  try {
+    // Remove Supabase auth tokens (common patterns)
+    const keys = Object.keys(localStorage);
+    for (const k of keys) {
+      if (
+        k.startsWith("sb-") && k.includes("-auth-token")
+      ) {
+        localStorage.removeItem(k);
+      }
+    }
+
+    // Optional: if you store app state keys, clear them explicitly
+    const appKeys = [
+      "UI_MODE",
+      "ADMIN_UI_MODE",
+      "stage_cache",
+      "leaderboard_cache",
+      "user_cache"
+    ];
+    for (const k of appKeys) {
+      if (localStorage.getItem(k) !== null) localStorage.removeItem(k);
+    }
+  } catch (e) {
+    console.warn("[ADMIN] storage clear warning:", e);
+  }
+
+  try {
+    // If you use sessionStorage anywhere, clear app keys there too
+    sessionStorage.removeItem("UI_MODE");
+    sessionStorage.removeItem("ADMIN_UI_MODE");
+  } catch (e) {
+    // ignore
+  }
+}
+
+/**
  * Get the root container for UI rendering
  * @returns {Element} - Root element for admin UI
  */
@@ -1357,38 +1397,19 @@ function setupAuthStateListener() {
  * Hard sign-out for admin: clear auth, storage, and reload
  */
 async function hardAdminSignOut() {
-  console.log('[ADMIN] hardAdminSignOut initiated');
-  
+  console.log("[ADMIN] hardAdminSignOut initiated");
   try {
-    // Step 1: Sign out from Supabase
-    try {
-      await supabase.auth.signOut();
-      console.log('[ADMIN] supabase.auth.signOut() complete');
-    } catch (err) {
-      console.error('[ADMIN] Error during supabase.auth.signOut():', err);
-    }
-
-    // Step 2: Clear storage
-    console.log('[ADMIN] clearing storage');
-    try {
-      localStorage.clear();
-      sessionStorage.clear();
-    } catch (e) {
-      console.warn('[ADMIN] Error clearing storage:', e);
-    }
-
-    // Step 3: Reset boot flags so re-login will re-initialize
-    window.__ADMIN_BOOTED__ = false;
-    window.__ADMIN_BOOTING__ = false;
-    console.log('[ADMIN] boot flags reset for re-login');
-
-    // Step 4: Return to signed-out state (show login view)
-    console.log('[ADMIN] entering signed-out state');
-    enterSignedOutState();
-  } catch (err) {
-    console.error('[ADMIN] Unexpected error in hardAdminSignOut:', err);
-    enterSignedOutState();
+    await supabase.auth.signOut(); // device-only is fine; use scope:'global' only if you want all devices
+    console.log("[ADMIN] supabase.auth.signOut() complete");
+  } catch (e) {
+    console.warn("[ADMIN] supabase signOut warning:", e);
   }
+
+  console.log("[ADMIN] clearing storage");
+  clearSupabaseAuthStorage();
+
+  // Force a clean reload of admin login route
+  location.replace("/admin.html");
 }
 
 /**
