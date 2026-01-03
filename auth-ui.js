@@ -72,9 +72,9 @@ class AuthUI {
                     </div>
                     
                     <form onsubmit="authUI.handleSignUp(event)">
-                        <input type="text" id="signup-name" placeholder="Full Name" required>
                         <input type="email" id="signup-email" placeholder="Email" required>
                         <input type="password" id="signup-password" placeholder="Password (min 6 characters)" required minlength="6">
+                        <input type="password" id="signup-password-confirm" placeholder="Confirm password" required minlength="6">
                         <button type="submit" class="auth-btn primary">Create Account</button>
                     </form>
                 </div>
@@ -456,13 +456,19 @@ class AuthUI {
 
     async handleSignUp(event) {
         event.preventDefault();
-        const name = document.getElementById('signup-name').value;
         const email = document.getElementById('signup-email').value;
         const password = document.getElementById('signup-password').value;
+        const passwordConfirm = document.getElementById('signup-password-confirm').value;
+
+        // Validate passwords match
+        if (password !== passwordConfirm) {
+            this.showMessage('Passwords do not match', 'error');
+            return;
+        }
 
         try {
             this.showMessage('Creating account...', 'info');
-            const result = await supabaseAuth.signUpWithEmail(email, password, { full_name: name });
+            const result = await supabaseAuth.signUpWithEmail(email, password);
             
             // Log signup success event
             if (window.marketingEventLogger && result.user) {
@@ -502,7 +508,49 @@ class AuthUI {
             this.showMessage(error.message || 'Failed to send reset link', 'error');
         }
     }
+
+    async handleGoogleAuth() {
+        try {
+            if (!window.supabase) {
+                console.error("[AUTH] Supabase not initialized yet.");
+                this.showMessage('Supabase not initialized. Please try again.', 'error');
+                return;
+            }
+
+            const { data, error } = await window.supabase.auth.signInWithOAuth({
+                provider: "google",
+                options: {
+                    redirectTo: window.location.origin
+                }
+            });
+
+            if (error) {
+                console.error("[AUTH] Google OAuth error:", error);
+                this.showMessage(error.message || "Google sign-in failed.", 'error');
+                return;
+            }
+
+            console.log("[AUTH] Google OAuth started:", data);
+        } catch (e) {
+            console.error("[AUTH] Google OAuth exception:", e);
+            this.showMessage("Google sign-in failed. Please try again.", 'error');
+        }
+    }
 }
 
 // Initialize auth UI
 const authUI = new AuthUI();
+
+// Wire Google OAuth button
+function wireGoogleAuthButton() {
+    const btn = document.getElementById("googleSignInBtn");
+    if (!btn) {
+        console.warn("[AUTH] Google auth button not found");
+        return;
+    }
+    btn.addEventListener("click", () => authUI.handleGoogleAuth());
+    console.log("[AUTH] Google auth button wired");
+}
+
+// Call wiring after modal is ready
+setTimeout(wireGoogleAuthButton, 100);

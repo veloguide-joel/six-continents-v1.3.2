@@ -234,10 +234,9 @@
                     <div class="stage-header__profile">
                         <div class="stage-header__user">
                             <div class="ar-header-avatar-circle">
-                                <img id="headerAvatarImg" src="" alt="Profile avatar">
+                                <img id="userAvatarImg" class="user-avatar" src="/assets/avatars/default.png" alt="avatar">
                             </div>
-                            <span id="userName" style="display:none"></span>
-                            <span id="journeyUserEmail" class="stage-header__user-name"></span>
+                            <span id="userDisplayName" class="user-name stage-header__user-name"></span>
                         </div>
                         <div class="stage-header__actions">
                             <button id="btnMyProfile" type="button" class="btn-profile">My Profile</button>
@@ -484,15 +483,35 @@
             </div>
 
             <div id="auth-signup" class="auth-form active">
+                <!-- OAuth -->
+                <button type="button" class="oauth-btn oauth-btn--google" data-oauth="google">
+                  <span class="oauth-btn__icon" aria-hidden="true"></span>
+                  <span class="oauth-btn__text">Continue with Google</span>
+                </button>
+
+                <div class="oauth-divider">
+                  <span>or</span>
+                </div>
+
                 <form onsubmit="authUI.handleSignUp(event)">
-                    <input type="text" id="signup-username" placeholder="Username" required>
                     <input type="email" id="signup-email" placeholder="Email" required>
                     <input type="password" id="signup-password" placeholder="Password (min 6 characters)" required minlength="6">
+                    <input type="password" id="signup-password-confirm" placeholder="Confirm password" required minlength="6">
                     <button type="submit" class="auth-btn primary">Create Account & Start Playing</button>
                 </form>
             </div>
 
             <div id="auth-signin" class="auth-form">
+                <!-- OAuth -->
+                <button type="button" class="oauth-btn oauth-btn--google" data-oauth="google">
+                  <span class="oauth-btn__icon" aria-hidden="true"></span>
+                  <span class="oauth-btn__text">Continue with Google</span>
+                </button>
+
+                <div class="oauth-divider">
+                  <span>or</span>
+                </div>
+
                 <form onsubmit="authUI.handleSignIn(event)">
                     <input type="email" id="signin-email" placeholder="Email" required>
                     <input type="password" id="signin-password" placeholder="Password" required>
@@ -606,28 +625,41 @@
 <div id="profileModalBackdrop" class="profile-modal-backdrop hidden">
   <div id="profileModal" class="profile-modal">
     <div class="profile-modal-header">
-      <h2>My Profile</h2>
+      <h2>Update Your Profile Below</h2>
       <button class="profile-modal-close" data-profile-close>&times;</button>
     </div>
 
     <div id="profileForm" class="profile-modal-body">
       <label class="profile-field">
-        <span>Display name</span>
-        <input id="profileDisplayName" type="text" maxlength="40" placeholder="Enter your display name" />
-        <small class="profile-helper-text">Max 10 characters (including spaces).</small>
+        <span>Create New Display Name</span>
+        <input
+          type="text"
+          id="profileDisplayName"
+          maxlength="15"
+          placeholder="Enter your display name"
+        />
+        <small class="profile-helper-text">Max 15 characters (including spaces).</small>
         <p id="profileDisplayNameError" class="profile-error hidden" style="color: #e60000; font-size: 0.85rem; margin-top: 4px;"></p>
       </label>
 
       <div class="profile-field">
-        <span>Choose an avatar</span>
-        <div id="profileAvatarGrid" class="profile-avatar-grid">
+        <span id="avatarChooseLabel">Choose an avatar</span>
+        <div id="avatarPresetGrid" class="profile-avatar-grid">
           <!-- filled from JS using STOCK_AVATARS -->
         </div>
+        <img
+          id="avatarCurrentPreview"
+          class="avatar-preview"
+          style="display:none;"
+          alt="Current profile picture"
+        />
       </div>
 
       <div class="profile-field">
-        <span>Or upload your own</span>
-        <input id="profileAvatarUpload" type="file" accept="image/*" />
+        <label for="profileAvatarUpload" id="avatarUploadLabel">
+          Upload Profile Pic
+        </label>
+        <input type="file" id="profileAvatarUpload" accept="image/png,image/jpeg,image/webp" />
         <p class="profile-hint">Square images ~512×512 look best.</p>
       </div>
 
