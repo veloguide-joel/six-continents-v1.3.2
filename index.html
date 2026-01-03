@@ -532,7 +532,10 @@
   console.log("[GAME] STAGE_ENV =", window.STAGE_ENV, "host =", host);
 </script>
 
-<script type="module" src="./marketing.js"></script>
+<!-- Marketing tracking (optional, non-blocking) -->
+<script defer src="./marketing.js" onerror="console.warn('[MARKETING] marketing.js failed to load (ok, tracking disabled)');"></script>
+
+<!-- Main app (must load after config and supabase) -->
 <script type="module" src="./script.js"></script>
 
 <div id="password-reset-modal" class="reset-modal hidden">

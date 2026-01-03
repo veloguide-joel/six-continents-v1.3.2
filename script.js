@@ -1,7 +1,17 @@
 // BUILD-ID 2025-11-12-logout+LB
 console.log("BUILD-ID 2025-11-12-logout+LB");
 
-import { createMarketingTracker } from "./marketing.js";
+// ✅ Import createMarketingTracker from window (loaded as non-blocking defer script)
+// If marketing.js fails to load, function won't exist but app will still work
+const createMarketingTracker = window.createMarketingTracker || (() => {
+  console.warn("[MARKETING] createMarketingTracker not available (script load failed or deferred)");
+  return {
+    session_id: null,
+    variant: null,
+    log: () => {},
+    logLpViewOnce: () => {},
+  };
+});
 
 // --- Page mode detection (LP variants should NOT run full game UI) ---
 const IS_LP_VARIANT = /\/lp-[ab]\.html$/i.test(window.location.pathname) ||
