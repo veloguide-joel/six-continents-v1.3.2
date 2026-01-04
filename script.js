@@ -205,6 +205,13 @@ function getAvatarUrlFromKey(avatarKey) {
   }
 }
 
+// MERGE SOLVED STAGES HELPER - Fix for overwrite bug
+function mergeSolvedStages(existing = [], incoming = []) {
+  const merged = Array.from(new Set([...(existing || []), ...(incoming || [])]));
+  merged.sort((a, b) => a - b);
+  return merged;
+}
+
 // HEADER PROFILE RENDER START
 window.currentProfile = null;
 window.__didSoftNagProfile = false;
@@ -1668,13 +1675,15 @@ try {
 }
         // Step 1: Update local solved stages FIRST
         if (!this.isSolved(stage)) {
-            const newSolved = [...this.solvedStages, stage];
-            this.setSolvedStagesLocal(newSolved);
-            console.log(`[ADVANCE] Stage ${stage} marked as solved locally. New progress:`, newSolved);
+            // ✅ MERGE with existing solved stages instead of replacing
+            const merged = mergeSolvedStages(window.__SOLVED_STAGES || this.solvedStages, [stage]);
+            this.setSolvedStagesLocal(merged);
+            console.log(`[ADVANCE] Stage ${stage} marked as solved locally. New progress:`, merged);
+            console.log('[JOURNEY] merged solved stages:', merged);
 
             // After solve: force UI refresh of journey progress + cards
             try {
-              console.log('[JOURNEY] Forcing UI refresh after solve. Solved:', newSolved);
+              console.log('[JOURNEY] Forcing UI refresh after solve. Solved:', merged);
               
               // Update all progress UI immediately
               if (typeof this.updateStageProgressUI === 'function') {
@@ -1686,7 +1695,7 @@ try {
               }
               
               // Also update global state for any external listeners
-              window.__SOLVED_STAGES = newSolved;
+              window.__SOLVED_STAGES = merged;
             } catch (e) {
               console.warn('[JOURNEY] UI refresh after solve failed:', e);
             }
