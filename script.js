@@ -170,7 +170,24 @@ const STOCK_AVATARS = [
   { key: "travel-diary", label: "Travel diary", url: AVATAR_BASE_URL + "travel-diary.png" },
 ];
 
+// Profile configuration
+const DISPLAY_NAME_MAX_LEN = 15;
+const DEFAULT_PLAYER_PREFIX = 'player_';
+
+function generatePlayerName() {
+  // 7-digit random number (1000000–9999999)
+  const n = Math.floor(1000000 + Math.random() * 9000000);
+  return `${DEFAULT_PLAYER_PREFIX}${n}`;
+}
+
+function isDefaultPlayerName(name) {
+  return typeof name === 'string' && name.toLowerCase().startsWith(DEFAULT_PLAYER_PREFIX);
+}
+
 let currentProfile = null;
+
+// PROFILE AVATAR STATE
+let selectedAvatarKey = null;
 
 function getAvatarUrlFromKey(avatarKey) {
   if (!avatarKey) return null;
@@ -187,6 +204,54 @@ function getAvatarUrlFromKey(avatarKey) {
       return null;
   }
 }
+
+// MERGE SOLVED STAGES HELPER - Fix for overwrite bug
+function mergeSolvedStages(existing = [], incoming = []) {
+  const merged = Array.from(new Set([...(existing || []), ...(incoming || [])]));
+  merged.sort((a, b) => a - b);
+  return merged;
+}
+
+// HEADER PROFILE RENDER START
+window.currentProfile = null;
+window.__didSoftNagProfile = false;
+
+function getDisplayLabel(profile, user) {
+  const name = (profile?.display_name || profile?.username || '').trim();
+  if (name) return name;
+
+  // fallback: show email only if no profile name
+  return (user?.email || '').trim();
+}
+
+function renderHeaderUser(profile, user) {
+  const nameEl = document.getElementById('userDisplayName');
+  const avatarEl = document.getElementById('userAvatarImg');
+
+  // NEVER show email; use display_name or fallback to "Player"
+  const label = (profile?.display_name && profile.display_name.trim())
+    ? profile.display_name.trim()
+    : 'Player';
+
+  // NAME: one place only
+  if (nameEl) nameEl.textContent = label;
+
+  // AVATAR: uploaded photo wins, else preset key -> Supabase public URL
+  if (avatarEl) {
+    if (profile?.avatar_url) {
+      avatarEl.src = profile.avatar_url;
+    } else if (profile?.avatar_key) {
+      // IMPORTANT: use existing helper (already in your file)
+      avatarEl.src = getAvatarUrlFromKey(profile.avatar_key);
+    } else {
+      // fallback to one of your stock avatars (pick one)
+      avatarEl.src = getAvatarUrlFromKey('suitcase');
+    }
+  }
+
+  console.log('[PROFILE] Header rendered', { label, avatar_key: profile?.avatar_key, avatar_url: profile?.avatar_url });
+}
+// HEADER PROFILE RENDER END
 
 function applyProfileToUI(profile) {
   if (!profile) return;
@@ -244,6 +309,105 @@ function updateHeaderUserLabel(user, profile) {
   labelEl.textContent = displayName;
 }
 
+function isProfileComplete(profile) {
+  const name = (profile?.display_name || profile?.username || '').trim();
+  const hasName = name.length >= 3;
+
+  // You appear to use avatar_key for presets and avatar_url/public url for uploads
+  const hasAvatar =
+    !!(profile?.avatar_key && String(profile.avatar_key).trim()) ||
+    !!(profile?.avatar_url && String(profile.avatar_url).trim());
+
+  return hasName && hasAvatar;
+}
+
+// PROFILE LOAD + HYDRATE START
+async function loadMyProfileAndHydrateUI() {
+  const { data: { user } } = await window.supabaseClient.auth.getUser();
+  if (!user) return;
+
+  const { data: profile, error } = await window.supabaseClient
+    .from('profiles')
+    .select('id, display_name, username, avatar_key, avatar_url')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[PROFILE] load profile failed', error);
+    // still render something (email fallback)
+    renderHeaderUser(null, user);
+    return;
+  }
+
+  window.currentProfile = profile || null;
+  renderHeaderUser(window.currentProfile, user);
+
+  // SOFT NAG: prompt profile completion if they still have default name
+  if (window.__didSoftNagProfile) return;
+  window.__didSoftNagProfile = true;
+
+  try {
+    if (window.currentProfile?.display_name && isDefaultPlayerName(window.currentProfile.display_name)) {
+      console.log('[PROFILE] Soft nag: default name detected, opening profile modal');
+      openProfileModal(); // user can close and continue playing
+    }
+  } catch (e) {
+    console.warn('[PROFILE] Soft nag skipped due to error', e);
+  }
+}
+// PROFILE LOAD + HYDRATE END
+
+let __profilePromptedThisSession = false;
+
+async function promptProfileCompletionIfNeeded() {
+  try {
+    if (__profilePromptedThisSession) return;
+
+    const { data: { user } } = await window.supabaseClient.auth.getUser();
+    if (!user) return;
+
+    // You already have a profile loader somewhere; use it if it exists.
+    // If not, this query is safe (adjust table/columns if yours differ).
+    const { data: profile, error } = await window.supabaseClient
+      .from('profiles')
+      .select('id, display_name, username, avatar_key, avatar_url')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[PROFILE] Could not fetch profile for completion check', error);
+      return;
+    }
+
+    if (!isProfileComplete(profile)) {
+      __profilePromptedThisSession = true;
+      console.log('[PROFILE] Incomplete profile -> opening modal');
+
+      // You already have this (based on your logs/screens)
+      openProfileModal();
+
+      // Optional: prefill modal if you have a hydrate function
+      if (typeof hydrateProfileModal === 'function') {
+        hydrateProfileModal(profile);
+      }
+
+      // Optional: if you want to block closing until complete (see Step 4)
+    } else {
+      console.log('[PROFILE] Profile already complete');
+      __profilePromptedThisSession = true;
+    }
+
+    // Auto-prompt if user still has a default player_XXXXX name
+    if (profile?.display_name && isDefaultPlayerName(profile.display_name)) {
+      console.log('[PROFILE] Default name detected; prompting user to complete profile');
+      __profilePromptedThisSession = true;
+      openProfileModal();
+    }
+  } catch (err) {
+    console.error('[PROFILE] promptProfileCompletionIfNeeded failed', err);
+  }
+}
+
 async function loadUserProfile() {
   try {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -261,6 +425,25 @@ async function loadUserProfile() {
     if (error) {
       console.warn("[PROFILE] Load error:", error);
       return null;
+    }
+    
+    // If display_name missing, assign a safe default and persist it
+    if (!data?.display_name || !data.display_name.trim()) {
+      const fallbackName = generatePlayerName();
+
+      const { error: upErr } = await supabase
+        .from('profiles')
+        .update({ display_name: fallbackName })
+        .eq('id', data.id);
+
+      if (!upErr) {
+        data.display_name = fallbackName;
+        console.log('[PROFILE] Assigned default display_name:', fallbackName);
+      } else {
+        console.warn('[PROFILE] Failed to assign default display_name:', upErr);
+        // still set locally so UI never shows email
+        data.display_name = fallbackName;
+      }
     }
     
     currentProfile = data;
@@ -409,6 +592,67 @@ async function computeNextUnsolvedFromSolves(userId) {
   }
 }
 
+/** ========== AVATAR UPLOAD VALIDATION CONSTANTS ========== **/
+const AVATAR_MAX_UPLOAD_MB = 2;          // target final upload size
+const AVATAR_HARD_LIMIT_MB = 12;         // hard reject limit
+const AVATAR_OUTPUT_SIZE = 512;          // px square dimension
+const AVATAR_JPEG_QUALITY = 0.82;        // quality 0.7-0.85 range
+
+/** Center-crop, resize, compress image to square avatar blob */
+async function imageFileToSquareAvatarBlob(file) {
+  // Basic type guard
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Please upload an image file (JPG, PNG, or WEBP).');
+  }
+
+  // Hard limit (before we even try)
+  const sizeMB = file.size / (1024 * 1024);
+  if (sizeMB > AVATAR_HARD_LIMIT_MB) {
+    throw new Error(`That file is too large (${sizeMB.toFixed(1)} MB). Please choose a smaller photo.`);
+  }
+
+  // Decode image
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('Could not read that image.'));
+    i.src = URL.createObjectURL(file);
+  });
+
+  // Center square crop
+  const side = Math.min(img.width, img.height);
+  const sx = Math.floor((img.width - side) / 2);
+  const sy = Math.floor((img.height - side) / 2);
+
+  // Draw to canvas at final size
+  const canvas = document.createElement('canvas');
+  canvas.width = AVATAR_OUTPUT_SIZE;
+  canvas.height = AVATAR_OUTPUT_SIZE;
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  // Better scaling
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  ctx.drawImage(img, sx, sy, side, side, 0, 0, AVATAR_OUTPUT_SIZE, AVATAR_OUTPUT_SIZE);
+
+  // Convert to JPEG blob
+  const blob = await new Promise((resolve) => {
+    canvas.toBlob(
+      (b) => resolve(b),
+      'image/jpeg',
+      AVATAR_JPEG_QUALITY
+    );
+  });
+
+  // Cleanup object URL
+  try { URL.revokeObjectURL(img.src); } catch {}
+
+  if (!blob) throw new Error('Could not process that image.');
+
+  return blob; // image/jpeg
+}
+
 async function handleProfileSave(event) {
   if (event) {
     event.preventDefault();
@@ -424,28 +668,29 @@ async function handleProfileSave(event) {
       errorEl.textContent = '';
     }
     
-    // Get display name input with auto-truncate
+    // Get display name input with validation
     const nameInput = document.getElementById("profileDisplayName");
     let display_name = nameInput ? nameInput.value.trim() : '';
     
-    // Auto-truncate to 10 characters if needed
-    if (display_name.length > 10) {
-      const truncated = display_name.slice(0, 10);
-      if (nameInput) {
-        nameInput.value = truncated;
-      }
-      display_name = truncated;
-      if (typeof showToast === 'function') {
-        showToast('Display name shortened to 10 characters.', { type: 'info', durationMs: 3000 });
-      }
+    // Validate display name length
+    if (display_name.length > DISPLAY_NAME_MAX_LEN) {
+      alert(`Display name must be ${DISPLAY_NAME_MAX_LEN} characters or less.`);
+      return;
+    }
+
+    // Prevent saving a default player_XXXXX name
+    if (isDefaultPlayerName(display_name)) {
+      alert('Please choose a custom display name (not player_...).');
+      return;
     }
     
     display_name = display_name || null;
 
-    // Get avatar selection
+    // Get avatar selection from global state (set by wireAvatarOptions)
+    // selectedAvatarKey is managed by event delegation and preselection logic
+    const avatar_key = selectedAvatarKey || null;
+
     const uploadInput = document.getElementById("profileAvatarUpload");
-    const selectedEl = document.querySelector(".profile-avatar-option.selected");
-    const avatar_key = selectedEl ? selectedEl.dataset.avatarKey : null;
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
@@ -455,25 +700,43 @@ async function handleProfileSave(event) {
 
     let avatar_url = currentProfile?.avatar_url || null;
 
-    // Handle file upload
-    const file = uploadInput.files[0];
+    // Handle file upload with compression
+    const file = uploadInput.files?.[0];
     if (file) {
-      console.log('[PROFILE] Uploading file:', file.name);
-      const path = `${user.id}/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase
-        .storage.from("avatars")
-        .upload(path, file, { upsert: true });
+      try {
+        // Optional: show user something while processing
+        console.log('[PROFILE] Processing avatar image...', { name: file.name, size: file.size });
 
-      if (uploadError) {
-        console.error("[PROFILE] Upload error:", uploadError);
-        alert('Failed to upload image. Please try again.');
-        return;
-      } else {
-        const { data: publicData } = supabase
+        const avatarBlob = await imageFileToSquareAvatarBlob(file);
+
+        // final size check (soft target - warn, don't block unless huge)
+        const finalMB = avatarBlob.size / (1024 * 1024);
+        console.log('[PROFILE] Avatar processed', { finalMB: finalMB.toFixed(2) });
+
+        const fileNameSafe = `avatar-${user.id}-${Date.now()}.jpg`;
+
+        const { error: uploadError } = await supabase
           .storage.from("avatars")
-          .getPublicUrl(path);
-        avatar_url = publicData.publicUrl;
-        console.log('[PROFILE] Uploaded to:', avatar_url);
+          .upload(fileNameSafe, avatarBlob, {
+            contentType: 'image/jpeg',
+            upsert: true
+          });
+
+        if (uploadError) {
+          console.error("[PROFILE] Upload error:", uploadError);
+          alert('Failed to upload image. Please try again.');
+          return;
+        } else {
+          const { data: publicData } = supabase
+            .storage.from("avatars")
+            .getPublicUrl(fileNameSafe);
+          avatar_url = publicData.publicUrl;
+          console.log('[PROFILE] Uploaded to:', avatar_url);
+        }
+      } catch (compressionError) {
+        console.error('[PROFILE] Image processing error:', compressionError);
+        alert(compressionError.message || 'Could not process your image. Please try a different photo.');
+        return;
       }
     }
 
@@ -513,6 +776,14 @@ async function handleProfileSave(event) {
       currentProfile = payload;
       console.log('[PROFILE] saved ok');
       
+      // Once a photo is uploaded, disable avatar switching
+      if (file) {
+        selectedAvatarKey = null;
+      }
+      
+      // Reload and hydrate UI with fresh profile data
+      await loadMyProfileAndHydrateUI();
+      
       // Update UI using consolidated helper
       applyProfileToUI(payload);
       
@@ -530,8 +801,13 @@ async function saveUserProfile() {
   return handleProfileSave();
 }
 
+/** Check if user has uploaded a custom avatar photo */
+function hasUploadedAvatar(profile) {
+  return !!profile?.avatar_url;
+}
+
 function renderAvatarGrid(profile) {
-  const grid = document.getElementById("profileAvatarGrid");
+  const grid = document.getElementById("avatarPresetGrid");
   if (!grid) return;
   
   grid.innerHTML = "";
@@ -585,6 +861,55 @@ async function openProfileModal() {
     const uploadInput = document.getElementById("profileAvatarUpload");
     if (uploadInput) uploadInput.value = "";
     renderAvatarGrid(profile);
+
+    // Preselect the saved avatar key and update UI
+    selectedAvatarKey = profile?.avatar_key || null;
+    document.querySelectorAll('.profile-avatar-option').forEach(btn => {
+      const key = btn.getAttribute('data-avatar-key');
+      btn.classList.toggle('selected', !!selectedAvatarKey && key === selectedAvatarKey);
+    });
+
+    // Show/hide preset avatars vs. current photo preview
+    const hasPhoto = hasUploadedAvatar(profile);
+
+    // Elements
+    const avatarGrid = document.getElementById('avatarPresetGrid');
+    const uploadLabel = document.getElementById('avatarUploadLabel');
+    const avatarPreview = document.getElementById('avatarCurrentPreview');
+
+    // Safety checks
+    if (!avatarGrid || !uploadLabel) {
+      console.warn('[PROFILE] Missing avatar toggle elements');
+    } else {
+      if (hasPhoto) {
+        // Hide preset avatars
+        avatarGrid.style.display = 'none';
+
+        // Show current photo preview
+        if (avatarPreview) {
+          avatarPreview.src = profile.avatar_url;
+          avatarPreview.style.display = 'block';
+        }
+
+        // Change upload text
+        uploadLabel.textContent = 'Change profile pic';
+      } else {
+        // No uploaded photo → show avatars
+        avatarGrid.style.display = 'flex';
+
+        if (avatarPreview) {
+          avatarPreview.style.display = 'none';
+        }
+
+        uploadLabel.textContent = 'Or upload your own';
+      }
+
+      // Hide "Choose an avatar" label when user has uploaded photo
+      const chooseLabel = document.getElementById('avatarChooseLabel');
+      if (chooseLabel) {
+        chooseLabel.style.display = hasPhoto ? 'none' : 'block';
+      }
+    }
 
     // Wire handlers AFTER avatar grid is rendered
     wireProfileModalControls();
@@ -655,6 +980,22 @@ function initProfileUI() {
 
   // Password reset handler
   console.log('[PROFILE] UI initialized');
+}
+
+function wireAvatarOptions() {
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.profile-avatar-option');
+    if (!btn) return;
+
+    e.preventDefault();
+
+    selectedAvatarKey = btn.getAttribute('data-avatar-key');
+    console.log('[PROFILE] selectedAvatarKey =', selectedAvatarKey);
+
+    // UI highlight
+    document.querySelectorAll('.profile-avatar-option').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  });
 }
 
 function wireProfileModalControls() {
@@ -1334,9 +1675,30 @@ try {
 }
         // Step 1: Update local solved stages FIRST
         if (!this.isSolved(stage)) {
-            const newSolved = [...this.solvedStages, stage];
-            this.setSolvedStagesLocal(newSolved);
-            console.log(`[ADVANCE] Stage ${stage} marked as solved locally. New progress:`, newSolved);
+            // ✅ MERGE with existing solved stages instead of replacing
+            const merged = mergeSolvedStages(window.__SOLVED_STAGES || this.solvedStages, [stage]);
+            this.setSolvedStagesLocal(merged);
+            console.log(`[ADVANCE] Stage ${stage} marked as solved locally. New progress:`, merged);
+            console.log('[JOURNEY] merged solved stages:', merged);
+
+            // After solve: force UI refresh of journey progress + cards
+            try {
+              console.log('[JOURNEY] Forcing UI refresh after solve. Solved:', merged);
+              
+              // Update all progress UI immediately
+              if (typeof this.updateStageProgressUI === 'function') {
+                this.updateStageProgressUI();
+              }
+              
+              if (typeof this.applySolvedStatesToCards === 'function') {
+                this.applySolvedStatesToCards();
+              }
+              
+              // Also update global state for any external listeners
+              window.__SOLVED_STAGES = merged;
+            } catch (e) {
+              console.warn('[JOURNEY] UI refresh after solve failed:', e);
+            }
         }
 
         // Step 2: Save to database (async, don't block UI updates) and capture winner status
@@ -3007,6 +3369,85 @@ function initializeSupabase() {
             }
         };
 
+        // GOOGLE OAUTH WIRING START
+
+        function getOAuthRedirectTo() {
+          return `${window.location.origin}/`;
+        }
+
+        async function startGoogleOAuth() {
+          try {
+            if (!window.supabaseClient) {
+              console.error('[AUTH] supabaseClient missing');
+              return;
+            }
+
+            const auth = window.supabaseClient.auth;
+            const redirectTo = getOAuthRedirectTo();
+
+            console.log('[AUTH] Starting Google OAuth', {
+              redirectTo,
+              methods: {
+                signInWithOAuth: typeof auth.signInWithOAuth,
+                signIn: typeof auth.signIn,
+              },
+            });
+
+            let result;
+
+            if (typeof auth.signInWithOAuth === 'function') {
+              // Supabase v2
+              result = await auth.signInWithOAuth({
+                provider: 'google',
+                options: { redirectTo },
+              });
+            } else if (typeof auth.signIn === 'function') {
+              // Supabase v1
+              result = await auth.signIn(
+                { provider: 'google' },
+                { redirectTo }
+              );
+            } else {
+              console.error('[AUTH] Unknown Supabase Auth version');
+              return;
+            }
+
+            if (result?.error) {
+              console.error('[AUTH] Google OAuth failed', result.error);
+              alert(result.error.message || 'Google OAuth failed');
+            }
+          } catch (err) {
+            console.error('[AUTH] Google OAuth exception', err);
+            alert(err.message || err);
+          }
+        }
+
+        // GOOGLE OAUTH DELEGATION START
+        function wireGoogleOAuthDelegation() {
+          if (window.__googleOAuthDelegationWired) return;
+          window.__googleOAuthDelegationWired = true;
+
+          document.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-oauth="google"]');
+            if (!btn) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            console.log('[AUTH] Google button clicked (delegated)');
+            startGoogleOAuth();
+          });
+
+          console.log('[AUTH] Google OAuth delegation wired');
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', wireGoogleOAuthDelegation);
+        } else {
+          wireGoogleOAuthDelegation();
+        }
+        // GOOGLE OAUTH DELEGATION END
+
         // CRITICAL FIX: Auth state listener (replaced with modal-driven recovery flow)
         supabase.auth.onAuthStateChange((event, session) => {
   console.log('[AUTH] State changed:', event, session?.user?.email || null);
@@ -3015,6 +3456,8 @@ function initializeSupabase() {
   if (event === 'SIGNED_IN') {
     clearSignInTimeout('auth_state_signed_in');
     signInResolved = true;
+    loadMyProfileAndHydrateUI();
+    promptProfileCompletionIfNeeded();
   }
 
   // Special case: password recovery flow
@@ -3349,14 +3792,23 @@ function localLogSolveFallback(payload) {
                         .eq('environment', STAGE_ENV)
                         .order('stage', { ascending: true });
 
+                    let rows = data || [];
+
                     if (error) {
                         console.warn('[STAGE_CONTROL] Failed to load stage control:', error);
-                        // Default to all stages enabled if we can't load control data
-                        this.stageControlData = {};
-                        for (let i = 1; i <= 16; i++) {
-                            this.stageControlData[i] = { is_enabled: true };
-                        }
-                        return;
+                        rows = [];
+                    }
+
+                    // Defensive fallback: if no rows for this env, use prod
+                    if (!rows || !rows.length) {
+                      console.warn('[STAGE_CONTROL] No rows for env', STAGE_ENV, '— falling back to prod');
+                      const { data: fallback } = await supabase
+                        .from('stage_control')
+                        .select('stage, is_enabled')
+                        .eq('environment', 'prod')
+                        .order('stage', { ascending: true });
+
+                      rows = fallback || [];
                     }
 
                     // Convert array to object for easier lookup
@@ -3731,18 +4183,22 @@ class AuthUI {
         
         this.isProcessing = true;
         
-        const username = document.getElementById('signup-username').value;
         const email = document.getElementById('signup-email').value;
         const password = document.getElementById('signup-password').value;
+        const passwordConfirm = document.getElementById('signup-password-confirm').value;
+
+        // Validate passwords match
+        if (password !== passwordConfirm) {
+            this.showMessage('Passwords do not match', 'error');
+            this.isProcessing = false;
+            return;
+        }
 
         try {
             this.showMessage('Creating your account...', 'info');
             
             const result = await Promise.race([
-                supabaseAuth.signUpWithEmail(email, password, {
-                    full_name: username,
-                    username: username
-                }),
+                supabaseAuth.signUpWithEmail(email, password),
                 new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Sign up timeout')), 15000)
                 )
@@ -3921,6 +4377,10 @@ async function startContestForSignedInUser() {
             }
             return;
         }
+
+        // Check if profile is complete; prompt if needed
+        await loadMyProfileAndHydrateUI();
+        promptProfileCompletionIfNeeded();
 
         // --- Restore user's current stage from database (MUST happen before app init) ---
         const userId = supabaseAuth?.user?.id;
@@ -4203,6 +4663,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // in the Supabase auth state listener (PASSWORD_RECOVERY) so we don't
     // interfere with normal app initialization order.
     
+    // Wire avatar option clicks (event delegation, global)
+    wireAvatarOptions();
+    
     // Wire profile modal controls (close buttons and backdrop)
     wireProfileModalControls();
     
@@ -4218,6 +4681,38 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Expose authUI for any legacy onclick handlers in HTML
     window.authUI = authUI;
+
+    // Wire Google OAuth button
+    const googleBtn = document.getElementById('googleSignInBtn');
+    if (googleBtn) {
+        googleBtn.addEventListener('click', async () => {
+            try {
+                if (!window.supabaseAuth) throw new Error('supabaseAuth not initialized');
+
+                // optional: marketing event
+                if (window.logMarketingEvent) {
+                    window.logMarketingEvent('google_oauth_clicked', { variant: window.MARKETING_VARIANT || 'default' });
+                }
+
+                const redirectTo = window.location.origin + window.location.pathname; // stays on same page
+
+                const { data, error } = await window.supabaseAuth.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: { redirectTo }
+                });
+
+                if (error) throw error;
+
+                console.log('[AUTH] Google OAuth started', data);
+            } catch (err) {
+                console.error('[AUTH] Google OAuth failed to start:', err);
+                alert('Google sign-in failed to start. Check console + Supabase provider settings.');
+            }
+        });
+        console.log('[AUTH] Google OAuth button wired in script.js');
+    } else {
+        console.warn('[AUTH] googleSignInBtn not found in DOM');
+    }
     
     // Initialize marketing event logger
     marketingEventLogger = new MarketingEventLogger(supabase);
