@@ -3764,14 +3764,23 @@ function localLogSolveFallback(payload) {
                         .eq('environment', STAGE_ENV)
                         .order('stage', { ascending: true });
 
+                    let rows = data || [];
+
                     if (error) {
                         console.warn('[STAGE_CONTROL] Failed to load stage control:', error);
-                        // Default to all stages enabled if we can't load control data
-                        this.stageControlData = {};
-                        for (let i = 1; i <= 16; i++) {
-                            this.stageControlData[i] = { is_enabled: true };
-                        }
-                        return;
+                        rows = [];
+                    }
+
+                    // Defensive fallback: if no rows for this env, use prod
+                    if (!rows || !rows.length) {
+                      console.warn('[STAGE_CONTROL] No rows for env', STAGE_ENV, '— falling back to prod');
+                      const { data: fallback } = await supabase
+                        .from('stage_control')
+                        .select('stage, is_enabled')
+                        .eq('environment', 'prod')
+                        .order('stage', { ascending: true });
+
+                      rows = fallback || [];
                     }
 
                     // Convert array to object for easier lookup

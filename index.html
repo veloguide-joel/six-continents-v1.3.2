@@ -546,9 +546,13 @@
 
 <!-- Stage Control Environment Setup (must run before script.js) -->
 <script>
-  const host = location.hostname;
-  window.STAGE_ENV = host === "theaccidentalretiree.app" ? "prod" : "dev";
-  console.log("[GAME] STAGE_ENV =", window.STAGE_ENV, "host =", host);
+  // Determine env from Supabase project ref (not domain)
+  const SUPABASE_URL = window.SUPABASE_URL || (typeof SUPABASE_CONFIG !== 'undefined' ? SUPABASE_CONFIG.url : '');
+  const PROD_REF = 'vlcjilzgntxweomnyfgd';   // your production project ref
+  const isProdSupabase = SUPABASE_URL.includes(`${PROD_REF}.supabase.co`);
+
+  window.STAGE_ENV = isProdSupabase ? 'prod' : 'dev';
+  console.log('[ENV] STAGE_ENV:', window.STAGE_ENV, 'SUPABASE_URL:', SUPABASE_URL);
 </script>
 
 <!-- Marketing tracking (optional, non-blocking) -->
