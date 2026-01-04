@@ -1671,6 +1671,25 @@ try {
             const newSolved = [...this.solvedStages, stage];
             this.setSolvedStagesLocal(newSolved);
             console.log(`[ADVANCE] Stage ${stage} marked as solved locally. New progress:`, newSolved);
+
+            // After solve: force UI refresh of journey progress + cards
+            try {
+              console.log('[JOURNEY] Forcing UI refresh after solve. Solved:', newSolved);
+              
+              // Update all progress UI immediately
+              if (typeof this.updateStageProgressUI === 'function') {
+                this.updateStageProgressUI();
+              }
+              
+              if (typeof this.applySolvedStatesToCards === 'function') {
+                this.applySolvedStatesToCards();
+              }
+              
+              // Also update global state for any external listeners
+              window.__SOLVED_STAGES = newSolved;
+            } catch (e) {
+              console.warn('[JOURNEY] UI refresh after solve failed:', e);
+            }
         }
 
         // Step 2: Save to database (async, don't block UI updates) and capture winner status
