@@ -2740,10 +2740,10 @@ const SECOND_RIDDLE_CLUES = {
 Careful — it’s not what keeps you up all night.
 One plus one is two, we all agree,
 But one and two-thirds tells you what to see.`,
-  12: "This is just a placeholder (you can just use that for now and I can update stage by stage). If you get stuck, go back to the video on YouTube and comment that you need help! Joel will give you a nudge.",
-    13: "This is just a placeholder (you can just use that for now and I can update stage by stage). If you get stuck, go back to the video on YouTube and comment that you need help! Joel will give you a nudge.",
-    14: "This is just a placeholder (you can just use that for now and I can update stage by stage). If you get stuck, go back to the video on YouTube and comment that you need help! Joel will give you a nudge.",
-    15: "This is just a placeholder (you can just use that for now and I can update stage by stage). If you get stuck, go back to the video on YouTube and comment that you need help! Joel will give you a nudge."
+  12: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released.",
+    13: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released.",
+    14: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released.",
+    15: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released."
 };
 
 // === SAFE SUPABASE SINGLETON (prevents redeclare crash) ===
@@ -4551,7 +4551,7 @@ const CONFIG = {
         9: { title: "Stage 9", yt: "y7eWLrz-Lyk" },
         10: { title: "Stage 10", yt: "5qkIptxr_4Y" },
         11: { title: "Stage 11", yt: "oCFz8i2d6hM" },
-        12: { title: "Stage 12", yt: "xxAU10mE0ik" },
+        12: { title: "Stage 12", yt: "-IvSEObUesc" },
         13: { title: "Stage 13", yt: "xxAU10mE0ik" },
         14: { title: "Stage 14", yt: "xxAU10mE0ik" },
         15: { title: "Stage 15", yt: "xxAU10mE0ik" },
