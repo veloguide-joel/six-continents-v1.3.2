@@ -235,6 +235,24 @@ body {
     letter-spacing: 0.5px;
 }
 
+.landing-microcopy {
+    margin-top: 12px;
+    font-size: 0.95rem;
+    opacity: 0.9;
+}
+
+.lead-subhead {
+    margin: 8px 0 14px 0;
+    line-height: 1.4;
+    opacity: 0.9;
+}
+
+.lead-trust {
+    margin-top: 10px;
+    font-size: 0.85rem;
+    opacity: 0.75;
+}
+
 /* Admin Panel Styles */
 .admin-container {
     max-width: 1200px;
