@@ -346,9 +346,9 @@
             // Start them at stage 1 (or whatever your app uses)
             localStorage.setItem('fastTrackMaxStage', '4');
 
-            // Redirect into the real game landing (adjust path if needed)
+            // Redirect to fast-track play after successful email validation
             setTimeout(() => {
-              window.location.href = '/index.html?fast=1';
+              window.location.href = '/fast-track/play';
             }, 600);
 
           } catch (err) {

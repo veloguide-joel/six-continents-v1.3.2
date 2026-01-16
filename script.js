@@ -7,14 +7,14 @@ if (DEBUG) console.log('[DEBUG] Debug mode enabled');
 
 // === FAST TRACK DETECTION HELPER ===
 function isFastTrackActive() {
-  // Check pathname first (primary trigger: /fast-track or /fast-track/)
+  // Check pathname first (primary trigger: /fast-track/play or /fast-track/play/)
   const pathname = window.location.pathname;
-  const isPathBased = pathname === '/fast-track' || pathname === '/fast-track/';
+  const isPathBased = pathname === '/fast-track/play' || pathname === '/fast-track/play/';
   
   if (isPathBased) {
     // Set session flag for path-based activation
     sessionStorage.setItem('fastTrack', 'true');
-    console.log('[FAST_TRACK] Activated via /fast-track');
+    console.log('[FAST_TRACK] Activated via /fast-track/play');
     return true;
   }
   
@@ -5385,6 +5385,22 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (!document.getElementById('gameContainer')) {
       console.log('[BOOT] Not on game page; skipping script.js init');
       return;
+    }
+
+    // === FAST TRACK DIRECT ACCESS GUARD ===
+    // Soft guard: redirect users who navigate directly to /fast-track/play without email submission
+    const pathname = window.location.pathname;
+    const isFastTrackPlayPath = pathname === '/fast-track/play' || pathname === '/fast-track/play/';
+    
+    if (isFastTrackPlayPath) {
+      // Check if user has a valid Fast Track session (email submitted)
+      const hasEmailSubmission = localStorage.getItem('fastTrackLeadEmail') || localStorage.getItem('fastTrackActive');
+      
+      if (!hasEmailSubmission) {
+        console.log('[FAST_TRACK] Direct access to /fast-track/play without email submission; redirecting to /fast-track');
+        window.location.href = '/fast-track';
+        return;
+      }
     }
 
     console.log('[INIT] Page loaded...');
