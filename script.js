@@ -4091,6 +4091,16 @@ function initializeSupabase() {
         supabase.auth.onAuthStateChange(async (event, session) => {
   console.log('[AUTH] State changed:', event, session?.user?.email || null);
 
+  // === FAST TRACK AUTO-ENTRY VIA ?ft=1 ===
+  // Detect ?ft=1 or sessionStorage.FAST_TRACK and auto-enter fast track flow
+  const ftParams = new URLSearchParams(window.location.search);
+  const isFt = ftParams.get("ft") === "1" || sessionStorage.getItem("FAST_TRACK") === "1";
+  if (isFt) {
+    sessionStorage.setItem("fastTrack", "true");
+    console.log('[FAST_TRACK] ?ft=1 detected; setting fast track session flag');
+    // Will be caught by FAST_TRACK.isActive() check below at "No active user" section
+  }
+
   // Handle SIGNED_IN event: immediately clear timeout and mark resolved
   if (event === 'SIGNED_IN') {
     clearSignInTimeout('auth_state_signed_in');
@@ -5384,6 +5394,13 @@ document.addEventListener('DOMContentLoaded', async function() {
     // === PAGE GUARD: Only run on the game page (index.html), not on landing pages ===
     if (!document.getElementById('gameContainer')) {
       console.log('[BOOT] Not on game page; skipping script.js init');
+      return;
+    }
+
+    // === FAST TRACK LANDING ROUTE GUARD ===
+    // Skip game initialization entirely on /fast-track landing pages
+    if (window.location.pathname.startsWith('/fast-track')) {
+      console.log('[BOOT] skipping game init on fast-track landing pages');
       return;
     }
 
