@@ -1901,9 +1901,31 @@ function clearSupabaseAuthStorage() {
 
 // ===== HARD SIGN-OUT HANDLER =====
 // ===== HARD SIGN-OUT HANDLER (Full Cache Clear) =====
-async function hardSignOut() {
+async function hardSignOut(e) {
   try {
+    // Prevent default button/form behavior
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    console.log('[SIGNOUT] clicked');
     console.log('[AUTH] Starting full sign out...');
+
+    // === FAST TRACK INCOMPLETE GUARD ===
+    // If user is in fast-track AND has not completed stages 1-4 (current stage < 5), require confirmation
+    if (isFastTrackActive()) {
+      const currentStageNum = (window.contestApp && window.contestApp.currentStage) || window.currentStage || 1;
+      if (currentStageNum < 5) {
+        const confirmed = window.confirm(
+          'You\'re in Fast Track. If you sign out now, you may lose your progress. Are you sure you want to sign out?'
+        );
+        if (!confirmed) {
+          console.log('[AUTH] Sign out cancelled by user (fast-track incomplete)');
+          return;
+        }
+      }
+    }
 
     // Step 1: Supabase sign out
     try {
@@ -3379,7 +3401,7 @@ const SECOND_RIDDLE_CLUES = {
 Careful — it’s not what keeps you up all night.
 One plus one is two, we all agree,
 But one and two-thirds tells you what to see.`,
-  12: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released.",
+  12: "I didn't order, taste, or take a bite,\nJust read two words that felt exactly right.\nIt's not the chicken, fire, or heat,\nIt's what those words promise before you eat.",
     13: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released.",
     14: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released.",
     15: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released."
@@ -5632,6 +5654,69 @@ window.addEventListener('load', async function () {
     showLanding();
   }
 });
+
+// === DELEGATED SIGN OUT HANDLER (captures clicks even after rerender) ===
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest('button, a');
+  if (!btn) return;
+
+  const text = (btn.textContent || "").trim().toLowerCase();
+  const isSignOut = text === "sign out" || btn.id === "signoutbtn" || btn.dataset?.action === "signout";
+
+  if (!isSignOut) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  console.log("[SIGNOUT] delegated click");
+
+  const ftParams = new URLSearchParams(window.location.search);
+  const isFt = ftParams.get("ft") === "1" || sessionStorage.getItem("FAST_TRACK") === "1";
+
+  // Determine current stage if available
+  const stage = (window.contestApp?.currentStage) || (window.app?.currentStage) || (window.__state?.currentStage) || null;
+  const before5 = (typeof stage === "number") ? stage < 5 : isFt;
+
+  if (isFt && before5) {
+    const ok = window.confirm("You're in Fast Track. If you sign out now, you may lose your progress. Are you sure you want to sign out?");
+    if (!ok) return;
+  }
+
+  // === CLEAR ALL FAST TRACK FLAGS ===
+  console.log("[SIGNOUT] Clearing Fast Track flags");
+  sessionStorage.removeItem("FAST_TRACK");
+  sessionStorage.removeItem("fastTrack");
+  
+  // Clear fast-track related localStorage keys
+  const ftKeys = Object.keys(localStorage).filter(k => 
+    k.includes("fastTrack") || k.includes("FAST_TRACK") || k.includes("ft_")
+  );
+  ftKeys.forEach(k => {
+    localStorage.removeItem(k);
+    console.log(`[SIGNOUT] Cleared localStorage: ${k}`);
+  });
+
+  // === SIGN OUT FROM SUPABASE IF SESSION EXISTS ===
+  try {
+    const client = window.supabaseClient || window.supabase || supabase;
+    const { data: { session } } = await client.auth.getSession();
+    
+    if (session) {
+      console.log("[SIGNOUT] Active session found; calling signOut");
+      await client.auth.signOut();
+      console.log("[SIGNOUT] supabase.auth.signOut() complete");
+    } else {
+      console.log("[SIGNOUT] No active session; skipping Supabase signOut");
+    }
+  } catch (err) {
+    console.error("[SIGNOUT] Error checking/clearing session", err);
+    // Continue to redirect anyway
+  }
+
+  // === HARD REDIRECT TO ROOT (strips ft=1 and all params) ===
+  console.log("[SIGNOUT] Redirecting to /");
+  window.location.replace("/");
+}, true);
 
 // Global error handler
 window.addEventListener('error', function(event) {
