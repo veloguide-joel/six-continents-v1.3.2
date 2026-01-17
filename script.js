@@ -2740,7 +2740,11 @@ const SECOND_RIDDLE_CLUES = {
 Careful — it’s not what keeps you up all night.
 One plus one is two, we all agree,
 But one and two-thirds tells you what to see.`,
-  12: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released.",
+  12: "I didn’t order, taste, or take a bite,
+Just read two words that felt exactly right.
+It’s not the chicken, fire, or heat,
+It’s what those words promise before you eat.
+",
     13: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released.",
     14: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released.",
     15: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released."
