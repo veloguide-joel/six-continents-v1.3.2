@@ -2784,12 +2784,12 @@ input:checked + .toggle-slider:before {
     background: rgba(0, 0, 0, 0.7);
     z-index: 10000;
     backdrop-filter: blur(5px);
+    align-items: center;
+    justify-content: center;
 }
 
 .auth-modal.show {
     display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .auth-modal-content {
@@ -2797,11 +2797,12 @@ input:checked + .toggle-slider:before {
     border-radius: 12px;
     padding: 0;
     width: 90%;
-    max-width: 400px;
+    max-width: 380px;
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
     animation: modalSlideIn 0.3s ease-out;
+    margin: auto;
 }
 
 .auth-header {
