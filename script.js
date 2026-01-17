@@ -1,5 +1,35 @@
 // BUILD-ID 2025-11-12-logout+LB
-console.log("BUILD-ID 2025-11-12-logout+LB");
+
+// === DEBUG FLAG: Control console verbosity ===
+const DEBUG = false;
+if (DEBUG) console.log("BUILD-ID 2025-11-12-logout+LB");
+if (DEBUG) console.log('[DEBUG] Debug mode enabled');
+
+// === FAST TRACK DETECTION HELPER ===
+function isFastTrackActive() {
+  // Check pathname first (primary trigger: /fast-track/play or /fast-track/play/)
+  const pathname = window.location.pathname;
+  const isPathBased = pathname === '/fast-track/play' || pathname === '/fast-track/play/';
+  
+  if (isPathBased) {
+    // Set session flag for path-based activation
+    sessionStorage.setItem('fastTrack', 'true');
+    console.log('[FAST_TRACK] Activated via /fast-track/play');
+    return true;
+  }
+  
+  // Fallback: check query param and session storage
+  // TODO: fast=1 query param can be removed once path-based trigger is fully adopted
+  const isFastTrack = (
+    new URLSearchParams(window.location.search).get('fast') === '1' ||
+    sessionStorage.getItem('fastTrack') === 'true'
+  );
+  
+  if (isFastTrack) {
+    console.log('[FAST_TRACK] Fast Track detected via isFastTrackActive()');
+  }
+  return isFastTrack;
+}
 
 // ✅ Import createMarketingTracker from window (loaded as non-blocking defer script)
 // If marketing.js fails to load, function won't exist but app will still work
@@ -146,6 +176,345 @@ const app = {
   }
 };
 
+// ===============================
+// FAST TRACK (Stages 1–4 assist)
+// ===============================
+const FAST_TRACK = {
+  active: true,  // Internal flag; set to false to hard-disable
+  
+  answers: {
+    1: "bucharest",
+    2: "mihaieminescu",
+    3: "wadirum",
+    4: "gertrudebell"
+  },
+
+  isActive: function() {
+    // Hard-disable check: if active is false, Fast Track is completely off
+    if (this.active === false) {
+      return false;
+    }
+    return isFastTrackActive();
+  },
+
+  shouldAssistStage: function(stageNum) {
+    return this.isActive() && stageNum >= 1 && stageNum <= 4;
+  },
+
+  setNeedsAuth: function(bool) {
+    localStorage.setItem('fastTrackNeedsAuth', bool ? 'true' : 'false');
+  },
+
+  needsAuth: function() {
+    return localStorage.getItem('fastTrackNeedsAuth') === 'true';
+  },
+
+  // Hard-disable Fast Track permanently
+  disable: function() {
+    console.log('[FAST_TRACK] Permanently disabling Fast Track');
+    this.active = false;
+    this.enabled = false;
+    this.isGuest = false;
+    
+    // Clear all persistence flags
+    localStorage.removeItem('fastTrackActive');
+    localStorage.removeItem('fastTrackGuest');
+    localStorage.removeItem('fastTrackNeedsAuth');
+    localStorage.removeItem('fastTrackStageOverride');
+    localStorage.removeItem('fastTrackLeadEmail');
+    
+    // Remove Fast Track UI elements
+    const ftPanel = document.getElementById('fastTrackPanel') || document.getElementById('fastTrackContainer') || document.getElementById('fastTrackHelper');
+    if (ftPanel) {
+      ftPanel.remove();
+      console.log('[FAST_TRACK] Removed Fast Track UI panel');
+    }
+    
+    console.log('[FAST_TRACK] Fast Track is now permanently disabled for this session');
+  }
+};
+
+// Inject the "Save Progress" gate screen inside the auth modal
+function injectFastTrackSaveGate() {
+  // Prevent duplicates
+  if (document.getElementById('fastTrackSaveGate')) {
+    console.log('[FAST_TRACK] Save gate already injected');
+    return;
+  }
+
+  const signupTab = document.getElementById('auth-signup');
+  if (!signupTab) {
+    console.warn('[FAST_TRACK] auth-signup tab not found');
+    return;
+  }
+
+  // Create the gate screen
+  const gateScreen = document.createElement('div');
+  gateScreen.id = 'fastTrackSaveGate';
+  gateScreen.style.cssText = `
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 32px 24px;
+    text-align: center;
+    color: white;
+    margin-bottom: 24px;
+  `;
+
+  gateScreen.innerHTML = `
+    <div style="font-size: 2.5rem; margin-bottom: 16px;">🎉</div>
+    <h3 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 12px;">You're officially in the game</h3>
+    <p style="font-size: 1rem; opacity: 0.95; line-height: 1.5; margin-bottom: 24px;">
+      You just completed Stages 1–4. Create a free account to save your progress and unlock Stage 5.
+    </p>
+    <button id="fastTrackGateContinueBtn" style="
+      background: white;
+      color: #667eea;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+      Save & Continue to Stage 5
+    </button>
+  `;
+
+  // Prepend to signup tab
+  signupTab.insertBefore(gateScreen, signupTab.firstChild);
+  console.log('[FAST_TRACK] Save gate screen injected');
+
+  // Hide auth tabs and Google buttons while gate is showing
+  const authTabs = document.querySelector('.auth-tabs');
+  const googleButtons = document.querySelectorAll('.oauth-btn--google');
+  if (authTabs) authTabs.style.display = 'none';
+  googleButtons.forEach(btn => btn.style.display = 'none');
+  const oauthDividers = document.querySelectorAll('.oauth-divider');
+  oauthDividers.forEach(div => div.style.display = 'none');
+
+  // Hide the normal signup inputs while gate is showing
+  const signupEmail = document.getElementById('signup-email');
+  const signupPassword = document.getElementById('signup-password');
+  const signupPasswordConfirm = document.getElementById('signup-password-confirm');
+  const signupSubmitBtn = signupTab.querySelector('button[type="submit"]');
+
+  if (signupEmail) signupEmail.style.display = 'none';
+  if (signupPassword) signupPassword.style.display = 'none';
+  if (signupPasswordConfirm) signupPasswordConfirm.style.display = 'none';
+  if (signupSubmitBtn) signupSubmitBtn.style.display = 'none';
+
+  // Wire the continue button
+  const continueBtn = document.getElementById('fastTrackGateContinueBtn');
+  if (continueBtn) {
+    continueBtn.addEventListener('click', () => {
+      console.log('[FAST_TRACK] Save gate continue button clicked');
+
+      // Hide the gate screen
+      gateScreen.style.display = 'none';
+
+      // Show tabs and OAuth buttons
+      if (authTabs) authTabs.style.display = 'flex';
+      googleButtons.forEach(btn => btn.style.display = 'block');
+      oauthDividers.forEach(div => div.style.display = 'block');
+
+      // Show the signup inputs and submit button
+      if (signupEmail) signupEmail.style.display = 'block';
+      if (signupPassword) signupPassword.style.display = 'block';
+      if (signupPasswordConfirm) signupPasswordConfirm.style.display = 'block';
+      if (signupSubmitBtn) signupSubmitBtn.style.display = 'block';
+
+      // Prefill email from localStorage if available
+      const savedEmail = localStorage.getItem('fastTrackLeadEmail');
+      if (savedEmail && signupEmail) {
+        signupEmail.value = savedEmail;
+        signupEmail.setAttribute('readonly', 'readonly');
+        signupEmail.style.backgroundColor = '#f5f5f5';
+        signupEmail.style.color = '#666';
+        signupEmail.style.cursor = 'not-allowed';
+        signupEmail.style.opacity = '0.7';
+        console.log('[FAST_TRACK] Prefilled email from localStorage and made readonly');
+      }
+
+      // Update auth modal title
+      const authTitle = document.querySelector('.auth-modal-content h2');
+      if (authTitle) {
+        authTitle.textContent = 'Save your progress';
+      }
+
+      // Focus password field
+      if (signupPassword) {
+        signupPassword.focus();
+      }
+    });
+  }
+}
+
+function fastTrackInjectUI(stageNum) {
+  // Determine the CURRENT stage from app state
+  const stage = (typeof contestApp !== 'undefined' && contestApp && contestApp.currentStage) ? contestApp.currentStage : stageNum;
+
+  // GUARD: Disable Fast Track UI at Stage 5+
+  if (stage >= 5) {
+    console.log('[FAST_TRACK] Stage >= 5 detected; disabling helper UI');
+    const existing = document.getElementById('fastTrackHelper');
+    if (existing) {
+      existing.remove();
+    }
+    return;
+  }
+
+  // Only show if Fast Track is active and stage is 1-4
+  if (!isFastTrackActive() || stage < 1 || stage > 4) {
+    return;
+  }
+
+  // Remove any existing helper so it can be recreated with the correct stage
+  const existing = document.getElementById('fastTrackHelper');
+  if (existing) {
+    existing.remove();
+  }
+
+  // Create the helper banner
+  const banner = document.createElement('div');
+  banner.id = 'fastTrackHelper';
+  banner.style.cssText = `
+    background: #555668;
+    border: 2px solid #f4c770;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    color: white;
+    font-weight: 600;
+  `;
+
+  banner.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <div style="font-size: 1.1rem; margin-bottom: 4px;">🚀 Fast Track Bonus</div>
+        <div style="font-size: 0.9rem; opacity: 0.95;">Reveal the answer to Stage ${stage} and skip ahead instantly.</div>
+      </div>
+      <button id="fastTrackRevealBtn" style="
+        background: #f4c770;
+        color: #555668;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.2s ease;
+      " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        Reveal Answer
+      </button>
+    </div>
+  `;
+
+  // Mount directly above the answer input
+  const answerInput = document.getElementById('answerInput') ||
+                      document.querySelector('input[name="answer"]') ||
+                      document.querySelector('input[type="text"]') ||
+                      document.querySelector('input[type="search"]');
+
+  if (answerInput) {
+    // Insert directly before the input
+    answerInput.parentElement?.insertBefore(banner, answerInput);
+    console.log(`[FAST_TRACK] Helper banner injected above answer input for stage ${stage}`);
+  } else {
+    // Fallback: prepend to body if no input found
+    console.warn(`[FAST_TRACK] No answer input found for stage ${stage}; appending to body`);
+    document.body.prepend(banner);
+  }
+
+  // Wire the reveal button
+  const revealBtn = document.getElementById('fastTrackRevealBtn');
+  if (revealBtn) {
+    revealBtn.addEventListener('click', () => {
+      const ans = FAST_TRACK.answers[stage];
+      if (!ans) {
+        console.warn(`[FAST_TRACK] No answer found for stage ${stage}`);
+        alert(`No answer configured for Stage ${stage}`);
+        return;
+      }
+
+      // Find the answer input
+      let input = document.getElementById('answerInput') ||
+                  document.querySelector('input[name="answer"]') ||
+                  document.querySelector('input[type="text"]') ||
+                  document.querySelector('input[type="search"]');
+
+      if (input) {
+        input.value = ans;
+        
+        // Dispatch events to trigger existing handlers
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        input.focus();
+        
+        // Trigger via Enter key events - mimics real user pressing Enter
+        console.log('[FAST_TRACK] Dispatching Enter key events');
+        input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }));
+        input.dispatchEvent(new KeyboardEvent('keyup',   { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }));
+
+        // Fallback: Call the handler function directly if it exists
+        if (typeof contestApp !== 'undefined' && contestApp && typeof contestApp.handleFirstRiddleSubmit === 'function') {
+          console.log('[FAST_TRACK] Calling contestApp.handleFirstRiddleSubmit()');
+          contestApp.handleFirstRiddleSubmit();
+        } else {
+          console.warn('[FAST_TRACK] No submit handler found in scope');
+        }
+      } else {
+        alert(`Answer for Stage ${stage}: ${ans}`);
+      }
+    });
+  }
+}
+
+// Fast Track badge renderer
+function renderFastTrackBadge(stageNum) {
+  // Remove existing badge if present
+  const existing = document.getElementById('fastTrackBadge');
+  if (existing) {
+    existing.remove();
+  }
+
+  // Only show badge if Fast Track is active and stage is 1-4
+  if (!isFastTrackActive() || stageNum < 1 || stageNum > 4) {
+    return;
+  }
+
+  // Find the stage header title container
+  const stageHeaderTitle = document.querySelector('.stage-header__title');
+  if (!stageHeaderTitle) {
+    console.warn('[FAST_TRACK] Stage header title not found');
+    return;
+  }
+
+  // Create and append badge
+  const badge = document.createElement('span');
+  badge.id = 'fastTrackBadge';
+  badge.className = 'fast-track-badge';
+  badge.style.cssText = `
+    display: inline-block;
+    margin-left: 12px;
+    padding: 4px 12px;
+    background: rgba(85, 86, 104, 0.5);
+    border: 1px solid #f4c770;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #f4c770;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+    cursor: default;
+    pointer-events: none;
+  `;
+  badge.textContent = 'FAST TRACK 🚀';
+  stageHeaderTitle.appendChild(badge);
+}
+
 // ===== SIGN-IN TIMEOUT MANAGEMENT =====
 // Module-level variables for robust timeout handling across async callbacks
 let signInTimeoutId = null;
@@ -210,6 +579,145 @@ function mergeSolvedStages(existing = [], incoming = []) {
   const merged = Array.from(new Set([...(existing || []), ...(incoming || [])]));
   merged.sort((a, b) => a - b);
   return merged;
+}
+
+// FAST TRACK SOLVE MIGRATION - After signup, migrate guest solves to Supabase
+async function migrateFastTrackSolvesToSupabase(userId) {
+  console.log('[MIGRATION] Starting Fast Track solve migration for user:', userId);
+  
+  // Check conditions for migration
+  if (localStorage.getItem('fastTrackNeedsAuth') !== 'true') {
+    console.log('[MIGRATION] fastTrackNeedsAuth is not true, skipping migration');
+    return;
+  }
+
+  if (localStorage.getItem('fastTrackMigrated') === 'true') {
+    console.log('[MIGRATION] Fast Track migration already completed, skipping');
+    return;
+  }
+
+  if (!userId) {
+    console.warn('[MIGRATION] No user ID, skipping migration');
+    return;
+  }
+
+  try {
+    // Priority 1: Read from fastTrackSolvedStages (tracks guest solves for stages 1-4)
+    let stagesToMigrate = [];
+    const ftSolvedStr = localStorage.getItem('fastTrackSolvedStages');
+    
+    if (ftSolvedStr) {
+      try {
+        stagesToMigrate = JSON.parse(ftSolvedStr);
+        console.log('[MIGRATION] Read from fastTrackSolvedStages:', stagesToMigrate);
+      } catch (e) {
+        console.warn('[MIGRATION] fastTrackSolvedStages parse failed:', e);
+      }
+    }
+    
+    // Fallback: If no stages tracked but we're migrating, assume 1-4 completed
+    if (stagesToMigrate.length === 0) {
+      console.log('[MIGRATION] Fallback: assuming stages 1-4 completed for Fast Track user');
+      stagesToMigrate = [1, 2, 3, 4];
+    }
+    
+    // Filter to only stages 1-4 (safety check)
+    const finalStages = stagesToMigrate.filter(s => s >= 1 && s <= 4);
+    
+    if (finalStages.length === 0) {
+      console.log('[MIGRATION] No Fast Track stages to migrate');
+      localStorage.setItem('fastTrackMigrated', 'true');
+      return;
+    }
+
+    console.log('[MIGRATION] Migrating stages to Supabase:', finalStages);
+
+    // Get session info for email and username
+    const { data: { session } } = await supabase.auth.getSession();
+    const email = session?.user?.email || '';
+    const username =
+      (window.currentProfile?.display_name) ||
+      (email ? email.split('@')[0] : 'player');
+
+    console.log('[MIGRATION] Building payload with email:', email, 'username:', username);
+
+    // Build rows matching solves table schema
+    const rows = finalStages.map(stageNum => ({
+      user_id: userId,
+      stage: stageNum,
+      step: 1,
+      email,
+      username,
+      solved_at: new Date().toISOString()
+    }));
+
+    console.log('[MIGRATION] Insert payload:', rows);
+
+    // Insert into solves table
+    const { error } = await supabase
+      .from('solves')
+      .insert(rows);
+
+    if (error) {
+      // Check if it's a duplicate/unique constraint error (treat as success)
+      const isDuplicateError = error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique');
+      
+      if (isDuplicateError) {
+        console.log('[MIGRATION] Duplicate error (expected, treating as success):', error.message);
+      } else {
+        console.error('[MIGRATION] Solve migration insert error:', error);
+        return;
+      }
+    } else {
+      console.log('[MIGRATION] Successfully inserted solves');
+    }
+
+    // Re-fetch solved stages from Supabase
+    if (typeof progressManager?.syncWithSupabase === 'function') {
+      await progressManager.syncWithSupabase();
+      console.log('[MIGRATION] Re-synced progress from Supabase');
+    } else {
+      // Minimal fallback: fetch and apply
+      const { data: solves } = await supabase
+        .from('solves')
+        .select('stage')
+        .eq('user_id', userId);
+      
+      const solvedStages = (solves || []).map(r => r.stage);
+      console.log('[MIGRATION] Fetched solves fallback:', solvedStages);
+      
+      if (window.contestApp && solvedStages.length > 0) {
+        window.contestApp.setSolvedStagesLocal(solvedStages);
+        if (typeof window.contestApp.updateStageProgressUI === 'function') {
+          window.contestApp.updateStageProgressUI();
+        }
+        if (typeof window.contestApp.applySolvedStatesToCards === 'function') {
+          window.contestApp.applySolvedStatesToCards();
+        }
+      }
+    }
+
+    // Update UI to show solved stages
+    if (window.contestApp && typeof window.contestApp.updateStageProgressUI === 'function') {
+      window.contestApp.updateStageProgressUI();
+      console.log('[MIGRATION] Updated stage progress UI');
+    }
+
+    if (window.contestApp && typeof window.contestApp.applySolvedStatesToCards === 'function') {
+      window.contestApp.applySolvedStatesToCards();
+      console.log('[MIGRATION] Applied solved states to cards');
+    }
+
+    // Clear Fast Track flags
+    localStorage.setItem('fastTrackMigrated', 'true');
+    localStorage.removeItem('fastTrackNeedsAuth');
+    localStorage.removeItem('fastTrackSolvedStages');
+    
+    console.log('[MIGRATION] Fast Track migration completed successfully');
+
+  } catch (err) {
+    console.error('[MIGRATION] Fast Track migration error:', err);
+  }
 }
 
 // HEADER PROFILE RENDER START
@@ -354,10 +862,50 @@ async function loadMyProfileAndHydrateUI() {
   } catch (e) {
     console.warn('[PROFILE] Soft nag skipped due to error', e);
   }
+
+  // AUTO-OPEN: check profile completion AFTER load succeeds
+  maybeAutoOpenProfileModal(window.currentProfile);
 }
 // PROFILE LOAD + HYDRATE END
 
 let __profilePromptedThisSession = false;
+
+function maybeAutoOpenProfileModal(profile) {
+  // FAILSAFE: If user previously saved profile, never auto-open again (even if data looks incomplete)
+  if (localStorage.getItem('profileComplete') === 'true') {
+    console.log('[PROFILE] localStorage failsafe: profileComplete=true, skipping auto-open');
+    return;
+  }
+
+  // GUARD: only run auto-open once per session
+  if (__profilePromptedThisSession) return;
+  __profilePromptedThisSession = true;
+
+  // DEFINE COMPLETE: display_name non-empty AND (avatar_key OR avatar_url non-empty)
+  const hasDisplayName = !!(profile?.display_name && String(profile.display_name).trim());
+  const hasAvatar = 
+    !!(profile?.avatar_key && String(profile.avatar_key).trim()) ||
+    !!(profile?.avatar_url && String(profile.avatar_url).trim());
+  const isComplete = hasDisplayName && hasAvatar;
+
+  console.log('[PROFILE] maybeAutoOpen check', {
+    display_name: profile?.display_name,
+    avatar_key: profile?.avatar_key,
+    avatar_url: profile?.avatar_url,
+    isComplete
+  });
+
+  // Only open if profile is INCOMPLETE
+  if (!isComplete) {
+    console.log('[PROFILE] Profile incomplete; auto-opening modal');
+    openProfileModal();
+    if (typeof hydrateProfileModal === 'function') {
+      hydrateProfileModal(profile);
+    }
+  } else {
+    console.log('[PROFILE] Profile complete, skipping auto-open');
+  }
+}
 
 async function promptProfileCompletionIfNeeded() {
   try {
@@ -381,7 +929,11 @@ async function promptProfileCompletionIfNeeded() {
 
     if (!isProfileComplete(profile)) {
       __profilePromptedThisSession = true;
-      console.log('[PROFILE] Incomplete profile -> opening modal');
+      console.log('[PROFILE] Auto-open: profile incomplete', {
+        display_name: profile?.display_name,
+        avatar_key: profile?.avatar_key,
+        avatar_url: profile?.avatar_url
+      });
 
       // You already have this (based on your logs/screens)
       openProfileModal();
@@ -393,7 +945,7 @@ async function promptProfileCompletionIfNeeded() {
 
       // Optional: if you want to block closing until complete (see Step 4)
     } else {
-      console.log('[PROFILE] Profile already complete');
+      console.log('[PROFILE] Profile complete, skipping auto-open');
       __profilePromptedThisSession = true;
     }
 
@@ -776,6 +1328,9 @@ async function handleProfileSave(event) {
       currentProfile = payload;
       console.log('[PROFILE] saved ok');
       
+      // Set localStorage failsafe to prevent re-opening on future sessions
+      localStorage.setItem('profileComplete', 'true');
+      
       // Once a photo is uploaded, disable avatar switching
       if (file) {
         selectedAvatarKey = null;
@@ -858,6 +1413,14 @@ async function openProfileModal() {
 
     const profile = (await loadUserProfile()) || {};
     displayNameEl.value = profile.display_name || "";
+    
+    // Populate read-only email field
+    const emailEl = document.getElementById("profile-email");
+    if (emailEl) {
+      const userEmail = supabaseAuth?.user?.email || profile?.email || "Email not available";
+      emailEl.value = userEmail;
+    }
+    
     const uploadInput = document.getElementById("profileAvatarUpload");
     if (uploadInput) uploadInput.value = "";
     renderAvatarGrid(profile);
@@ -1069,6 +1632,39 @@ function wireProfileModalControls() {
       }
     });
     console.log('[PROFILE] Backdrop click-to-close enabled');
+  }
+}
+
+function wireAuthModalControls() {
+  console.log('[AUTH] Wiring auth modal close controls...');
+  
+  const authModal = document.getElementById('auth-modal');
+  const closeBtn = document.querySelector('.auth-close');
+  
+  // Wire the close button (X) to hard-close modal
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      if (authModal) {
+        authModal.style.display = 'none';
+        authModal.classList.add('hidden');
+        console.log('[AUTH] Auth modal closed via close button');
+      }
+    });
+    console.log('[AUTH] Close button (X) wired');
+  }
+  
+  // Wire backdrop click to close modal (if applicable)
+  if (authModal) {
+    authModal.addEventListener('click', (evt) => {
+      // Check if click was on the modal backdrop itself, not the content
+      if (evt.target === authModal || evt.target.classList.contains('auth-modal')) {
+        authModal.style.display = 'none';
+        authModal.classList.add('hidden');
+        console.log('[AUTH] Auth modal closed via backdrop click');
+      }
+    });
   }
 }
 
@@ -1305,9 +1901,31 @@ function clearSupabaseAuthStorage() {
 
 // ===== HARD SIGN-OUT HANDLER =====
 // ===== HARD SIGN-OUT HANDLER (Full Cache Clear) =====
-async function hardSignOut() {
+async function hardSignOut(e) {
   try {
+    // Prevent default button/form behavior
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    console.log('[SIGNOUT] clicked');
     console.log('[AUTH] Starting full sign out...');
+
+    // === FAST TRACK INCOMPLETE GUARD ===
+    // If user is in fast-track AND has not completed stages 1-4 (current stage < 5), require confirmation
+    if (isFastTrackActive()) {
+      const currentStageNum = (window.contestApp && window.contestApp.currentStage) || window.currentStage || 1;
+      if (currentStageNum < 5) {
+        const confirmed = window.confirm(
+          'You\'re in Fast Track. If you sign out now, you may lose your progress. Are you sure you want to sign out?'
+        );
+        if (!confirmed) {
+          console.log('[AUTH] Sign out cancelled by user (fast-track incomplete)');
+          return;
+        }
+      }
+    }
 
     // Step 1: Supabase sign out
     try {
@@ -1387,8 +2005,8 @@ async function hardSignOut() {
 
 // CRITICAL FIX: Complete validation function with proper API integration
 async function validateAnswer(stage, step, answer) {
-    console.log(`[VALIDATE] Validating stage ${stage}, step ${step}, answer: ${answer}`);
-    
+    if (DEBUG) console.log(`[VALIDATE] Validating stage ${stage}, step ${step}, answer: ${answer}`);
+
     try {
         const response = await fetch(`${SUPABASE_URL}/functions/v1/validate-answer`, {
             method: 'POST',
@@ -1409,7 +2027,7 @@ async function validateAnswer(stage, step, answer) {
         }
 
         const result = await response.json();
-        console.log(`[VALIDATE] API response:`, result);
+        if (DEBUG) console.log(`[VALIDATE] API response:`, result);
         
         return {
     success: true,
@@ -1420,7 +2038,7 @@ async function validateAnswer(stage, step, answer) {
         console.error(`[VALIDATE] API error:`, error);
         // Fallback to local validation for basic answers
         const localResult = validateAnswerLocal(stage, step, answer);
-        console.log(`[VALIDATE] Using local fallback:`, localResult);
+        if (DEBUG) console.log(`[VALIDATE] Using local fallback:`, localResult);
         return localResult;
     }
 }
@@ -1478,7 +2096,7 @@ function showSolveCelebrationModal(stageNumber, { isMasterStage = false, isStage
     
     // Show modal
     backdrop.classList.remove('hidden');
-    console.log(`[CELEBRATION] Showing modal for stage ${stageNumber}, winner: ${isStageWinner}`);
+    if (DEBUG) console.log(`[CELEBRATION] Showing modal for stage ${stageNumber}, winner: ${isStageWinner}`);
 }
 
 async function closeSolveCelebrationModal(scrollToNext = false) {
@@ -1491,11 +2109,16 @@ async function closeSolveCelebrationModal(scrollToNext = false) {
     // Optionally scroll to next stage card
     if (scrollToNext && window.app) {
         const nextStage = window.app.findNextUnsolvedStage();
+        
         if (nextStage && nextStage <= CONFIG.total) {
             setTimeout(() => {
                 const nextCard = document.querySelector(`[data-stage="${nextStage}"]`);
                 if (nextCard) {
-                    nextCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if (!isFastTrackActive()) {
+                        nextCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    } else {
+                        console.log('[FAST_TRACK] Skipping auto-scroll (advance/render)');
+                    }
                 }
             }, 100);
         }
@@ -1554,7 +2177,7 @@ class ContestApp {
         this.renderStagesGrid();
         this.updateProgress();
         this.bindEvents();
-        console.log('[ContestApp] Initialized');
+        if (DEBUG) console.log('[ContestApp] Initialized');
     }
 
     loadInitialProgress() {
@@ -1668,7 +2291,7 @@ try {
   // If you track per-stage multi-steps, replace the `1` with your step var (e.g., this.currentStep)
   const p = (typeof this?.currentStep !== "undefined") ? Number(this.currentStep) : 1;
 
-  console.log("[CONFETTI] Hook reached with", { userId, stage: s, step: p });
+  if (DEBUG) console.log("[CONFETTI] Hook reached with", { userId, stage: s, step: p });
   fireConfettiOnce(userId, s, p);
 } catch (e) {
   console.warn("[CONFETTI] error calling fireConfettiOnce", e);
@@ -1680,6 +2303,21 @@ try {
             this.setSolvedStagesLocal(merged);
             console.log(`[ADVANCE] Stage ${stage} marked as solved locally. New progress:`, merged);
             console.log('[JOURNEY] merged solved stages:', merged);
+
+            // Track Fast Track stage solves for guest migration
+            if (FAST_TRACK.isActive() && stage >= 1 && stage <= 4) {
+              try {
+                const ftSolvedStr = localStorage.getItem('fastTrackSolvedStages') || '[]';
+                const ftSolved = JSON.parse(ftSolvedStr);
+                if (!ftSolved.includes(stage)) {
+                  ftSolved.push(stage);
+                  localStorage.setItem('fastTrackSolvedStages', JSON.stringify(ftSolved));
+                  console.log('[FAST_TRACK] Tracked solve for stage', stage, ':', ftSolved);
+                }
+              } catch (e) {
+                console.warn('[FAST_TRACK] Error tracking solve:', e);
+              }
+            }
 
             // After solve: force UI refresh of journey progress + cards
             try {
@@ -1699,6 +2337,23 @@ try {
             } catch (e) {
               console.warn('[JOURNEY] UI refresh after solve failed:', e);
             }
+        }
+
+        // === FAST TRACK SAVE GATE: After Stage 4, require account to continue ===
+        if (FAST_TRACK.isActive() && stage === 4) {
+          FAST_TRACK.setNeedsAuth(true);
+
+          // Show the auth modal and switch to signup tab
+          if (window.authUI?.showTab) window.authUI.showTab('signup');
+
+          const authModal = document.getElementById('auth-modal');
+          if (authModal) authModal.style.display = 'flex';
+
+          // Inject the Save Progress gate screen
+          setTimeout(() => injectFastTrackSaveGate(), 50);
+
+          // STOP auto-advance here
+          return;
         }
 
         // Step 2: Save to database (async, don't block UI updates) and capture winner status
@@ -1817,7 +2472,7 @@ try {
 
     // Render current stage method
     renderCurrentStage() {
-        console.log(`[RENDER] Rendering current stage: ${this.currentStage}`);
+        if (DEBUG) console.log(`[RENDER] Rendering current stage: ${this.currentStage}`);
         updateStageStatusBanner(this.currentStage);
         
         this.hideAllPanels();
@@ -1836,6 +2491,9 @@ try {
             document.querySelector('.stage-title').textContent = `Stage ${this.currentStage}`;
             document.getElementById('currentVideo').src = `https://www.youtube.com/embed/${stageConfig.yt}`;
         }
+
+        // Render Fast Track badge if applicable
+        renderFastTrackBadge(this.currentStage);
         
         // Show appropriate input section
         if (this.isSolved(this.currentStage)) {
@@ -1851,6 +2509,9 @@ try {
 
         // Re-attach profile button handler after stage render
         wireProfileButton();
+
+        // Fast Track: inject helper UI if applicable (with small delay for async DOM)
+        setTimeout(() => fastTrackInjectUI(this.currentStage), 50);
     }
 
     // Show success panel
@@ -1973,7 +2634,7 @@ try {
     // ✅ Apply canonical solved state to all rendered cards
     applySolvedStatesToCards() {
         const solvedStages = window.__SOLVED_STAGES || [];
-        console.log("[JOURNEY] Applying solved states to cards using:", solvedStages);
+        if (DEBUG) console.log("[JOURNEY] Applying solved states to cards using:", solvedStages);
         
         solvedStages.forEach(stage => {
             const card = document.querySelector(`[data-stage="${stage}"]`);
@@ -3452,15 +4113,25 @@ function initializeSupabase() {
         // GOOGLE OAUTH DELEGATION END
 
         // CRITICAL FIX: Auth state listener (replaced with modal-driven recovery flow)
-        supabase.auth.onAuthStateChange((event, session) => {
+        supabase.auth.onAuthStateChange(async (event, session) => {
   console.log('[AUTH] State changed:', event, session?.user?.email || null);
+
+  // === FAST TRACK AUTO-ENTRY VIA ?ft=1 ===
+  // Detect ?ft=1 or sessionStorage.FAST_TRACK and auto-enter fast track flow
+  const ftParams = new URLSearchParams(window.location.search);
+  const isFt = ftParams.get("ft") === "1" || sessionStorage.getItem("FAST_TRACK") === "1";
+  if (isFt) {
+    sessionStorage.setItem("fastTrack", "true");
+    console.log('[FAST_TRACK] ?ft=1 detected; setting fast track session flag');
+    // Will be caught by FAST_TRACK.isActive() check below at "No active user" section
+  }
 
   // Handle SIGNED_IN event: immediately clear timeout and mark resolved
   if (event === 'SIGNED_IN') {
     clearSignInTimeout('auth_state_signed_in');
     signInResolved = true;
     loadMyProfileAndHydrateUI();
-    promptProfileCompletionIfNeeded();
+    // Note: auto-open now happens inside loadMyProfileAndHydrateUI() after profile fetch succeeds
   }
 
   // Special case: password recovery flow
@@ -3476,11 +4147,90 @@ function initializeSupabase() {
     console.log('[AUTH] Regular user detected, delegating to startContestForSignedInUser');
     supabaseAuth.user = session.user;
     startContestForSignedInUser();
+
+    // === FAST TRACK CONTINUATION: After user logs in from Stage 4 gate ===
+    if (FAST_TRACK.isActive() && FAST_TRACK.needsAuth()) {
+      console.log('[AUTH] Fast Track save gate login detected; migrating solves and advancing to Stage 5');
+      
+      // MIGRATE guest solves to Supabase before closing modal
+      if (session?.user?.id) {
+        await migrateFastTrackSolvesToSupabase(session.user.id);
+      }
+      
+      // HARD CLOSE the auth modal overlay (multiple strategies to ensure it closes)
+      const authModal = document.getElementById('auth-modal');
+      if (authModal) {
+        authModal.style.display = 'none';
+        authModal.classList.add('hidden');
+        console.log('[AUTH] Auth modal hard-closed');
+      }
+
+      // Reset modal internal tab state
+      const authSignup = document.getElementById('auth-signup');
+      const authSignin = document.getElementById('auth-signin');
+      if (authSignup) authSignup.classList.remove('active');
+      if (authSignin) authSignin.classList.remove('active');
+
+      // Remove the Save Gate UI if present
+      const gate = document.getElementById('fastTrackSaveGate');
+      if (gate) gate.remove();
+
+      // Clear fast track flags
+      localStorage.removeItem('fastTrackNeedsAuth');
+      localStorage.removeItem('fastTrackActive');
+      localStorage.removeItem('fastTrackGuest');
+      FAST_TRACK.setNeedsAuth(false);
+      
+      // HARD-DISABLE Fast Track after successful login
+      FAST_TRACK.disable();
+
+      // Ensure game UI is shown
+      if (typeof showGame === 'function') {
+        showGame();
+      }
+
+      // Show success toast
+      showToast('✅ Progress saved. Stage 5 unlocked.', { type: 'success', durationMs: 2000 });
+
+      // Continue to Stage 5
+      const nextStage = 5;
+
+      // Use existing function to load/advance
+      if (window.contestApp && typeof window.contestApp.renderCurrentStage === 'function') {
+        setTimeout(() => {
+          window.contestApp.currentStage = nextStage;
+          window.contestApp.renderCurrentStage();
+        }, 300); // Brief delay to ensure auth UI is cleaned up
+      }
+    }
+
     return;
   }
 
   // Signed out / no session
   console.log('[AUTH] No active user; showing landing screen');
+
+  // === FAST TRACK GUEST MODE BYPASS ===
+  if (FAST_TRACK.isActive()) {
+    console.log('[AUTH] Fast Track active; starting game as guest at Stage 1');
+    localStorage.setItem('fastTrackGuest', 'true');
+    
+    // Initialize contest app if not already done
+    if (!window.contestApp) {
+      console.log('[AUTH] Initializing contestApp for Fast Track guest...');
+      window.contestApp = new ContestApp();
+    }
+
+    // Set currentStage to 1 and render
+    if (window.contestApp) {
+      window.contestApp.currentStage = 1;
+      window.contestApp.renderCurrentStage();
+      showGame();
+      return;
+    }
+  }
+
+  // Normal flow: show landing
   showLanding();
 });
 
@@ -3553,7 +4303,12 @@ function initializeSupabase() {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         console.log('[logSolve] getUser() result:', { user, userError });
 
+        // Allow guest solves for Fast Track stages 1-4
         if (userError || !user) {
+            if (FAST_TRACK.isActive() && stage >= 1 && stage <= 4) {
+                console.log('[logSolve] Guest Fast Track solve allowed for stage:', stage);
+                return { success: true, reason: 'guest_fast_track', isStageWinner: false };
+            }
             console.error('[logSolve] No authenticated user or error:', userError);
             return { success: false, reason: 'no_user', isStageWinner: false };
         }
@@ -4322,7 +5077,11 @@ function showGame() {
   if (game) game.style.display = 'block';
   if (admin) admin.style.display = 'none';
 
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (!isFastTrackActive()) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    console.log('[FAST_TRACK] Skipping auto-scroll (advance/render)');
+  }
 
   // Update user label in header (gracefully handle missing elements)
   if (supabaseAuth && supabaseAuth.user) {
@@ -4383,7 +5142,7 @@ async function startContestForSignedInUser() {
 
         // Check if profile is complete; prompt if needed
         await loadMyProfileAndHydrateUI();
-        promptProfileCompletionIfNeeded();
+        // Note: auto-open now happens inside loadMyProfileAndHydrateUI() after profile fetch succeeds
 
         // --- Restore user's current stage from database (MUST happen before app init) ---
         const userId = supabaseAuth?.user?.id;
@@ -4657,10 +5416,47 @@ function updateStage16() {
 // handled via the Supabase auth state change listener (PASSWORD_RECOVERY).
 
 document.addEventListener('DOMContentLoaded', async function() {
+    // === PAGE GUARD: Only run on the game page (index.html), not on landing pages ===
+    if (!document.getElementById('gameContainer')) {
+      console.log('[BOOT] Not on game page; skipping script.js init');
+      return;
+    }
+
+    // === FAST TRACK LANDING ROUTE GUARD ===
+    // Skip game initialization entirely on /fast-track landing pages
+    if (window.location.pathname.startsWith('/fast-track')) {
+      console.log('[BOOT] skipping game init on fast-track landing pages');
+      return;
+    }
+
+    // === FAST TRACK DIRECT ACCESS GUARD ===
+    // Soft guard: redirect users who navigate directly to /fast-track/play without email submission
+    const pathname = window.location.pathname;
+    const isFastTrackPlayPath = pathname === '/fast-track/play' || pathname === '/fast-track/play/';
+    
+    if (isFastTrackPlayPath) {
+      // Check if user has a valid Fast Track session (email submitted)
+      const hasEmailSubmission = localStorage.getItem('fastTrackLeadEmail') || localStorage.getItem('fastTrackActive');
+      
+      if (!hasEmailSubmission) {
+        console.log('[FAST_TRACK] Direct access to /fast-track/play without email submission; redirecting to /fast-track');
+        window.location.href = '/fast-track';
+        return;
+      }
+    }
+
     console.log('[INIT] Page loaded...');
 
     // Initialize Supabase first so recovery handlers can use the client
     await initializeSupabase();
+
+    // === DEFENSIVE FAST TRACK CHECK ===
+    // If user is already authenticated, disable Fast Track permanently
+    // (prevents Fast Track from reactivating on page reload for logged-in users)
+    if (supabaseAuth && supabaseAuth.isAuthenticated && supabaseAuth.isAuthenticated()) {
+      console.log('[INIT] Authenticated user detected; disabling Fast Track');
+      FAST_TRACK.disable();
+    }
 
     // Password recovery via URL-hash has been removed. Recovery is handled
     // in the Supabase auth state listener (PASSWORD_RECOVERY) so we don't
@@ -4684,6 +5480,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Expose authUI for any legacy onclick handlers in HTML
     window.authUI = authUI;
+
+    // Wire auth modal close controls (X button and backdrop)
+    wireAuthModalControls();
 
     // Wire Google OAuth button
     const googleBtn = document.getElementById('googleSignInBtn');
@@ -4740,6 +5539,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                 console.warn('[ADMIN] Legacy admin UI disabled. Use /admin.html instead');
                 startContestForSignedInUser();
             } else {
+                // === FAST TRACK AUTH MODAL BYPASS ===
+                if (FAST_TRACK.isActive()) {
+                    console.log('[FAST_TRACK] Play clicked; bypassing auth modal (auto-start already running)');
+                    return;
+                }
+
                 // Log signup started when opening auth modal
                 if (marketingEventLogger) {
                     marketingEventLogger.onSignupStarted();
@@ -4787,6 +5592,31 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.log('[INIT] Contest app initialized');
                     // Check if this load came from a Supabase password recovery link
                     // (No-op) recovery handler already run after Supabase init above
+
+            // === FAST TRACK AUTO-START ===
+            if (FAST_TRACK.isActive() && !window.__fastStarted) {
+              window.__fastStarted = true;
+              console.log('[FAST_TRACK] Auto-starting game in guest mode');
+              
+              // If user is already authenticated, start normally
+              if (supabaseAuth && supabaseAuth.isAuthenticated()) {
+                console.log('[FAST_TRACK] User authenticated, using normal flow');
+                startContestForSignedInUser();
+              } else {
+                // Guest mode: start game directly at Stage 1
+                console.log('[FAST_TRACK] Starting as guest at Stage 1');
+                localStorage.setItem('fastTrackGuest', 'true');
+                window.contestApp.currentStage = 1;
+                window.contestApp.renderCurrentStage();
+                showGame();
+              }
+            }
+
+            // === DEFENSIVE CALL: Ensure Fast Track wins over landing page ===
+            if (FAST_TRACK.isActive()) {
+              console.log('[FAST_TRACK] Defensive call: ensuring game UI remains visible');
+              showGame();
+            }
         }
     }, 1000);
     
@@ -4811,6 +5641,13 @@ window.addEventListener('load', async function () {
       }
       startContestForSignedInUser();
       return;
+    } else if (FAST_TRACK.isActive()) {
+      // GUARD: Fast Track active, do NOT show landing page
+      console.log('[FAST_TRACK] Skipping landing page (fast track active)');
+      showGame();
+      window.contestApp.currentStage = 1;
+      window.contestApp.renderCurrentStage();
+      return;
     } else {
       console.log('[LOAD] No existing session found on load; showing landing');
       showLanding();
@@ -4820,6 +5657,69 @@ window.addEventListener('load', async function () {
     showLanding();
   }
 });
+
+// === DELEGATED SIGN OUT HANDLER (captures clicks even after rerender) ===
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest('button, a');
+  if (!btn) return;
+
+  const text = (btn.textContent || "").trim().toLowerCase();
+  const isSignOut = text === "sign out" || btn.id === "signoutbtn" || btn.dataset?.action === "signout";
+
+  if (!isSignOut) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  console.log("[SIGNOUT] delegated click");
+
+  const ftParams = new URLSearchParams(window.location.search);
+  const isFt = ftParams.get("ft") === "1" || sessionStorage.getItem("FAST_TRACK") === "1";
+
+  // Determine current stage if available
+  const stage = (window.contestApp?.currentStage) || (window.app?.currentStage) || (window.__state?.currentStage) || null;
+  const before5 = (typeof stage === "number") ? stage < 5 : isFt;
+
+  if (isFt && before5) {
+    const ok = window.confirm("You're in Fast Track. If you sign out now, you may lose your progress. Are you sure you want to sign out?");
+    if (!ok) return;
+  }
+
+  // === CLEAR ALL FAST TRACK FLAGS ===
+  console.log("[SIGNOUT] Clearing Fast Track flags");
+  sessionStorage.removeItem("FAST_TRACK");
+  sessionStorage.removeItem("fastTrack");
+  
+  // Clear fast-track related localStorage keys
+  const ftKeys = Object.keys(localStorage).filter(k => 
+    k.includes("fastTrack") || k.includes("FAST_TRACK") || k.includes("ft_")
+  );
+  ftKeys.forEach(k => {
+    localStorage.removeItem(k);
+    console.log(`[SIGNOUT] Cleared localStorage: ${k}`);
+  });
+
+  // === SIGN OUT FROM SUPABASE IF SESSION EXISTS ===
+  try {
+    const client = window.supabaseClient || window.supabase || supabase;
+    const { data: { session } } = await client.auth.getSession();
+    
+    if (session) {
+      console.log("[SIGNOUT] Active session found; calling signOut");
+      await client.auth.signOut();
+      console.log("[SIGNOUT] supabase.auth.signOut() complete");
+    } else {
+      console.log("[SIGNOUT] No active session; skipping Supabase signOut");
+    }
+  } catch (err) {
+    console.error("[SIGNOUT] Error checking/clearing session", err);
+    // Continue to redirect anyway
+  }
+
+  // === HARD REDIRECT TO ROOT (strips ft=1 and all params) ===
+  console.log("[SIGNOUT] Redirecting to /");
+  window.location.replace("/");
+}, true);
 
 // Global error handler
 window.addEventListener('error', function(event) {

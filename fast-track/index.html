@@ -23,7 +23,7 @@
     <meta name="theme-color" content="#e60000">
     
     <link rel="icon" href="https://public-frontend-cos.metadl.com/mgx/img/favicon.png" type="image/png">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/styles.css">
 </head>
 
 <body>
@@ -36,7 +36,7 @@
         <div class="landing-hero">
             <div class="landing-tagline">Six Continents Challenge</div>
             <h1 class="landing-title">Ready to Win<br>150,000 Miles?</h1>
-            <p class="landing-subtitle">Travel the world. Solve riddles. Claim your prize.</p>
+            <p class="landing-subtitle">Follow our journey. Solve riddles. Claim your prize.</p>
 
             <div class="landing-features">
                 <div class="landing-feature">
@@ -134,15 +134,10 @@
 
           <form onsubmit="leadUI.handleLeadSubmit(event)">
             <input type="email" id="lead-email" placeholder="Email" required>
-            <button type="submit" class="auth-btn primary">Send My Head Start →</button>
+            <button type="submit" class="auth-btn primary">Start Here →</button>
           </form>
 
           <p class="lead-trust">No spam. No nonsense. Unsubscribe anytime.</p>
-
-          <p class="auth-link" style="margin-top: 10px;">
-            Already have an account?
-            <a href="#" onclick="leadUI.goToSignIn(event)">Sign in</a>
-          </p>
 
           <div id="lead-message" class="auth-message"></div>
         </div>
@@ -190,10 +185,9 @@
         </div>
     </div>
 
-    <script src="./config.js"></script>
+    <script src="/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script type="module" src="./marketing.js"></script>
-    <script type="module" src="./script.js"></script>
+    <script type="module" src="/marketing.js"></script>
     <script>
         // Simple modal handler
         const howToPlayModal = {
