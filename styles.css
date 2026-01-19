@@ -112,6 +112,32 @@ body {
     letter-spacing: 0.3px;
 }
 
+.landing-trust-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 24px 0 28px;
+    padding: 0;
+    align-items: center;
+}
+
+.trust-item {
+    font-size: 0.95rem;
+    font-weight: 500;
+    opacity: 0.88;
+    color: #e8eaef;
+    line-height: 1.4;
+}
+
+.landing-microcopy {
+    font-size: 0.85rem;
+    font-weight: 400;
+    opacity: 0.72;
+    color: #b8bcc7;
+    margin-top: 12px;
+    margin-bottom: 0;
+}
+
 .landing-features {
     display: flex;
     justify-content: center;
@@ -748,6 +774,10 @@ input:checked + .toggle-slider:before {
     font-size: 1.3rem;
   }
   
+  .ft-mobile-hide {
+    display: none;
+  }
+
   .landing-features {
     gap: 24px;
   }
