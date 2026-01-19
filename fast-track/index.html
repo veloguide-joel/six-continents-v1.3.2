@@ -367,7 +367,30 @@
       // Wire the new CTA
       document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('fastTrackBtn');
-        if (btn) btn.addEventListener('click', leadUI.openModal);
+        if (btn) {
+          // Original CTA handler (modal open)
+          btn.addEventListener('click', leadUI.openModal);
+          
+          // Fire-and-forget marketing event (non-blocking)
+          btn.addEventListener('click', () => {
+            try {
+              if (window.createMarketingTracker) {
+                const client = getSupabaseClientSafe();
+                const tracker = window.createMarketingTracker(client);
+                // Fire async but don't await - use void to suppress promise warning
+                void (async () => {
+                  try {
+                    await tracker.log('cta_clicked', { page: 'fast-track' });
+                  } catch (e) {
+                    // Silently fail - event tracking should not block UX
+                  }
+                })();
+              }
+            } catch (e) {
+              // Silently fail - event tracking should not block UX
+            }
+          });
+        }
 
         // Close modal if user clicks outside the content
         const modal = document.getElementById('lead-modal');
