@@ -1810,6 +1810,13 @@ function wireHeaderAuthUI(user) {
     console.warn('[HEADER] btnMyProfile not found in DOM');
   }
 
+  // Wire avatar click to open profile (same action as My Profile button)
+  const avatarCircle = document.querySelector('.ar-header-avatar-circle');
+  if (avatarCircle && profileBtn) {
+    avatarCircle.onclick = openProfileModal;
+    console.log('[HEADER] Avatar click wired to profile');
+  }
+
   if (signOutBtn) {
     // Wire hard sign-out handler (bind exactly once)
     signOutBtn.onclick = hardSignOut;
@@ -1912,6 +1919,17 @@ async function hardSignOut(e) {
     console.log('[SIGNOUT] clicked');
     console.log('[AUTH] Starting full sign out...');
 
+    // === DETECT FAST TRACK CONTEXT ===
+    // Check if sign out was triggered from Fast Track context (ft=1 or /fast-track pathname)
+    const isFastTrackContext =
+      new URLSearchParams(window.location.search).get('ft') === '1' ||
+      window.location.pathname.startsWith('/fast-track');
+    
+    if (isFastTrackContext) {
+      sessionStorage.setItem('postSignOutRedirect', '/fast-track/');
+      console.log('[AUTH] Fast Track context detected; set postSignOutRedirect flag');
+    }
+
     // === FAST TRACK INCOMPLETE GUARD ===
     // If user is in fast-track AND has not completed stages 1-4 (current stage < 5), require confirmation
     if (isFastTrackActive()) {
@@ -1968,8 +1986,16 @@ async function hardSignOut(e) {
 
     keysToClear.forEach((k) => localStorage.removeItem(k));
 
+    // === PRESERVE postSignOutRedirect ACROSS sessionStorage.clear() ===
+    const postSignOutTarget = sessionStorage.getItem('postSignOutRedirect');
+    
     // Clear session-only flags (dedupe, etc.)
     sessionStorage.clear();
+    
+    // Restore postSignOutRedirect if it was set
+    if (postSignOutTarget) {
+      sessionStorage.setItem('postSignOutRedirect', postSignOutTarget);
+    }
 
     // Step 4: Clear Supabase auth tokens from storage
     Object.keys(localStorage).forEach(k => {
@@ -1993,9 +2019,14 @@ async function hardSignOut(e) {
     }
     showLanding();
 
-    // Step 7: Reload to index.html
+    // Step 7: Reload to appropriate page (index or fast-track landing)
     console.log('[AUTH] reload after sign out');
-    window.location.href = "./index.html";
+    if (isFastTrackActive()) {
+      console.log('[AUTH] Fast Track active; redirecting to /fast-track/');
+      window.location.href = "/fast-track/";
+    } else {
+      window.location.href = "./index.html";
+    }
   } catch (err) {
     console.error('[AUTH] Unexpected error in hardSignOut:', err);
     window.location.href = "./index.html";
@@ -4210,6 +4241,15 @@ function initializeSupabase() {
   // Signed out / no session
   console.log('[AUTH] No active user; showing landing screen');
 
+  // === INTERCEPT POST-SIGNOUT REDIRECT ===
+  const redirect = sessionStorage.getItem('postSignOutRedirect');
+  if (redirect) {
+    sessionStorage.removeItem('postSignOutRedirect');
+    console.log('[AUTH] Intercepted postSignOutRedirect:', redirect);
+    window.location.replace(redirect);
+    return;
+  }
+
   // === FAST TRACK GUEST MODE BYPASS ===
   if (FAST_TRACK.isActive()) {
     console.log('[AUTH] Fast Track active; starting game as guest at Stage 1');
@@ -5465,6 +5505,21 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Wire avatar option clicks (event delegation, global)
     wireAvatarOptions();
     
+    // Wire avatar image click to trigger profile button (delegated, capture phase)
+    document.addEventListener('click', (e) => {
+      const avatar = e.target.closest('#userAvatarImg');
+      if (!avatar) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const profileBtn = document.getElementById('btnMyProfile');
+      if (profileBtn) {
+        profileBtn.click();
+        console.log('[HEADER] Avatar image clicked; triggering profile button');
+      }
+    }, true);
+    
     // Wire profile modal controls (close buttons and backdrop)
     wireProfileModalControls();
     
@@ -5630,6 +5685,15 @@ window.addEventListener('load', async function () {
     return;
   }
   try {
+    // === CHECK FOR POST-SIGNOUT REDIRECT ===
+    const postSignOutRedirect = sessionStorage.getItem('postSignOutRedirect');
+    if (postSignOutRedirect) {
+      sessionStorage.removeItem('postSignOutRedirect');
+      console.log('[AUTH] Consuming postSignOutRedirect:', postSignOutRedirect);
+      window.location.replace(postSignOutRedirect);
+      return;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     const autoEnter = localStorage.getItem(SC_AUTO_ENTER_GAME_KEY) === "1";
 
@@ -5683,6 +5747,16 @@ document.addEventListener("click", async (e) => {
   if (isFt && before5) {
     const ok = window.confirm("You're in Fast Track. If you sign out now, you may lose your progress. Are you sure you want to sign out?");
     if (!ok) return;
+  }
+
+  // === SET POST-SIGNOUT REDIRECT IF FAST TRACK CONTEXT ===
+  const isFastTrackContext =
+    new URLSearchParams(window.location.search).get('ft') === '1' ||
+    window.location.pathname.startsWith('/fast-track');
+
+  if (isFastTrackContext) {
+    sessionStorage.setItem('postSignOutRedirect', '/fast-track/');
+    console.log('[SIGNOUT] Fast Track context detected; set postSignOutRedirect flag');
   }
 
   // === CLEAR ALL FAST TRACK FLAGS ===

@@ -35,10 +35,16 @@
     <div id="landingPage" class="landing-page">
         <div class="landing-hero">
             <div class="landing-tagline">Six Continents Challenge</div>
-            <h1 class="landing-title">Ready to Win<br>150,000 Miles?</h1>
-            <p class="landing-subtitle">Follow our journey. Solve riddles. Claim your prize.</p>
+            <h1 class="landing-title">Win 150,000 Turkish Airlines Miles</h1>
+            <p class="landing-subtitle">Play a free travel riddle game. Solve clues. Unlock stages. One winner takes the miles.</p>
+            
+            <div class="landing-trust-strip">
+                <div class="trust-item">✔ 100% free to play</div>
+                <div class="trust-item">✔ No credit card. No payment ever.</div>
+                <div class="trust-item">✔ Start in under 30 seconds</div>
+            </div>
 
-            <div class="landing-features">
+            <div class="landing-features ft-mobile-hide">
                 <div class="landing-feature">
                     <span class="landing-feature-icon">🔍</span>
                     <div class="landing-feature-text">Solve Clues</div>
@@ -53,9 +59,8 @@
                 </div>
             </div>
 
-            <div class="prize-highlight">Win 150,000<br>Turkish Airlines Miles</div>
-
-            <button id="fastTrackBtn" class="play-game-btn">FAST-TRACK ACCESS TO STAGE 5 🚀</button>
+            <button id="fastTrackBtn" class="play-game-btn">Start the Free Challenge 🚀</button>
+            <p class="landing-microcopy">Sign in once. Start solving immediately.</p>
         </div>
 
         <!-- Player Status Card (Hidden by default) -->
@@ -360,7 +365,30 @@
       // Wire the new CTA
       document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('fastTrackBtn');
-        if (btn) btn.addEventListener('click', leadUI.openModal);
+        if (btn) {
+          // Original CTA handler (modal open)
+          btn.addEventListener('click', leadUI.openModal);
+          
+          // Fire-and-forget marketing event (non-blocking)
+          btn.addEventListener('click', () => {
+            try {
+              if (window.createMarketingTracker) {
+                const client = getSupabaseClientSafe();
+                const tracker = window.createMarketingTracker(client);
+                // Fire async but don't await - use void to suppress promise warning
+                void (async () => {
+                  try {
+                    await tracker.log('cta_clicked', { page: 'fast-track' });
+                  } catch (e) {
+                    // Silently fail - event tracking should not block UX
+                  }
+                })();
+              }
+            } catch (e) {
+              // Silently fail - event tracking should not block UX
+            }
+          });
+        }
 
         // Close modal if user clicks outside the content
         const modal = document.getElementById('lead-modal');
