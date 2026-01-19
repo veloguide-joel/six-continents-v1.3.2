@@ -1810,6 +1810,13 @@ function wireHeaderAuthUI(user) {
     console.warn('[HEADER] btnMyProfile not found in DOM');
   }
 
+  // Wire avatar click to open profile (same action as My Profile button)
+  const avatarCircle = document.querySelector('.ar-header-avatar-circle');
+  if (avatarCircle && profileBtn) {
+    avatarCircle.onclick = openProfileModal;
+    console.log('[HEADER] Avatar click wired to profile');
+  }
+
   if (signOutBtn) {
     // Wire hard sign-out handler (bind exactly once)
     signOutBtn.onclick = hardSignOut;
@@ -5464,6 +5471,21 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Wire avatar option clicks (event delegation, global)
     wireAvatarOptions();
+    
+    // Wire avatar image click to trigger profile button (delegated, capture phase)
+    document.addEventListener('click', (e) => {
+      const avatar = e.target.closest('#userAvatarImg');
+      if (!avatar) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const profileBtn = document.getElementById('btnMyProfile');
+      if (profileBtn) {
+        profileBtn.click();
+        console.log('[HEADER] Avatar image clicked; triggering profile button');
+      }
+    }, true);
     
     // Wire profile modal controls (close buttons and backdrop)
     wireProfileModalControls();
