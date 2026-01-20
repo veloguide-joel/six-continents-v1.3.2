@@ -2272,6 +2272,24 @@ class ContestApp {
         return this.solvedStages.includes(stage);
     }
 
+    // Check max_step_solved from DB to restore step progress after cache clear
+    async getMaxStepSolved(stage) {
+        const user = supabaseAuth?.user;
+        if (!user) return 0;
+
+        const { data, error } = await supabase
+            .from('solves')
+            .select('step')
+            .eq('user_id', user.id)
+            .eq('stage', Number(stage))
+            .in('step', [1, 2]);
+
+        if (!error && data && data.length > 0) {
+            return Math.max(...data.map(row => row.step));
+        }
+        return 0;
+    }
+
     isFirstRiddleSolved(stage) {
         return this.firstRiddleSolved.includes(stage);
     }
@@ -2503,7 +2521,7 @@ try {
     }
 
     // Render current stage method
-    renderCurrentStage() {
+    async renderCurrentStage() {
         if (DEBUG) console.log(`[RENDER] Rendering current stage: ${this.currentStage}`);
         updateStageStatusBanner(this.currentStage);
         
@@ -2531,9 +2549,26 @@ try {
         if (this.isSolved(this.currentStage)) {
             // Stage already solved, show success
             this.showSuccess(this.currentStage);
-        } else if (this.hasTwoRiddles(this.currentStage) && this.isFirstRiddleSolved(this.currentStage)) {
-            // Show second riddle for stages 5-15
-            this.showSecondRiddle(this.currentStage);
+        } else if (this.hasTwoRiddles(this.currentStage)) {
+            // Check if Step 1 or Step 2 was already solved (from DB solves rows)
+            const maxStepSolved = await this.getMaxStepSolved(this.currentStage);
+            
+            if (maxStepSolved >= 2) {
+                // Step 2 exists in DB => stage is complete
+                this.showSuccess(this.currentStage);
+                console.log(`[RENDER] Restored stage complete for stage ${this.currentStage} (step 2 found)`);
+            } else if (maxStepSolved >= 1) {
+                // Step 1 exists in DB => show Step 2 UI
+                this.showSecondRiddle(this.currentStage);
+                console.log(`[RENDER] Restored Step 2 for stage ${this.currentStage} (step 1 found)`);
+            } else if (this.isFirstRiddleSolved(this.currentStage)) {
+                // Local flag says Step 1 solved (fallback for cache)
+                this.showSecondRiddle(this.currentStage);
+                console.log(`[RENDER] Restored Step 2 for stage ${this.currentStage} (local flag)`);
+            } else {
+                // No progress => show first riddle input
+                document.getElementById('inputSection').style.display = 'flex';
+            }
         } else {
             // Show first riddle input
             document.getElementById('inputSection').style.display = 'flex';
@@ -2910,6 +2945,35 @@ try {
                     // Mark first riddle as solved and show second riddle
                     const newFirstRiddleSolved = [...this.firstRiddleSolved, this.currentStage];
                     this.setFirstRiddleSolvedLocal(newFirstRiddleSolved);
+                    
+                    // Persist Step 1 progress to database immediately (no winner logic yet)
+                    if (leaderboardManager) {
+                        try {
+                            const user = supabaseAuth?.user;
+                            if (user) {
+                                const { error } = await supabase
+                                    .from('solves')
+                                    .upsert({
+                                        user_id: user.id,
+                                        stage: Number(this.currentStage),
+                                        step: 1,
+                                        username: user.email || user.id,
+                                        email: user.email,
+                                        max_step_solved: 1,
+                                        solved_at: new Date().toISOString()
+                                    }, { onConflict: 'user_id,stage,step' });
+                                
+                                if (error) {
+                                    console.error("[solves] step progress upsert failed", error);
+                                } else {
+                                    console.log("[solves] persisted step progress", { stage: this.currentStage, step: 1 });
+                                }
+                            }
+                        } catch (err) {
+                            console.error('[Step1] Failed to persist Step 1 progress:', err);
+                        }
+                    }
+                    
                     this.showSecondRiddle(this.currentStage);
                     document.getElementById('inputSection').style.display = 'none';
                 } else {
@@ -4364,31 +4428,47 @@ function initializeSupabase() {
         const hasExistingWinner = existingWinners && existingWinners.length > 0;
         console.log('[logSolve] Stage winner check:', { stage, hasExistingWinner });
 
-        // Construct payload matching the solves table schema
+        // Construct payload with only essential fields for step-based UNIQUE constraint
         const now = new Date().toISOString();
         const payload = {
-            stage: Number(stage),
             user_id: user.id,
-            username: user.email,
+            stage: Number(stage),
+            step: step,
+            username: user.email || user.id,
             email: user.email,
-            solved_at: now,
-            won_at: now,
-            step: step
+            max_step_solved: step,
+            solved_at: now
         };
 
         console.log('[logSolve] Inserting payload:', payload);
 
         const { data, error } = await supabase
             .from('solves')
-            .insert(payload)
+            .upsert(payload, { onConflict: 'user_id,stage,step' })
             .select();
 
         if (error) {
-            console.error('[logSolve] Supabase insert FAILED:', error);
+            console.error('[logSolve] Supabase upsert FAILED:', error);
             return { success: false, reason: 'supabase_error', error, isStageWinner: false };
         }
 
         console.log('[logSolve] Successfully saved:', data);
+
+        // Update max_step_solved to track highest step completed for this stage
+        const currentMaxStep = data[0]?.max_step_solved || 0;
+        const newMaxStep = Math.max(currentMaxStep, step);
+        
+        const { error: updateError } = await supabase
+            .from('solves')
+            .update({ max_step_solved: newMaxStep })
+            .eq('user_id', user.id)
+            .eq('stage', Number(stage));
+
+        if (!updateError) {
+            console.log("[solves] max_step_solved updated", { stage, step, max_step_solved: newMaxStep });
+        } else {
+            console.warn('[logSolve] Failed to update max_step_solved:', updateError);
+        }
         
         // Return winner status (true if this user is the first winner)
         const isStageWinner = !hasExistingWinner;
