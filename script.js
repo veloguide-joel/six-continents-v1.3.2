@@ -1,8 +1,9 @@
-// BUILD-ID 2025-11-12-logout+LB
+// === BUILD ID FOR VERIFICATION ===
+window.BUILD_ID = "dev-23da9c4-2026-01-20";
+console.log("[BUILD]", window.BUILD_ID);
 
 // === DEBUG FLAG: Control console verbosity ===
 const DEBUG = false;
-if (DEBUG) console.log("BUILD-ID 2025-11-12-logout+LB");
 if (DEBUG) console.log('[DEBUG] Debug mode enabled');
 
 // === FAST TRACK DETECTION HELPER ===
@@ -2392,7 +2393,7 @@ try {
         if (leaderboardManager) {
             console.log(`[ADVANCE] Attempting to save stage ${stage} to database...`);
             try {
-                const result = await leaderboardManager.logSolve(stage);
+                const result = await leaderboardManager.logSolve(stage, this.currentStep);
                 if (result.success) {
                     console.log(`[ADVANCE] Database save successful for stage ${stage}:`, result.reason || 'saved');
                     isStageWinner = result.isStageWinner || false;
@@ -2519,7 +2520,7 @@ try {
         // Update stage title and video
         const stageConfig = CONFIG.stages[this.currentStage];
         if (stageConfig) {
-            document.querySelector('.stage-title').textContent = `Stage ${this.currentStage}`;
+            document.querySelector('.stage-title').textContent = `S${this.currentStage}`;
             document.getElementById('currentVideo').src = `https://www.youtube.com/embed/${stageConfig.yt}`;
         }
 
@@ -4334,9 +4335,9 @@ function initializeSupabase() {
 
                 // Leaderboard manager
                                                                 leaderboardManager = {
-                                                                                                                                                                                                async logSolve(stage) {
+                                                                                                                                                                                                async logSolve(stage, step) {
     console.groupCollapsed('[logSolve] Starting solve log');
-    console.log('[logSolve] Stage:', stage);
+    console.log('[logSolve] Stage:', stage, 'Step:', step);
 
     try {
         // Fetch authenticated user
@@ -4372,7 +4373,7 @@ function initializeSupabase() {
             email: user.email,
             solved_at: now,
             won_at: now,
-            step: 1
+            step: step
         };
 
         console.log('[logSolve] Inserting payload:', payload);
@@ -4457,7 +4458,7 @@ async function onUserSignedIn(user) {
                         } else {
                             for (const stage of missing) {
                                 console.log(`[SYNC] Pushing stage ${stage} to Supabase...`);
-                                await leaderboardManager.logSolve(stage);
+                                await leaderboardManager.logSolve(stage, 1);
                             }
 
                             console.log('[SYNC] Sync complete. Refreshing cloud state...');
