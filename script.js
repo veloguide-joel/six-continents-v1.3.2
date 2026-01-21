@@ -681,10 +681,26 @@ async function migrateFastTrackSolvesToSupabase(userId) {
       // Minimal fallback: fetch and apply
       const { data: solves } = await supabase
         .from('solves')
-        .select('stage')
+        .select('stage,step')
         .eq('user_id', userId);
       
-      const solvedStages = (solves || []).map(r => r.stage);
+      // Build map of stage -> maxStep
+      const stageMaxStep = {};
+      (solves || []).forEach(s => {
+        const stage = Number(s.stage);
+        const step = Number(s.step) || 1;
+        stageMaxStep[stage] = Math.max(stageMaxStep[stage] || 0, step);
+      });
+      
+      // Filter to solvedStages: for two-step stages need step 2, otherwise step 1
+      const twoStepStages = [5,6,7,8,9,10,11,12,13,14,15];
+      const solvedStages = Object.keys(stageMaxStep)
+        .map(Number)
+        .filter(stage => {
+          const maxStep = stageMaxStep[stage];
+          const isTwoStep = twoStepStages.includes(stage);
+          return isTwoStep ? maxStep >= 2 : maxStep >= 1;
+        });
       console.log('[MIGRATION] Fetched solves fallback:', solvedStages);
       
       if (window.contestApp && solvedStages.length > 0) {
@@ -1092,7 +1108,7 @@ async function computeNextUnsolvedFromSolves(userId) {
     // Query all solved stages from DB
     const { data: solves, error } = await window.supabaseClient
       .from("solves")
-      .select("stage")
+      .select("stage,step")
       .eq("user_id", userId);
 
     if (error) {
@@ -1100,10 +1116,30 @@ async function computeNextUnsolvedFromSolves(userId) {
       return 1;
     }
 
-    // Build set of solved stages
-    const solvedSet = new Set(
-      (solves || []).map(s => Number(s.stage)).filter(n => Number.isFinite(n) && n >= 1 && n <= MAX_STAGE)
-    );
+    // Build map of stage -> maxStep
+    const stageMaxStep = {};
+    (solves || []).forEach(s => {
+      const stage = Number(s.stage);
+      const step = Number(s.step) || 1;
+      if (stage >= 1 && stage <= MAX_STAGE) {
+        stageMaxStep[stage] = Math.max(stageMaxStep[stage] || 0, step);
+      }
+    });
+
+    // ✅ STORE step data globally for isSolved() to use
+    window.__dbStepByStage = stageMaxStep;
+
+    // Build set of solved stages (accounting for two-step requirements)
+    const solvedSet = new Set();
+    const twoStepStages = [5,6,7,8,9,10,11,12,13,14,15]; // stages that require step 2
+    for (let stage = 1; stage <= MAX_STAGE; stage++) {
+      const maxStep = stageMaxStep[stage] || 0;
+      const isTwoStep = twoStepStages.includes(stage);
+      const minStepRequired = isTwoStep ? 2 : 1;
+      if (maxStep >= minStepRequired) {
+        solvedSet.add(stage);
+      }
+    }
 
     // ✅ STORE GLOBALLY for Journey Progress UI to use
     window.__dbSolvedSet = solvedSet;
@@ -2269,7 +2305,24 @@ class ContestApp {
     }
 
     isSolved(stage) {
-        return this.solvedStages.includes(stage);
+        // Check if stage is in solvedStages (which respects step requirements)
+        if (!this.solvedStages.includes(stage)) {
+            return false;
+        }
+        
+        // Additional safety check for two-step stages: verify step 2 was actually completed
+        // This protects against stale localStorage data where stage 12 was marked solved with only step 1
+        const twoStepStages = [5,6,7,8,9,10,11,12,13,14,15];
+        if (twoStepStages.includes(stage)) {
+            // For two-step stages, require max step to be at least 2
+            const maxStep = window.__dbStepByStage?.[stage] || 0;
+            if (maxStep < 2) {
+                console.warn(`[isSolved] Stage ${stage} has only step ${maxStep}, not fully solved`);
+                return false;
+            }
+        }
+        
+        return true;
     }
 
     // Check max_step_solved from DB to restore step progress after cache clear
