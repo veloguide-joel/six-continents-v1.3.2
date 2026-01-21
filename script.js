@@ -2502,12 +2502,15 @@ try {
         }, 100);
 
         // Step 6: Find and advance to next stage
-        const nextStage = this.findNextUnsolvedStage();
+        // After solving a stage, advance to the next sequential stage (not the lowest unsolved)
+        const nextStage = stage < CONFIG.total ? stage + 1 : null;
         
-        if (nextStage && nextStage <= CONFIG.total) {
+        if (nextStage && nextStage <= CONFIG.total && this.isUnlocked(nextStage)) {
             console.log(`[ADVANCE] Advancing from stage ${stage} to stage ${nextStage}`);
             this.currentStage = nextStage;
             this.renderCurrentStage();
+        } else if (nextStage && nextStage <= CONFIG.total) {
+            console.log(`[ADVANCE] Stage ${nextStage} is locked, cannot advance (admin control)`);
         } else {
             console.log(`[ADVANCE] All stages complete! Rendering grand prize.`);
             this.renderGrandPrize();
