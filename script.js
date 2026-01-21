@@ -3137,7 +3137,8 @@ try {
                 
                 // Only advance if persist succeeded
                 if (persistSuccess) {
-                    // Mark stage as completely solved
+                    // Mark stage as completely solved (set step to 2 for proper logging)
+                    this.currentStep = 2;
                     await this.markStageSolvedAndAdvance(this.currentStage);
                 }
             } else {
