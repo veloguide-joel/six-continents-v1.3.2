@@ -2498,6 +2498,29 @@ try {
             }
         }
 
+        // Step 2.5: For stage 12 (or any stage), re-fetch stage_winners to get accurate winner status
+        // This ensures modal shows correct message even if trigger hasn't fired yet
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: winner, error: winnerError } = await supabase
+                    .from('stage_winners')
+                    .select('user_id, email, username, won_at')
+                    .eq('stage', Number(stage))
+                    .maybeSingle();
+
+                if (!winnerError && winner) {
+                    // Winner exists - check if it's the current user
+                    isStageWinner = (winner.user_id === user.id);
+                    console.log(`[ADVANCE] Stage ${stage} winner check: isCurrentUser=${isStageWinner}, winner_id=${winner.user_id}, current_id=${user.id}`);
+                } else {
+                    console.log(`[ADVANCE] No winner found for stage ${stage} yet`);
+                }
+            }
+        } catch (err) {
+            console.warn(`[ADVANCE] Failed to check stage_winners for stage ${stage}:`, err);
+        }
+
         // Step 3: Log progress (async)
         if (progressManager) {
             progressManager.logStageCompletion(`stage_${stage}`, `Stage ${stage} Complete`);
