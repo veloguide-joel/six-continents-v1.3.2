@@ -693,7 +693,7 @@ async function migrateFastTrackSolvesToSupabase(userId) {
       });
       
       // Filter to solvedStages: for two-step stages need step 2, otherwise step 1
-      const twoStepStages = [5,6,7,8,9,10,11,12,13,14,15];
+      const twoStepStages = [12]; // only stage 12 requires step 2
       const solvedStages = Object.keys(stageMaxStep)
         .map(Number)
         .filter(stage => {
@@ -1131,7 +1131,7 @@ async function computeNextUnsolvedFromSolves(userId) {
 
     // Build set of solved stages (accounting for two-step requirements)
     const solvedSet = new Set();
-    const twoStepStages = [5,6,7,8,9,10,11,12,13,14,15]; // stages that require step 2
+    const twoStepStages = [12]; // only stage 12 requires step 2
     for (let stage = 1; stage <= MAX_STAGE; stage++) {
       const maxStep = stageMaxStep[stage] || 0;
       const isTwoStep = twoStepStages.includes(stage);
@@ -2312,7 +2312,7 @@ class ContestApp {
         
         // Additional safety check for two-step stages: verify step 2 was actually completed
         // This protects against stale localStorage data where stage 12 was marked solved with only step 1
-        const twoStepStages = [5,6,7,8,9,10,11,12,13,14,15];
+        const twoStepStages = [12]; // only stage 12 requires step 2 for solved check
         if (twoStepStages.includes(stage)) {
             // For two-step stages, require max step to be at least 2
             const maxStep = window.__dbStepByStage?.[stage] || 0;
