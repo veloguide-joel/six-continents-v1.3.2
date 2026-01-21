@@ -3099,10 +3099,11 @@ try {
                 try { resetWrongAttempts(); } catch (e) { /* noop if not available */ }
                 
                 // ✅ PERSIST Step 2 to database BEFORE advancing
+                let persistSuccess = false;
                 try {
                     const user = supabaseAuth?.user;
                     if (user) {
-                        console.log("[STEP2] attempting persist", { stage: this.currentStage, step: 2, user_id: user.id, username: user.email, email: user.email });
+                        console.log("[S12 STEP2] attempting persist", { stage: this.currentStage, step: 2, user_id: user.id, username: user.email, email: user.email });
                         
                         const { data, error } = await supabase
                             .from('solves')
@@ -3117,17 +3118,28 @@ try {
                             }, { onConflict: 'user_id,stage,step' });
                         
                         if (error) {
-                            console.error("[STEP2] persist failed", error);
+                            console.error("[S12 STEP2] persist failed", error);
+                            // DO NOT advance if persist fails
+                            document.getElementById('secondRiddleError').style.display = 'block';
+                            document.getElementById('secondRiddleError').textContent = 'Failed to save your progress. Please try again.';
+                            persistSuccess = false;
                         } else {
-                            console.log("[STEP2] persist success", data);
+                            console.log("[S12 STEP2] persist success", data);
+                            persistSuccess = true;
                         }
                     }
                 } catch (err) {
-                    console.error('[STEP2] Exception during persist:', err);
+                    console.error('[S12 STEP2] Exception during persist:', err);
+                    document.getElementById('secondRiddleError').style.display = 'block';
+                    document.getElementById('secondRiddleError').textContent = 'Failed to save your progress. Please try again.';
+                    persistSuccess = false;
                 }
                 
-                // Mark stage as completely solved
-                await this.markStageSolvedAndAdvance(this.currentStage);
+                // Only advance if persist succeeded
+                if (persistSuccess) {
+                    // Mark stage as completely solved
+                    await this.markStageSolvedAndAdvance(this.currentStage);
+                }
             } else {
                 // Show error
                 document.getElementById('secondRiddleError').style.display = 'block';
