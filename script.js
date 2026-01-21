@@ -1086,12 +1086,30 @@ async function restoreStageFromSolves(userId) {
       return 1;
     }
 
-    // Find max solved stage
-    const stages = solves.map(s => Number(s.stage)).filter(n => Number.isFinite(n));
-    const maxStage = Math.max(...stages);
-    const restoredStage = Math.min(maxStage + 1, MAX_STAGE);
+    // Build map of stage -> maxStep to check if stage is truly solved
+    const stageMaxStep = {};
+    (solves || []).forEach(s => {
+      const stage = Number(s.stage);
+      const step = Number(s.step) || 1;
+      stageMaxStep[stage] = Math.max(stageMaxStep[stage] || 0, step);
+    });
 
-    console.log("[PROGRESS] max solved stage:", maxStage, "(source: DB)");
+    // Find the highest FULLY solved stage (stage 12 requires step 2, others require step 1)
+    let maxFullySolvedStage = 0;
+    for (let stage = 1; stage <= 16; stage++) {
+      const maxStep = stageMaxStep[stage] || 0;
+      const isFullySolved = (stage === 12) ? (maxStep >= 2) : (maxStep >= 1);
+      if (isFullySolved) {
+        maxFullySolvedStage = stage;
+      } else {
+        // Stop at first unsolved stage
+        break;
+      }
+    }
+
+    const restoredStage = Math.min(maxFullySolvedStage + 1, MAX_STAGE);
+
+    console.log("[PROGRESS] max fully solved stage:", maxFullySolvedStage, "(source: DB)");
     console.log("[PROGRESS] restored current stage:", restoredStage, "(source: DB)");
 
     return restoredStage;
@@ -3079,6 +3097,34 @@ try {
                 document.getElementById('secondRiddleError').style.display = 'none';
                 // Reset wrong-attempt counter on success
                 try { resetWrongAttempts(); } catch (e) { /* noop if not available */ }
+                
+                // ✅ PERSIST Step 2 to database BEFORE advancing
+                try {
+                    const user = supabaseAuth?.user;
+                    if (user) {
+                        console.log("[STEP2] attempting persist", { stage: this.currentStage, step: 2, user_id: user.id, username: user.email, email: user.email });
+                        
+                        const { data, error } = await supabase
+                            .from('solves')
+                            .upsert({
+                                user_id: user.id,
+                                stage: Number(this.currentStage),
+                                step: 2,
+                                username: user.email || user.id,
+                                email: user.email,
+                                max_step_solved: 2,
+                                solved_at: new Date().toISOString()
+                            }, { onConflict: 'user_id,stage,step' });
+                        
+                        if (error) {
+                            console.error("[STEP2] persist failed", error);
+                        } else {
+                            console.log("[STEP2] persist success", data);
+                        }
+                    }
+                } catch (err) {
+                    console.error('[STEP2] Exception during persist:', err);
+                }
                 
                 // Mark stage as completely solved
                 await this.markStageSolvedAndAdvance(this.currentStage);
