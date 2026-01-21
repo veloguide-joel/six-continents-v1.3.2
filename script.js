@@ -2657,15 +2657,22 @@ try {
 
     // Show success panel
     showSuccess(stage) {
-        const nextStage = this.findNextUnsolvedStage();
+        // Next sequential stage (for button label)
+        const nextSequentialStage = stage < CONFIG.total ? stage + 1 : null;
+        // Next unlocked/unsolved stage (for navigation)
+        const nextUnsolvedStage = this.findNextUnsolvedStage();
+        
         const successText = document.getElementById('successText');
         const continueBtn = document.getElementById('continueBtn');
         
-        if (nextStage && nextStage <= CONFIG.total) {
+        if (nextSequentialStage && nextSequentialStage <= CONFIG.total) {
             successText.textContent = `Stage ${stage} complete! Ready for the next challenge?`;
-            continueBtn.textContent = `Continue to Stage ${nextStage}`;
+            // Label shows next sequential stage
+            continueBtn.textContent = `Continue to Stage ${nextSequentialStage}`;
+            // Navigate to next unlocked/unsolved stage
             continueBtn.onclick = () => {
-                this.currentStage = nextStage;
+                const targetStage = nextUnsolvedStage || nextSequentialStage;
+                this.currentStage = targetStage;
                 this.renderCurrentStage();
             };
         } else {
