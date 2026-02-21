@@ -1696,28 +1696,38 @@ function wireAuthModalControls() {
   const authModal = document.getElementById('auth-modal');
   const closeBtn = document.querySelector('.auth-close');
   
-  // Wire the close button (X) to hard-close modal
+  // Wire the close button (X) to close modal using AuthUI logic
   if (closeBtn) {
     closeBtn.addEventListener('click', (evt) => {
       evt.preventDefault();
       evt.stopPropagation();
-      if (authModal) {
-        authModal.style.display = 'none';
+      if (typeof authUI !== 'undefined' && authUI && typeof authUI.closeModal === 'function') {
+        authUI.closeModal();
+        console.log('[AUTH] Auth modal closed via close button (authUI.closeModal)');
+      } else if (authModal) {
+        authModal.classList.remove('show');
         authModal.classList.add('hidden');
-        console.log('[AUTH] Auth modal closed via close button');
+        authModal.style.display = '';
+        console.log('[AUTH] Auth modal closed via close button (fallback)');
       }
     });
     console.log('[AUTH] Close button (X) wired');
   }
   
-  // Wire backdrop click to close modal (if applicable)
+  // Wire backdrop click to close modal using AuthUI logic (if applicable)
   if (authModal) {
     authModal.addEventListener('click', (evt) => {
       // Check if click was on the modal backdrop itself, not the content
       if (evt.target === authModal || evt.target.classList.contains('auth-modal')) {
-        authModal.style.display = 'none';
-        authModal.classList.add('hidden');
-        console.log('[AUTH] Auth modal closed via backdrop click');
+        if (typeof authUI !== 'undefined' && authUI && typeof authUI.closeModal === 'function') {
+          authUI.closeModal();
+          console.log('[AUTH] Auth modal closed via backdrop click (authUI.closeModal)');
+        } else {
+          authModal.classList.remove('show');
+          authModal.classList.add('hidden');
+          authModal.style.display = '';
+          console.log('[AUTH] Auth modal closed via backdrop click (fallback)');
+        }
       }
     });
   }
@@ -5072,19 +5082,21 @@ class AuthUI {
     }
 
     showModal() {
-        const modal = document.getElementById('auth-modal');
-        modal.classList.add('show');
-        
-        // Check for default tab preference from previous signout
-        const defaultTab = getAuthModalDefaultTab();
-        this.showTab(defaultTab);
+      const modal = document.getElementById('auth-modal');
+      modal.style.display = '';
+      modal.classList.remove('hidden');
+      modal.classList.add('show');
+      // Check for default tab preference from previous signout
+      const defaultTab = getAuthModalDefaultTab();
+      this.showTab(defaultTab);
     }
 
     closeModal() {
-        const modal = document.getElementById('auth-modal');
-        modal.classList.remove('show');
-        this.clearMessage();
-        this.isProcessing = false;
+      const modal = document.getElementById('auth-modal');
+      modal.classList.remove('show');
+      modal.classList.add('hidden');
+      this.clearMessage();
+      this.isProcessing = false;
     }
 
     showTab(tab) {
