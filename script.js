@@ -106,9 +106,7 @@ class MarketingEventLogger {
     }
 
     try {
-      const { error } = await this.supabase
-        .from('marketing_events')
-        .insert({
+        const { error } = await this.supabase.from('marketing_events').insert({
           session_id: this.sessionId,
           variant: this.variant,
           event: eventName,
@@ -1107,12 +1105,9 @@ async function restoreStageFromSolves(userId) {
       }
     }
 
-    const restoredStage = Math.min(maxFullySolvedStage + 1, MAX_STAGE);
-
     console.log("[PROGRESS] max fully solved stage:", maxFullySolvedStage, "(source: DB)");
-    console.log("[PROGRESS] restored current stage:", restoredStage, "(source: DB)");
-
-    return restoredStage;
+    // Always return 1 so user can pick any stage
+    return 1;
   } catch (e) {
     console.warn("[PROGRESS] restoreStageFromSolves failed:", e);
     return 1;
@@ -1170,25 +1165,11 @@ async function computeNextUnsolvedFromSolves(userId) {
 
     console.log("[NAV] solvedSet:", window.__dbSolvedArray);
 
-    // Find next unsolved stage
-    for (let i = 1; i <= MAX_STAGE; i++) {
-      if (!solvedSet.has(i)) {
-        console.log("[NAV] next unsolved computed:", i);
-        // ✅ SIGNAL that solves have loaded (gate open)
-        if (typeof solvesLoadedResolve === 'function') {
-          solvesLoadedResolve();
-        }
-        return i;
-      }
-    }
-
-    // All stages solved, return MAX_STAGE
-    console.log("[NAV] All stages solved, returning:", MAX_STAGE);
-    // ✅ SIGNAL that solves have loaded (gate open)
+    // Do not force next unsolved; always return 1 so user can pick any stage
     if (typeof solvesLoadedResolve === 'function') {
       solvesLoadedResolve();
     }
-    return MAX_STAGE;
+    return 1;
   } catch (e) {
     console.warn("[NAV] computeNextUnsolvedFromSolves failed:", e);
     // ✅ SIGNAL that solves have loaded even on error (gate open)
@@ -2291,17 +2272,9 @@ class ContestApp {
         // Only run localStorage-based progress loading if stage is 1 (new user)
         this.solvedStages = this.getSolvedStagesFromLocal();
         this.firstRiddleSolved = this.getFirstRiddleSolvedFromLocal();
-        
-        // IMPORTANT: Only compute stage if it hasn't been set externally (e.g., from DB restore)
-        // If stage was set from DB (via window.currentStage), DO NOT override it with localStorage
-        const stageIsPreset = this.currentStage > 1;
-        if (!stageIsPreset) {
-            // Only compute from localStorage if no stage is set
-            this.currentStage = this.findNextUnsolvedStage() || 1;
-            console.log(`[ContestApp] loadInitialProgress: computed stage from localStorage: ${this.currentStage}`);
-        } else {
-            console.log(`[ContestApp] loadInitialProgress: respecting pre-set stage: ${this.currentStage}`);
-        }
+        // Always default to stage 1 on load; do not auto-advance
+        this.currentStage = 1;
+        console.log(`[ContestApp] loadInitialProgress: defaulting to stage 1`);
     }
 
     getSolvedStagesFromLocal() {
@@ -2377,9 +2350,31 @@ class ContestApp {
 
     // UPDATED: Now checks both progression AND admin control
     isUnlocked(stage) {
-        const progressUnlocked = stage === 1 || this.isSolved(stage - 1);
+      // Stages 1-15: unlocked if enabled (no order restriction)
+      if (stage >= 1 && stage <= 15) {
         const adminEnabled = stageControlManager ? stageControlManager.isStageEnabled(stage) : true;
-        return progressUnlocked && adminEnabled;
+        return adminEnabled;
+      }
+      // Stage 16: unlocked only if all 1-15 are solved
+      if (stage === 16) {
+        // Use canonical solved stages array
+        const solvedStages = window.__SOLVED_STAGES || this.solvedStages || [];
+        // Count unique solved stages in 1..15
+        const solvedSet = new Set(solvedStages);
+        let allSolved = true;
+        for (let i = 1; i <= 15; i++) {
+          if (!solvedSet.has(i)) {
+            allSolved = false;
+            break;
+          }
+        }
+        const adminEnabled = stageControlManager ? stageControlManager.isStageEnabled(stage) : true;
+        return allSolved && adminEnabled;
+      }
+      // Fallback: original logic
+      const progressUnlocked = stage === 1 || this.isSolved(stage - 1);
+      const adminEnabled = stageControlManager ? stageControlManager.isStageEnabled(stage) : true;
+      return progressUnlocked && adminEnabled;
     }
 
     // NEW: Check if stage is admin disabled
@@ -2743,73 +2738,88 @@ try {
 
     // Create individual stage tile
     createStageTile(stage) {
-        // ✅ Use canonical global solved state
-        const solvedStages = window.__SOLVED_STAGES || [];
-        const solvedSet = new Set(solvedStages);
-        const currentStage = window.contestApp?.currentStage || this.currentStage || 1;
-        
-        const tile = document.createElement('div');
-        tile.className = 'stage-tile';
-        tile.setAttribute('data-stage', stage);  // ✅ Stable selector
-        
-        // Canonical unlock/solve logic
-        const isSolved = solvedSet.has(stage);
-        const isCurrent = stage === currentStage;
-        const isUnlocked = stage <= currentStage;
-        const isAdminDisabled = this.isAdminDisabled(stage);
-        
-        if (isSolved) {
-            tile.classList.add('solved');
-        } else if (isAdminDisabled) {
-            tile.classList.add('stage-status-locked');
-        } else if (!isUnlocked) {
-            tile.classList.add('stage-status-locked');
+      // ✅ Use canonical global solved state
+      const solvedStages = window.__SOLVED_STAGES || [];
+      const solvedSet = new Set(solvedStages);
+      const currentStage = window.contestApp?.currentStage || this.currentStage || 1;
+
+      // Audit: log stageControlManager existence and enabled flags snapshot once
+      if (typeof window.__TILES_AUDIT_LOGGED === 'undefined') {
+        window.__TILES_AUDIT_LOGGED = true;
+        console.log('[TILES_AUDIT] stageControlManager exists:', typeof stageControlManager !== 'undefined' && !!stageControlManager);
+        if (stageControlManager && typeof stageControlManager.getStageControlData === 'function') {
+          const controlData = stageControlManager.getStageControlData();
+          console.log('[TILES_AUDIT] stageControlManager enabled flags snapshot:', controlData);
         }
-        
-        // Determine icon and status
-        let iconClass, iconText, statusText, statusClass;
-        if (isSolved) {
-            iconClass = 'solved';
-            iconText = '✓';
-            statusText = 'Solved';
-            statusClass = 'is-solved';
-        } else if (isAdminDisabled) {
-            iconClass = 'stage-status-locked';
-            iconText = '⏸️';
-            statusText = 'Opens as your journey unfolds';
-            statusClass = 'is-locked';
-        } else if (isUnlocked) {
-            iconClass = 'open';
-            iconText = stage;
-            statusText = 'Open';
-            statusClass = 'is-open';
-        } else {
-            iconClass = 'stage-status-locked';
-            iconText = '🔒';
-            statusText = 'Opens as your journey unfolds';
-            statusClass = 'is-locked';
-        }
-        
-        // Prize badge
-        let prizeText = stage === 15 ? '50K<br>Miles' : '$50<br>$100 GC';
-        
-        tile.innerHTML = `
-            <div class="prize-badge">
-                <span class="prize-badge-line">${prizeText.split('<br>')[0]}</span>
-                <span class="prize-badge-line">${prizeText.split('<br>')[1]}</span>
-            </div>
-            <div class="stage-icon ${iconClass}">${iconText}</div>
-            <div class="stage-name">Stage ${stage}</div>
-            <div class="stage-status stage-status-label ${statusClass}">${statusText}</div>
-        `;
-        
-        // Add click handler for unlocked stages
-        if (isUnlocked && !isAdminDisabled) {
-            tile.style.cursor = 'pointer';
-            tile.onclick = () => this.openStageModal(stage);
-        }
-        
-        return tile;
+      }
+
+      const tile = document.createElement('div');
+      tile.className = 'stage-tile';
+      tile.setAttribute('data-stage', stage);  // ✅ Stable selector
+
+      // Canonical unlock/solve logic
+      const isSolved = solvedSet.has(stage);
+      const adminEnabled = stageControlManager ? stageControlManager.isStageEnabled(stage) : true;
+      const unlockedByFunction = typeof window.contestApp?.isUnlocked === 'function' ? window.contestApp.isUnlocked(stage) : this.isUnlocked(stage);
+      const clickable = unlockedByFunction && adminEnabled;
+      const isAdminDisabled = this.isAdminDisabled(stage);
+
+      // Audit: log tile creation details
+      console.log('[TILES_AUDIT] Stage tile:', {
+        stage,
+        adminEnabled,
+        unlockedByFunction,
+        clickable,
+        handlerAttached: clickable
+      });
+
+      // Styling
+      if (isSolved) {
+        tile.classList.add('solved');
+      } else if (!clickable) {
+        tile.classList.add('stage-status-locked');
+      }
+
+      // Determine icon and status
+      let iconClass, iconText, statusText, statusClass;
+      if (isSolved) {
+        iconClass = 'solved';
+        iconText = '✓';
+        statusText = 'Solved';
+        statusClass = 'is-solved';
+      } else if (!clickable) {
+        iconClass = 'stage-status-locked';
+        iconText = '🔒';
+        statusText = 'Opens as your journey unfolds';
+        statusClass = 'is-locked';
+      } else {
+        iconClass = 'open';
+        iconText = stage;
+        statusText = 'Open';
+        statusClass = 'is-open';
+      }
+
+      // Prize badge
+      let prizeText = stage === 15 ? '50K<br>Miles' : '$50<br>$100 GC';
+
+      tile.innerHTML = `
+        <div class="prize-badge">
+          <span class="prize-badge-line">${prizeText.split('<br>')[0]}</span>
+          <span class="prize-badge-line">${prizeText.split('<br>')[1]}</span>
+        </div>
+        <div class="stage-icon ${iconClass}">${iconText}</div>
+        <div class="stage-name">Stage ${stage}</div>
+        <div class="stage-status stage-status-label ${statusClass}">${statusText}</div>
+      `;
+
+      // Add click handler for unlocked stages
+      if (clickable) {
+        tile.style.cursor = 'pointer';
+        tile.onclick = () => this.openStageModal(stage);
+      }
+      console.log('[TILES_AUDIT] Stage', stage, 'clickable:', clickable, 'click handler attached:', !!tile.onclick);
+
+      return tile;
     }
 
     // ✅ Apply canonical solved state to all rendered cards
@@ -5082,13 +5092,107 @@ class AuthUI {
     }
 
     showModal() {
-      const modal = document.getElementById('auth-modal');
-      modal.style.display = '';
-      modal.classList.remove('hidden');
-      modal.classList.add('show');
+      // [AUTH-AUDIT] Entry log
+      const stamp = new Date().toISOString();
+      console.log('[AUTH-AUDIT] showModal ENTRY', { stamp });
+      const stateFlags = {
+        authModalOpen: this.authModalOpen,
+        isAuthFlowActive: this.isAuthFlowActive,
+        isProcessing: this.isProcessing,
+        isLocked: this.isLocked,
+        isTransitioning: this.isTransitioning
+      };
+      console.log('[AUTH-AUDIT] showModal stateFlags', stateFlags);
+      const modalIds = ['auth-modal', 'authModal', 'modal-auth'];
+      modalIds.forEach(id => {
+        console.log(`[AUTH-AUDIT] document.getElementById(${id})`, document.getElementById(id));
+      });
+      if (document.querySelectorAll('.modal-backdrop').length) {
+        console.log('[AUTH-AUDIT] .modal-backdrop count', document.querySelectorAll('.modal-backdrop').length);
+      }
+      if (document.querySelectorAll('.auth-backdrop').length) {
+        console.log('[AUTH-AUDIT] .auth-backdrop count', document.querySelectorAll('.auth-backdrop').length);
+      }
+
+      // [AUTH-AUDIT] Before checking for existing modal
+      console.log('[AUTH-AUDIT] showModal checking for existing modal');
+      let modal = document.getElementById('auth-modal');
+      let backdrop = document.querySelector('.modal-backdrop') || document.querySelector('.auth-backdrop');
+      if (modal) {
+        // [AUTH-AUDIT] REUSE_EXISTING branch
+        // FIX: Remove stale .hidden and ensure modal is shown
+        modal.classList.remove('hidden');
+        modal.classList.add('show');
+        if (modal.style && modal.style.display === 'none') modal.style.display = '';
+        console.log('[AUTH-AUDIT] REUSE_EXISTING', {
+          modal,
+          modalParent: modal.parentNode ? { tag: modal.parentNode.tagName, id: modal.parentNode.id, className: modal.parentNode.className } : null,
+          backdrop,
+          backdropParent: backdrop && backdrop.parentNode ? { tag: backdrop.parentNode.tagName, id: backdrop.parentNode.id, className: backdrop.parentNode.className } : null
+        });
+      } else {
+        // [AUTH-AUDIT] CREATE_NEW branch
+        console.log('[AUTH-AUDIT] CREATE_NEW');
+        // Placeholder: If createAuthModal exists, call and log
+        if (typeof this.createAuthModal === 'function') {
+          const created = this.createAuthModal();
+          console.log('[AUTH-AUDIT] createAuthModal returned', created);
+          modal = created && created.modal;
+          backdrop = created && created.backdrop;
+        } else {
+          console.log('[AUTH-AUDIT] createAuthModal not found');
+        }
+      }
+
+      // Modal show logic
+      if (modal) {
+        modal.style.display = '';
+        modal.classList.remove('hidden');
+        modal.classList.add('show');
+      }
       // Check for default tab preference from previous signout
       const defaultTab = getAuthModalDefaultTab();
       this.showTab(defaultTab);
+
+      // [AUTH-AUDIT] Post-showModal diagnostics
+      function logElementDiagnostics(el, label) {
+        if (!el) {
+          console.log(`[AUTH-AUDIT] ${label} element: null`);
+          return;
+        }
+        const parentChain = [];
+        let node = el;
+        for (let i = 0; i < 5 && node; i++) {
+          parentChain.push(`${node.tagName || ''}#${node.id || ''}.${node.className || ''}`);
+          node = node.parentNode;
+        }
+        const computed = window.getComputedStyle(el);
+        console.log(`[AUTH-AUDIT] ${label} diagnostics`, {
+          id: el.id,
+          className: el.className,
+          tagName: el.tagName,
+          parentChain,
+          display: computed.display,
+          visibility: computed.visibility,
+          opacity: computed.opacity,
+          pointerEvents: computed.pointerEvents,
+          position: computed.position,
+          zIndex: computed.zIndex,
+          rect: el.getBoundingClientRect()
+        });
+      }
+      logElementDiagnostics(modal, 'MODAL');
+      logElementDiagnostics(backdrop, 'BACKDROP');
+      console.log('[AUTH-AUDIT] document.activeElement', document.activeElement);
+      const centerElem = document.elementFromPoint(window.innerWidth/2, window.innerHeight/2);
+      console.log('[AUTH-AUDIT] elementFromPoint(center)', centerElem);
+      const bodyComputed = window.getComputedStyle(document.body);
+      console.log('[AUTH-AUDIT] body diagnostics', {
+        overflow: bodyComputed.overflow,
+        pointerEvents: bodyComputed.pointerEvents
+      });
+      // [AUTH-AUDIT] SHOWMODAL DONE — modalInDOM, backdropInDOM
+      console.log('[AUTH-AUDIT] SHOWMODAL DONE — modalInDOM=' + (!!modal && document.body.contains(modal)) + ' backdropInDOM=' + (!!backdrop && document.body.contains(backdrop)));
     }
 
     closeModal() {
@@ -5694,7 +5798,8 @@ function updateStage16() {
 // handled via the Supabase auth state change listener (PASSWORD_RECOVERY).
 
 document.addEventListener('DOMContentLoaded', async function() {
-    // === PAGE GUARD: Only run on the game page (index.html), not on landing pages ===
+  console.log('[INIT-AUDIT] DOMContentLoaded fired');
+  // === PAGE GUARD: Only run on the game page (index.html), not on landing pages ===
     if (!document.getElementById('gameContainer')) {
       console.log('[BOOT] Not on game page; skipping script.js init');
       return;
@@ -5814,38 +5919,66 @@ document.addEventListener('DOMContentLoaded', async function() {
     await marketingEventLogger.onPageLoad();
     
     // Bind landing page events
+    console.log('[INIT-AUDIT] About to attach CTA handler');
     const playGameBtn = document.getElementById('playGameBtn');
+    // [CTA-AUDIT] Log playGameBtn reference and details
     if (playGameBtn) {
-        playGameBtn.onclick = (e) => {
-            e?.preventDefault?.();
-            
-            // Log CTA click event
-            if (marketingEventLogger) {
-                marketingEventLogger.onCtaClick();
-            }
-            
-            if (supabaseAuth && supabaseAuth.isAuthenticated()) {
-                // LEGACY ADMIN UI DISABLED
-                // The main site no longer provides admin access.
-                // Admins must use /admin.html for stage control.
-                // All users (including admin email) proceed to normal game flow.
-                console.warn('[ADMIN] Legacy admin UI disabled. Use /admin.html instead');
-                startContestForSignedInUser();
-            } else {
-                // === FAST TRACK AUTH MODAL BYPASS ===
-                if (FAST_TRACK.isActive()) {
-                    console.log('[FAST_TRACK] Play clicked; bypassing auth modal (auto-start already running)');
-                    return;
-                }
-
-                // Log signup started when opening auth modal
-                if (marketingEventLogger) {
-                    marketingEventLogger.onSignupStarted();
-                }
-                authUI.showModal();
-            }
-        };
+      console.log('[CTA-AUDIT] playGameBtn =', {
+        id: playGameBtn.id,
+        className: playGameBtn.className,
+        tagName: playGameBtn.tagName,
+        outerHTML: playGameBtn.outerHTML.slice(0, 200)
+      });
+    } else {
+      console.log('[CTA-AUDIT] playGameBtn = null');
     }
+    if (playGameBtn) {
+      playGameBtn.onclick = (e) => {
+        e?.preventDefault?.();
+
+        // Log CTA click event
+        if (marketingEventLogger) {
+          marketingEventLogger.onCtaClick();
+        }
+        console.log('[CTA-AUDIT] CTA handler ATTACHED');
+
+        if (supabaseAuth && supabaseAuth.isAuthenticated()) {
+          // Admins must use /admin.html for stage control.
+          // All users (including admin email) proceed to normal game flow.
+          console.warn('[ADMIN] Legacy admin UI disabled. Use /admin.html instead');
+          startContestForSignedInUser();
+        } else {
+          // === FAST TRACK AUTH MODAL BYPASS ===
+          if (FAST_TRACK.isActive()) {
+            console.log('[FAST_TRACK] Play clicked; bypassing auth modal (auto-start already running)');
+            return;
+          }
+
+          // Log signup started when opening auth modal
+          if (marketingEventLogger) {
+            marketingEventLogger.onSignupStarted();
+          }
+          authUI.showModal();
+        }
+      };
+    } else {
+      console.log('[CTA-AUDIT] CTA button NOT FOUND — selector was: #playGameBtn');
+    }
+        // [CTA-AUDIT] Global click capture listener for PLAY-related clicks (capture phase)
+        document.addEventListener('click', (e) => {
+          const t = e.target;
+          const path = e.composedPath ? e.composedPath() : [];
+          const txt = (t && (t.innerText || t.textContent) || '').trim().slice(0,80);
+          const hitPlay = txt.toUpperCase().includes('PLAY') || (t && (t.id === 'playGameBtn' || t.className?.toString().includes('play')));
+          if (!hitPlay) return;
+
+          console.log('[CTA-AUDIT] CAPTURE click', {
+            targetTag: t?.tagName, targetId: t?.id, targetClass: t?.className,
+            text: txt,
+            x: e.clientX, y: e.clientY,
+            topAtPoint: document.elementFromPoint(e.clientX, e.clientY)?.outerHTML?.slice(0,200) || null
+          });
+        }, true);
     
     // Bind footer links
     const howToPlayLink = document.getElementById('howToPlayLink');
