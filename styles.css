@@ -1,3 +1,54 @@
+#stageModal {
+  display: none !important;
+}
+/* Hide annoying helper popup */
+#stageModal .modal-message {
+  display: none !important;
+}
+/* Current stage highlight for clickable tiles */
+.stage-tile.is-current:not(.stage-status-locked):not(.admin-disabled) {
+  outline: 2px solid rgba(99, 102, 241, 0.7);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.18);
+}
+
+.stage-tile.is-current .stage-name {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+/* Current stage highlight for clickable tiles */
+.stage-tile.is-current:not(.locked):not(.admin-disabled),
+.journey-stage-card.is-current:not(.locked):not(.admin-disabled) {
+  outline: 2px solid rgba(99, 102, 241, 0.7);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.18);
+}
+
+.stage-tile.is-current:not(.locked):not(.admin-disabled) .stage-title,
+.journey-stage-card.is-current:not(.locked):not(.admin-disabled) .stage-title {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+/* Subtle polish for 'Solve Stage' label on clickable tiles only */
+.stage-tile:not(.locked):not(.admin-disabled) .stage-status-label.is-open,
+.journey-stage-card:not(.locked):not(.admin-disabled) .stage-status-label.is-open {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  font-weight: 600;
+  line-height: 1;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.stage-tile:not(.locked):not(.admin-disabled):hover .stage-status-label.is-open,
+.journey-stage-card:not(.locked):not(.admin-disabled):hover .stage-status-label.is-open {
+  background: rgba(239, 68, 68, 0.18);
+  transform: translateY(-1px);
+}
 :root {
     --ar-bg-dark: #444552;
     --ar-bg-light: #f2f2f7;
@@ -1653,7 +1704,10 @@ input:checked + .toggle-slider:before {
 /* Open status - default white */
 .stage-status-label.is-open,
 .stage-status.is-open {
-  color: rgba(255, 255, 255, 0.85);
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #e2e8f0;
+  box-shadow: none;
 }
 
 /* Locked/disabled status - muted */

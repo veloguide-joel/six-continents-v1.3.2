@@ -2759,11 +2759,15 @@ try {
         const isAdminDisabled = this.isAdminDisabled(stage);
         
         if (isSolved) {
-            tile.classList.add('solved');
+          tile.classList.add('solved');
         } else if (isAdminDisabled) {
-            tile.classList.add('stage-status-locked');
+          tile.classList.add('stage-status-locked');
         } else if (!isUnlocked) {
-            tile.classList.add('stage-status-locked');
+          tile.classList.add('stage-status-locked');
+        }
+        // Highlight current stage only if not solved/locked/admin-disabled
+        if (isCurrent && isUnlocked && !isAdminDisabled && !isSolved) {
+          tile.classList.add('is-current');
         }
         
         // Determine icon and status
@@ -2781,7 +2785,7 @@ try {
         } else if (isUnlocked) {
             iconClass = 'open';
             iconText = stage;
-            statusText = 'Unsolved';
+            statusText = 'Solve Stage';
             statusClass = 'is-open';
         } else {
             iconClass = 'stage-status-locked';
@@ -2806,7 +2810,11 @@ try {
         // Add click handler for unlocked stages
         if (isUnlocked && !isAdminDisabled) {
             tile.style.cursor = 'pointer';
-            tile.onclick = () => this.openStageModal(stage);
+            tile.onclick = () => {
+              this.openStageModal(stage);
+              const panel = document.getElementById('currentStage');
+              if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            };
         }
         
         return tile;
