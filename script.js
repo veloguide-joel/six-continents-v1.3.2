@@ -2377,13 +2377,20 @@ class ContestApp {
 
     // UPDATED: Now checks both progression AND admin control
     isUnlocked(stage) {
-        const progressUnlocked = stage <= 15;
-        const adminEnabled = stageControlManager ? stageControlManager.isStageEnabled(stage) : true;
-        return progressUnlocked && adminEnabled;
+        if (stage >= 1 && stage <= 15) {
+          return true;
+        }
+
+        const adminEnabled = stageControlManager
+          ? stageControlManager.isStageEnabled(stage)
+          : true;
+
+        return adminEnabled;
     }
 
     // NEW: Check if stage is admin disabled
     isAdminDisabled(stage) {
+        if (stage >= 1 && stage <= 15) return false;
         return stageControlManager ? !stageControlManager.isStageEnabled(stage) : false;
     }
 
