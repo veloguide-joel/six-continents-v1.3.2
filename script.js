@@ -2377,7 +2377,7 @@ class ContestApp {
 
     // UPDATED: Now checks both progression AND admin control
     isUnlocked(stage) {
-        const progressUnlocked = stage === 1 || this.isSolved(stage - 1);
+        const progressUnlocked = stage <= 15;
         const adminEnabled = stageControlManager ? stageControlManager.isStageEnabled(stage) : true;
         return progressUnlocked && adminEnabled;
     }
@@ -2755,7 +2755,7 @@ try {
         // Canonical unlock/solve logic
         const isSolved = solvedSet.has(stage);
         const isCurrent = stage === currentStage;
-        const isUnlocked = stage <= currentStage;
+        const isUnlocked = this.isUnlocked(stage);
         const isAdminDisabled = this.isAdminDisabled(stage);
         
         if (isSolved) {
@@ -2781,7 +2781,7 @@ try {
         } else if (isUnlocked) {
             iconClass = 'open';
             iconText = stage;
-            statusText = 'Open';
+            statusText = 'Unsolved';
             statusClass = 'is-open';
         } else {
             iconClass = 'stage-status-locked';
