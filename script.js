@@ -2858,19 +2858,20 @@ try {
 
     // Open stage modal
     openStageModal(stage) {
+        // Grid-First: set current stage and update journey dots immediately
+        this.currentStage = Number(stage);
+        window.currentStage = this.currentStage;
+        this.updateStageProgressUI?.();
+
         this.modalCurrentStage = stage;
         document.getElementById('modalTitle').textContent = `Stage ${stage}`;
         document.getElementById('stageModal').style.display = 'flex';
-        
-        // Set current stage and render
-        this.currentStage = stage;
-        this.renderCurrentStage();
-        
+
         // Close modal
         setTimeout(() => {
-            document.getElementById('stageModal').style.display = 'none';
+          document.getElementById('stageModal').style.display = 'none';
         }, 2000);
-    }
+      }
 
     // Update progress bar
     updateProgress() {
