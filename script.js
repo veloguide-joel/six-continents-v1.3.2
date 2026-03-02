@@ -2816,12 +2816,19 @@ try {
         
         // Add click handler for unlocked stages
         if (isUnlocked && !isAdminDisabled) {
-            tile.style.cursor = 'pointer';
-            tile.onclick = () => {
-              this.openStageModal(stage);
-              const panel = document.getElementById('currentStage');
-              if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            };
+          tile.style.cursor = 'pointer';
+          tile.onclick = () => {
+            this.currentStage = Number(stage);
+            window.currentStage = this.currentStage;
+            localStorage.setItem('lastSelectedStage', String(stage));
+            this.updateStageProgressUI?.();
+            console.log('[GRID] Tile click -> render stage panel', stage);
+            if (typeof this.renderCurrentStage === 'function') {
+              this.renderCurrentStage();
+            }
+            const panel = document.getElementById('currentStage');
+            if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          };
         }
         
         return tile;
@@ -5439,23 +5446,36 @@ async function startContestForSignedInUser() {
         // Note: auto-open now happens inside loadMyProfileAndHydrateUI() after profile fetch succeeds
 
         // --- Restore user's current stage from database (MUST happen before app init) ---
-        const userId = supabaseAuth?.user?.id;
-        if (userId && window.supabaseClient) {
-            try {
-                const restoredStage = await restoreStageFromSolves(userId);
-                window.currentStage = restoredStage;
-                if (window.contestApp) {
-                    window.contestApp.currentStage = restoredStage;
-                }
-                console.log(`[UI] currentStage set to ${restoredStage} (source: DB)`);
-            } catch (err) {
-                console.warn("[PROGRESS] Failed to restore stage from solves:", err);
-                window.currentStage = 1;
-                console.log(`[UI] currentStage set to 1 (source: default/error)`);
-            }
+        // --- GRID-FIRST resume logic ---
+        const isGridFirst = !!window.GRID_FIRST_MODE || !!window.__GRID_FIRST_MODE || (window.APP_MODE === 'grid') || (window.CONTEST_MODE === 'grid-first');
+        if (isGridFirst) {
+          const saved = Number(localStorage.getItem('lastSelectedStage') || 0);
+          if (!window.currentStage) {
+            window.currentStage = saved || 1;
+          }
+          if (window.contestApp) {
+            window.contestApp.currentStage = window.currentStage;
+          }
+          console.log(`[GRID] Grid-first resume: currentStage set to`, window.currentStage);
         } else {
+          const userId = supabaseAuth?.user?.id;
+          if (userId && window.supabaseClient) {
+            try {
+              const restoredStage = await restoreStageFromSolves(userId);
+              window.currentStage = restoredStage;
+              if (window.contestApp) {
+                window.contestApp.currentStage = restoredStage;
+              }
+              console.log(`[UI] currentStage set to ${restoredStage} (source: DB)`);
+            } catch (err) {
+              console.warn("[PROGRESS] Failed to restore stage from solves:", err);
+              window.currentStage = 1;
+              console.log(`[UI] currentStage set to 1 (source: default/error)`);
+            }
+          } else {
             window.currentStage = 1;
             console.log(`[UI] currentStage set to 1 (source: no userId/client)`);
+          }
         }
 
         // Ensure ContestApp exists (idempotent - create only once)
@@ -5523,6 +5543,7 @@ async function startContestForSignedInUser() {
             console.log("[JOURNEY] Running defensive re-render of all journey components");
             setTimeout(() => {
               try {
+                const isGridFirst = !!window.GRID_FIRST_MODE || !!window.__GRID_FIRST_MODE || (window.APP_MODE === 'grid') || (window.CONTEST_MODE === 'grid-first');
                 if (window.contestApp && typeof window.contestApp.renderStagesGrid === "function") {
                   window.contestApp.renderStagesGrid();
                 }
@@ -5539,6 +5560,10 @@ async function startContestForSignedInUser() {
                 }
                 if (window.contestApp && typeof window.contestApp.updateProgress === "function") {
                   window.contestApp.updateProgress();
+                }
+                // Prevent defensive rerender from resetting currentStage in grid-first mode
+                if (!isGridFirst && window.contestApp && typeof window.contestApp.ensureAtNextUnsolved === 'function') {
+                  window.contestApp.ensureAtNextUnsolved('defensive');
                 }
                 console.log("[JOURNEY] Defensive re-render complete");
               } catch (e) {

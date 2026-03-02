@@ -1,3 +1,6 @@
+/* AUTH MODAL — canonical visibility (prevents invisible overlay blocking clicks) */
+#auth-modal.hidden { display: none !important; }
+#auth-modal.show { display: flex; }
 /* FORCE Journey dots to be big + visible (override legacy rules) */
 .stage-progress-dots .stage-dot,
 .stage-progress-dots > div {
