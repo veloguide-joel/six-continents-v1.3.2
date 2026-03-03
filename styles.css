@@ -1,3 +1,8 @@
+/* Make 'Your Journey Progress' heading bigger and bolder (scoped) */
+.journey-section-title {
+  font-size: 22px;
+  font-weight: 600;
+}
 /* AUTH MODAL — canonical visibility (prevents invisible overlay blocking clicks) */
 #auth-modal.hidden { display: none !important; }
 #auth-modal.show { display: flex; }
