@@ -1696,28 +1696,38 @@ function wireAuthModalControls() {
   const authModal = document.getElementById('auth-modal');
   const closeBtn = document.querySelector('.auth-close');
   
-  // Wire the close button (X) to hard-close modal
+  // Wire the close button (X) to close modal using AuthUI logic
   if (closeBtn) {
     closeBtn.addEventListener('click', (evt) => {
       evt.preventDefault();
       evt.stopPropagation();
-      if (authModal) {
-        authModal.style.display = 'none';
+      if (typeof authUI !== 'undefined' && authUI && typeof authUI.closeModal === 'function') {
+        authUI.closeModal();
+        console.log('[AUTH] Auth modal closed via close button (authUI.closeModal)');
+      } else if (authModal) {
+        authModal.classList.remove('show');
         authModal.classList.add('hidden');
-        console.log('[AUTH] Auth modal closed via close button');
+        authModal.style.display = '';
+        console.log('[AUTH] Auth modal closed via close button (fallback)');
       }
     });
     console.log('[AUTH] Close button (X) wired');
   }
   
-  // Wire backdrop click to close modal (if applicable)
+  // Wire backdrop click to close modal using AuthUI logic (if applicable)
   if (authModal) {
     authModal.addEventListener('click', (evt) => {
       // Check if click was on the modal backdrop itself, not the content
       if (evt.target === authModal || evt.target.classList.contains('auth-modal')) {
-        authModal.style.display = 'none';
-        authModal.classList.add('hidden');
-        console.log('[AUTH] Auth modal closed via backdrop click');
+        if (typeof authUI !== 'undefined' && authUI && typeof authUI.closeModal === 'function') {
+          authUI.closeModal();
+          console.log('[AUTH] Auth modal closed via backdrop click (authUI.closeModal)');
+        } else {
+          authModal.classList.remove('show');
+          authModal.classList.add('hidden');
+          authModal.style.display = '';
+          console.log('[AUTH] Auth modal closed via backdrop click (fallback)');
+        }
       }
     });
   }
@@ -2367,13 +2377,20 @@ class ContestApp {
 
     // UPDATED: Now checks both progression AND admin control
     isUnlocked(stage) {
-        const progressUnlocked = stage === 1 || this.isSolved(stage - 1);
-        const adminEnabled = stageControlManager ? stageControlManager.isStageEnabled(stage) : true;
-        return progressUnlocked && adminEnabled;
+        if (stage >= 1 && stage <= 15) {
+          return true;
+        }
+
+        const adminEnabled = stageControlManager
+          ? stageControlManager.isStageEnabled(stage)
+          : true;
+
+        return adminEnabled;
     }
 
     // NEW: Check if stage is admin disabled
     isAdminDisabled(stage) {
+        if (stage >= 1 && stage <= 15) return false;
         return stageControlManager ? !stageControlManager.isStageEnabled(stage) : false;
     }
 
@@ -2745,15 +2762,19 @@ try {
         // Canonical unlock/solve logic
         const isSolved = solvedSet.has(stage);
         const isCurrent = stage === currentStage;
-        const isUnlocked = stage <= currentStage;
+        const isUnlocked = this.isUnlocked(stage);
         const isAdminDisabled = this.isAdminDisabled(stage);
         
         if (isSolved) {
-            tile.classList.add('solved');
+          tile.classList.add('solved');
         } else if (isAdminDisabled) {
-            tile.classList.add('stage-status-locked');
+          tile.classList.add('stage-status-locked');
         } else if (!isUnlocked) {
-            tile.classList.add('stage-status-locked');
+          tile.classList.add('stage-status-locked');
+        }
+        // Highlight current stage only if not solved/locked/admin-disabled
+        if (isCurrent && isUnlocked && !isAdminDisabled && !isSolved) {
+          tile.classList.add('is-current');
         }
         
         // Determine icon and status
@@ -2771,7 +2792,7 @@ try {
         } else if (isUnlocked) {
             iconClass = 'open';
             iconText = stage;
-            statusText = 'Open';
+            statusText = 'Solve Stage';
             statusClass = 'is-open';
         } else {
             iconClass = 'stage-status-locked';
@@ -2795,8 +2816,19 @@ try {
         
         // Add click handler for unlocked stages
         if (isUnlocked && !isAdminDisabled) {
-            tile.style.cursor = 'pointer';
-            tile.onclick = () => this.openStageModal(stage);
+          tile.style.cursor = 'pointer';
+          tile.onclick = () => {
+            this.currentStage = Number(stage);
+            window.currentStage = this.currentStage;
+            localStorage.setItem('lastSelectedStage', String(stage));
+            this.updateStageProgressUI?.();
+            console.log('[GRID] Tile click -> render stage panel', stage);
+            if (typeof this.renderCurrentStage === 'function') {
+              this.renderCurrentStage();
+            }
+            const panel = document.getElementById('currentStage');
+            if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          };
         }
         
         return tile;
@@ -2833,19 +2865,20 @@ try {
 
     // Open stage modal
     openStageModal(stage) {
+        // Grid-First: set current stage and update journey dots immediately
+        this.currentStage = Number(stage);
+        window.currentStage = this.currentStage;
+        this.updateStageProgressUI?.();
+
         this.modalCurrentStage = stage;
         document.getElementById('modalTitle').textContent = `Stage ${stage}`;
         document.getElementById('stageModal').style.display = 'flex';
-        
-        // Set current stage and render
-        this.currentStage = stage;
-        this.renderCurrentStage();
-        
+
         // Close modal
         setTimeout(() => {
-            document.getElementById('stageModal').style.display = 'none';
+          document.getElementById('stageModal').style.display = 'none';
         }, 2000);
-    }
+      }
 
     // Update progress bar
     updateProgress() {
@@ -2896,18 +2929,35 @@ try {
         if (dotsEl) {
             dotsEl.innerHTML = '';
             for (let i = 1; i <= 15; i++) {
-                const dot = document.createElement('span');
-                dot.className = 'stage-dot';
-                
-                if (solvedStages.includes(i)) {
-                    dot.classList.add('stage-dot-complete');
-                } else if (i === this.currentStage) {
-                    dot.classList.add('stage-dot-current');
-                } else if (i > this.currentStage) {
-                    dot.classList.add('stage-dot-locked');
-                }
-                
-                dotsEl.appendChild(dot);
+              const dot = document.createElement('span');
+              dot.className = 'stage-dot';
+              const isSolved = solvedStages.includes(i);
+              if (isSolved) {
+                dot.classList.add('stage-dot-complete');
+              } else if (i === this.currentStage) {
+                dot.classList.add('stage-dot-current');
+              } else if (i > this.currentStage) {
+                dot.classList.add('stage-dot-locked');
+              }
+              if (!isSolved) {
+                dot.classList.add('stage-dot-clickable');
+                dot.title = 'Go to Stage ' + i;
+                dot.setAttribute('role', 'button');
+                dot.tabIndex = 0;
+                dot.addEventListener('click', () => {
+                  this.currentStage = i;
+                  this.renderCurrentStage();
+                  this.updateStageProgressUI();
+                });
+                dot.addEventListener('keydown', (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    this.currentStage = i;
+                    this.renderCurrentStage();
+                    this.updateStageProgressUI();
+                  }
+                });
+              }
+              dotsEl.appendChild(dot);
             }
         }
     }
@@ -5006,6 +5056,7 @@ const howToPlayModal = {
         }
     }
 };
+window.howToPlayModal = howToPlayModal;
 
 const termsModal = {
     element: null,
@@ -5028,6 +5079,7 @@ const termsModal = {
         }
     }
 };
+window.termsModal = termsModal;
 
 // ===== AUTH MODAL TAB HELPERS =====
 /**
@@ -5072,19 +5124,21 @@ class AuthUI {
     }
 
     showModal() {
-        const modal = document.getElementById('auth-modal');
-        modal.classList.add('show');
-        
-        // Check for default tab preference from previous signout
-        const defaultTab = getAuthModalDefaultTab();
-        this.showTab(defaultTab);
+      const modal = document.getElementById('auth-modal');
+      modal.style.display = '';
+      modal.classList.remove('hidden');
+      modal.classList.add('show');
+      // Check for default tab preference from previous signout
+      const defaultTab = getAuthModalDefaultTab();
+      this.showTab(defaultTab);
     }
 
     closeModal() {
-        const modal = document.getElementById('auth-modal');
-        modal.classList.remove('show');
-        this.clearMessage();
-        this.isProcessing = false;
+      const modal = document.getElementById('auth-modal');
+      modal.classList.remove('show');
+      modal.classList.add('hidden');
+      this.clearMessage();
+      this.isProcessing = false;
     }
 
     showTab(tab) {
@@ -5411,23 +5465,36 @@ async function startContestForSignedInUser() {
         // Note: auto-open now happens inside loadMyProfileAndHydrateUI() after profile fetch succeeds
 
         // --- Restore user's current stage from database (MUST happen before app init) ---
-        const userId = supabaseAuth?.user?.id;
-        if (userId && window.supabaseClient) {
-            try {
-                const restoredStage = await restoreStageFromSolves(userId);
-                window.currentStage = restoredStage;
-                if (window.contestApp) {
-                    window.contestApp.currentStage = restoredStage;
-                }
-                console.log(`[UI] currentStage set to ${restoredStage} (source: DB)`);
-            } catch (err) {
-                console.warn("[PROGRESS] Failed to restore stage from solves:", err);
-                window.currentStage = 1;
-                console.log(`[UI] currentStage set to 1 (source: default/error)`);
-            }
+        // --- GRID-FIRST resume logic ---
+        const isGridFirst = !!window.GRID_FIRST_MODE || !!window.__GRID_FIRST_MODE || (window.APP_MODE === 'grid') || (window.CONTEST_MODE === 'grid-first');
+        if (isGridFirst) {
+          const saved = Number(localStorage.getItem('lastSelectedStage') || 0);
+          if (!window.currentStage) {
+            window.currentStage = saved || 1;
+          }
+          if (window.contestApp) {
+            window.contestApp.currentStage = window.currentStage;
+          }
+          console.log(`[GRID] Grid-first resume: currentStage set to`, window.currentStage);
         } else {
+          const userId = supabaseAuth?.user?.id;
+          if (userId && window.supabaseClient) {
+            try {
+              const restoredStage = await restoreStageFromSolves(userId);
+              window.currentStage = restoredStage;
+              if (window.contestApp) {
+                window.contestApp.currentStage = restoredStage;
+              }
+              console.log(`[UI] currentStage set to ${restoredStage} (source: DB)`);
+            } catch (err) {
+              console.warn("[PROGRESS] Failed to restore stage from solves:", err);
+              window.currentStage = 1;
+              console.log(`[UI] currentStage set to 1 (source: default/error)`);
+            }
+          } else {
             window.currentStage = 1;
             console.log(`[UI] currentStage set to 1 (source: no userId/client)`);
+          }
         }
 
         // Ensure ContestApp exists (idempotent - create only once)
@@ -5495,6 +5562,7 @@ async function startContestForSignedInUser() {
             console.log("[JOURNEY] Running defensive re-render of all journey components");
             setTimeout(() => {
               try {
+                const isGridFirst = !!window.GRID_FIRST_MODE || !!window.__GRID_FIRST_MODE || (window.APP_MODE === 'grid') || (window.CONTEST_MODE === 'grid-first');
                 if (window.contestApp && typeof window.contestApp.renderStagesGrid === "function") {
                   window.contestApp.renderStagesGrid();
                 }
@@ -5511,6 +5579,10 @@ async function startContestForSignedInUser() {
                 }
                 if (window.contestApp && typeof window.contestApp.updateProgress === "function") {
                   window.contestApp.updateProgress();
+                }
+                // Prevent defensive rerender from resetting currentStage in grid-first mode
+                if (!isGridFirst && window.contestApp && typeof window.contestApp.ensureAtNextUnsolved === 'function') {
+                  window.contestApp.ensureAtNextUnsolved('defensive');
                 }
                 console.log("[JOURNEY] Defensive re-render complete");
               } catch (e) {
