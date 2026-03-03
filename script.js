@@ -5056,6 +5056,7 @@ const howToPlayModal = {
         }
     }
 };
+window.howToPlayModal = howToPlayModal;
 
 const termsModal = {
     element: null,
@@ -5078,6 +5079,7 @@ const termsModal = {
         }
     }
 };
+window.termsModal = termsModal;
 
 // ===== AUTH MODAL TAB HELPERS =====
 /**
