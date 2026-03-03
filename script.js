@@ -2929,18 +2929,35 @@ try {
         if (dotsEl) {
             dotsEl.innerHTML = '';
             for (let i = 1; i <= 15; i++) {
-                const dot = document.createElement('span');
-                dot.className = 'stage-dot';
-                
-                if (solvedStages.includes(i)) {
-                    dot.classList.add('stage-dot-complete');
-                } else if (i === this.currentStage) {
-                    dot.classList.add('stage-dot-current');
-                } else if (i > this.currentStage) {
-                    dot.classList.add('stage-dot-locked');
-                }
-                
-                dotsEl.appendChild(dot);
+              const dot = document.createElement('span');
+              dot.className = 'stage-dot';
+              const isSolved = solvedStages.includes(i);
+              if (isSolved) {
+                dot.classList.add('stage-dot-complete');
+              } else if (i === this.currentStage) {
+                dot.classList.add('stage-dot-current');
+              } else if (i > this.currentStage) {
+                dot.classList.add('stage-dot-locked');
+              }
+              if (!isSolved) {
+                dot.classList.add('stage-dot-clickable');
+                dot.title = 'Go to Stage ' + i;
+                dot.setAttribute('role', 'button');
+                dot.tabIndex = 0;
+                dot.addEventListener('click', () => {
+                  this.currentStage = i;
+                  this.renderCurrentStage();
+                  this.updateStageProgressUI();
+                });
+                dot.addEventListener('keydown', (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    this.currentStage = i;
+                    this.renderCurrentStage();
+                    this.updateStageProgressUI();
+                  }
+                });
+              }
+              dotsEl.appendChild(dot);
             }
         }
     }

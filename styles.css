@@ -1,3 +1,6 @@
+.stage-dot-clickable {
+  cursor: pointer;
+}
 /* Make 'Your Journey Progress' heading bigger and bolder (scoped) */
 .journey-section-title {
   font-size: 22px;
