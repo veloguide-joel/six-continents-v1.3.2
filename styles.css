@@ -1,3 +1,355 @@
+.stage-dot.stage-dot-clickable {
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.stage-dot.stage-dot-clickable:hover,
+.stage-dot.stage-dot-clickable:focus-visible {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12), 0 0 12px rgba(255, 255, 255, 0.18);
+  filter: brightness(1.08);
+}
+.stage-dot-clickable {
+  cursor: pointer;
+}
+/* Make 'Your Journey Progress' heading bigger and bolder (scoped) */
+.journey-section-title {
+  font-size: 22px;
+  font-weight: 600;
+}
+/* AUTH MODAL — canonical visibility (prevents invisible overlay blocking clicks) */
+#auth-modal.hidden { display: none !important; }
+#auth-modal.show { display: flex; }
+/* FORCE Journey dots to be big + visible (override legacy rules) */
+.stage-progress-dots .stage-dot,
+.stage-progress-dots > div {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 999px !important;
+  opacity: 0.95 !important;
+}
+
+/* Completed + current even larger */
+.stage-progress-dots .stage-dot-complete,
+.stage-progress-dots .stage-dot-current {
+  width: 24px !important;
+  height: 24px !important;
+  opacity: 1 !important;
+}
+
+/* Current = standout glow */
+.stage-progress-dots .stage-dot-current {
+  box-shadow: 0 0 14px rgba(255, 215, 0, 0.6) !important;
+}
+
+/* Completed = green glow */
+.stage-progress-dots .stage-dot-complete {
+  box-shadow: 0 0 12px rgba(0, 201, 120, 0.55) !important;
+}
+/* Grid-First: make Journey dots the primary progress indicator */
+
+.stage-progress-dots {
+  margin-top: 10px;
+}
+
+/* Base dots bigger */
+.stage-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  opacity: 0.95;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Completed: bigger + strong green glow */
+.stage-dot-complete {
+  width: 20px;
+  height: 20px;
+  background: #00c978;
+  opacity: 1;
+  box-shadow: 0 0 12px rgba(0, 201, 120, 0.55);
+}
+
+/* Current: biggest + gold glow */
+.stage-dot-current {
+  width: 24px;
+  height: 24px;
+  background: var(--ar-gold);
+  opacity: 1;
+  box-shadow: 0 0 14px rgba(255, 215, 0, 0.55);
+}
+
+/* Locked: keep same size but fade (until we fix logic) */
+.stage-dot-locked {
+  width: 16px;
+  height: 16px;
+  opacity: 0.45;
+}
+/* Grid-First: Remove legacy progress line completely */
+.stage-progress-bar {
+  display: none !important;
+}
+
+/* Tighten spacing now that bar is gone */
+.stage-progress-dots {
+  margin-top: 8px;
+}
+/* --- Grid-First UX: Journey bar is now "status dots" first --- */
+/* Append at END of styles.css */
+
+/* De-emphasize the old sequential bar + fill (keep layout intact) */
+.stage-progress-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.stage-progress-fill {
+  opacity: 0.18;          /* still works, but visually subdued */
+  box-shadow: none;
+}
+
+/* Make dots more readable */
+.stage-dot {
+  width: 12px;
+  height: 12px;
+  opacity: 0.9;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Completed stages: bigger + clearer */
+.stage-dot-complete {
+  width: 14px;
+  height: 14px;
+  background: #00c978;
+  opacity: 1;
+  box-shadow: 0 0 10px rgba(0, 201, 120, 0.55);
+}
+
+/* Current stage: biggest + standout */
+.stage-dot-current {
+  width: 16px;
+  height: 16px;
+  background: var(--ar-gold);
+  opacity: 1;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.55);
+}
+
+/* Locked stays subtle */
+.stage-dot-locked {
+  width: 12px;
+  height: 12px;
+  opacity: 0.55;
+}
+/* Make the Solve Stage pulse actually noticeable (animation already works) */
+@keyframes solvePulse {
+  0% {
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0);
+    transform: scale(1);
+    background-color: rgba(239, 68, 68, 0.14);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(239, 68, 68, 0.55),
+      0 0 24px rgba(239, 68, 68, 0.85);
+    transform: scale(1.08);
+    background-color: rgba(239, 68, 68, 0.22);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0);
+    transform: scale(1);
+    background-color: rgba(239, 68, 68, 0.14);
+  }
+}
+
+/* Ensure transform is allowed to animate smoothly */
+.stage-status.stage-status-label.is-open {
+  display: inline-flex;
+  transform-origin: center;
+}
+/* FINAL TRY: animate the pill itself (not dependent on tile hover) */
+.stage-status.stage-status-label.is-open {
+  animation: solvePulse 1.25s ease-in-out infinite !important;
+  will-change: transform, filter;
+}
+
+/* Make the pulse undeniably visible */
+@keyframes solvePulse {
+  0%   { transform: scale(1);    filter: brightness(1) drop-shadow(0 0 0 rgba(239,68,68,0)); }
+  50%  { transform: scale(1.06); filter: brightness(1.25) drop-shadow(0 0 12px rgba(239,68,68,0.95)); }
+  100% { transform: scale(1);    filter: brightness(1) drop-shadow(0 0 0 rgba(239,68,68,0)); }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .stage-status.stage-status-label.is-open {
+    animation: none !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
+/* --- FORCE visible pulse on "Solve Stage" pill (hover-only) --- */
+/* Append at END of styles.css */
+
+.stage-tile:not(.locked):not(.admin-disabled):hover .stage-status.stage-status-label.is-open,
+.journey-stage-card:not(.locked):not(.admin-disabled):hover .stage-status.stage-status-label.is-open {
+  animation: solvePulse 1.2s ease-in-out infinite !important;
+  will-change: filter, transform;
+}
+
+/* Redefine keyframes here (later in file wins) using drop-shadow for visibility */
+@keyframes solvePulse {
+  0% {
+    filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0));
+    text-shadow: 0 0 0 rgba(239, 68, 68, 0);
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.95));
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.75);
+    transform: scale(1.04);
+  }
+  100% {
+    filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0));
+    text-shadow: 0 0 0 rgba(239, 68, 68, 0);
+    transform: scale(1);
+  }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .stage-tile:not(.locked):not(.admin-disabled):hover .stage-status.stage-status-label.is-open,
+  .journey-stage-card:not(.locked):not(.admin-disabled):hover .stage-status.stage-status-label.is-open {
+    animation: none !important;
+    filter: none !important;
+    text-shadow: none !important;
+    transform: none !important;
+  }
+}
+/* --- UX Polish: Make "Solve Stage" pulse visible (avoid glow clipping) --- */
+/* Append this block at the VERY END of styles.css */
+
+.stage-tile:not(.locked):not(.admin-disabled):hover,
+.journey-stage-card:not(.locked):not(.admin-disabled):hover {
+  overflow: visible; /* allows box-shadow glow to render outside tile */
+}
+
+/* Ensure the pill can sit above other UI layers inside the tile */
+.stage-status.stage-status-label.is-open {
+  position: relative;
+  z-index: 3;
+}
+
+/* Re-define the keyframes later in the file so this version wins.
+   Adds a tiny scale pulse so it’s visible even if glow is subtle. */
+@keyframes solvePulse {
+  0% {
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.55);
+    transform: scale(1.03);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0);
+    transform: scale(1);
+  }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .stage-tile:not(.locked):not(.admin-disabled):hover .stage-status.stage-status-label.is-open,
+  .journey-stage-card:not(.locked):not(.admin-disabled):hover .stage-status.stage-status-label.is-open {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+@keyframes solvePulse {
+  0%   { box-shadow: 0 0 0 rgba(239, 68, 68, 0.0); }
+  50%  { box-shadow: 0 0 14px rgba(239, 68, 68, 0.55); }
+  100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0.0); }
+}
+.stage-tile:not(.locked):not(.admin-disabled):hover .stage-status.stage-status-label.is-open,
+.journey-stage-card:not(.locked):not(.admin-disabled):hover .stage-status.stage-status-label.is-open {
+  animation: solvePulse 1.2s ease-in-out infinite;
+  will-change: box-shadow;
+}
+@keyframes solvePulse {
+  0%   { box-shadow: 0 0 0 rgba(239, 68, 68, 0.0); }
+  50%  { box-shadow: 0 0 12px rgba(239, 68, 68, 0.45); }
+  100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0.0); }
+}
+/* Stronger hover for unsolved clickable tiles ("Solve Stage") */
+
+.stage-tile:not(.locked):not(.admin-disabled):has(.stage-status-label.is-open):hover,
+.journey-stage-card:not(.locked):not(.admin-disabled):has(.stage-status-label.is-open):hover {
+  transform: translateY(-10px) scale(1.05);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.55);
+  outline: 2px solid rgba(255,255,255,0.10);
+  outline-offset: 4px;
+}
+
+.stage-tile:not(.locked):not(.admin-disabled):has(.stage-status-label.is-open):hover .stage-status-label.is-open,
+.journey-stage-card:not(.locked):not(.admin-disabled):has(.stage-status-label.is-open):hover .stage-status-label.is-open {
+  filter: brightness(1.15);
+}
+#stageModal {
+  display: none !important;
+}
+/* Hide annoying helper popup */
+#stageModal .modal-message {
+  display: none !important;
+}
+/* Current stage highlight for clickable tiles */
+.stage-tile.is-current:not(.stage-status-locked):not(.admin-disabled) {
+  outline: 2px solid rgba(99, 102, 241, 0.7);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.18);
+}
+
+.stage-tile.is-current .stage-name {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+/* Current stage highlight for clickable tiles */
+.stage-tile.is-current:not(.locked):not(.admin-disabled),
+.journey-stage-card.is-current:not(.locked):not(.admin-disabled) {
+  outline: 2px solid rgba(99, 102, 241, 0.7);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.18);
+}
+
+.stage-tile.is-current:not(.locked):not(.admin-disabled) .stage-title,
+.journey-stage-card.is-current:not(.locked):not(.admin-disabled) .stage-title {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+/* Subtle polish for 'Solve Stage' label on clickable tiles only */
+.stage-tile:not(.locked):not(.admin-disabled) .stage-status-label.is-open,
+.journey-stage-card:not(.locked):not(.admin-disabled) .stage-status-label.is-open {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  font-weight: 600;
+  line-height: 1;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.stage-status-label.is-open {
+  animation: solvePulse 2.2s ease-in-out infinite;
+  will-change: box-shadow;
+}
+}
+
+.stage-tile:not(.locked):not(.admin-disabled):hover .stage-status-label.is-open,
+.journey-stage-card:not(.locked):not(.admin-disabled):hover .stage-status-label.is-open {
+  background: rgba(239, 68, 68, 0.18);
+  transform: translateY(-1px);
+}
 :root {
     --ar-bg-dark: #444552;
     --ar-bg-light: #f2f2f7;
@@ -1653,7 +2005,10 @@ input:checked + .toggle-slider:before {
 /* Open status - default white */
 .stage-status-label.is-open,
 .stage-status.is-open {
-  color: rgba(255, 255, 255, 0.85);
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #e2e8f0;
+  box-shadow: none;
 }
 
 /* Locked/disabled status - muted */
