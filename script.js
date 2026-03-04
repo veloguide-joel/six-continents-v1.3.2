@@ -5037,23 +5037,31 @@ async function renderLeaderboard() {
 // Modal Management System
 const howToPlayModal = {
     element: null,
-    
+    iframe: null,
+
     init() {
-        this.element = document.getElementById('howToPlayModal');
+      this.element = document.getElementById('howToPlayModal');
+      this.iframe = document.getElementById('howToPlayIframe');
     },
-    
+
     open() {
-        if (this.element) {
-            this.element.classList.add('show');
-            document.body.style.overflow = 'hidden';
-        }
+      if (this.element) {
+        this.element.classList.add('show');
+        document.body.style.overflow = 'hidden';
+      }
+      if (this.iframe) {
+        this.iframe.src = "https://www.youtube.com/embed/cobNDyMOvY4?autoplay=1&mute=1&modestbranding=1&rel=0";
+      }
     },
-    
+
     close() {
-        if (this.element) {
-            this.element.classList.remove('show');
-            document.body.style.overflow = '';
-        }
+      if (this.element) {
+        this.element.classList.remove('show');
+        document.body.style.overflow = '';
+      }
+      if (this.iframe) {
+        this.iframe.src = "";
+      }
     }
 };
 window.howToPlayModal = howToPlayModal;
