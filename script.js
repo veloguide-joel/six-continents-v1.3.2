@@ -462,7 +462,14 @@ function fastTrackInjectUI(stageNum) {
         // Fallback: Call the handler function directly if it exists
         if (typeof contestApp !== 'undefined' && contestApp && typeof contestApp.handleFirstRiddleSubmit === 'function') {
           console.log('[FAST_TRACK] Calling contestApp.handleFirstRiddleSubmit()');
-          contestApp.handleFirstRiddleSubmit();
+          Promise.resolve(contestApp.handleFirstRiddleSubmit())
+            .then(() => {
+              // Ensure Fast Track reveal success path triggers confetti.
+              triggerSolveConfetti(stage, 1);
+            })
+            .catch((err) => {
+              console.warn('[FAST_TRACK] Reveal submit handler failed:', err);
+            });
         } else {
           console.warn('[FAST_TRACK] No submit handler found in scope');
         }
@@ -529,6 +536,37 @@ function clearSignInTimeout(reason) {
   }
 }
 
+async function waitForAuthenticatedUser(maxAttempts = 8, delayMs = 100) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        return session.user;
+      }
+    } catch (err) {
+      console.warn('[AUTH] waitForAuthenticatedUser getSession error:', err);
+    }
+
+    if (attempt < maxAttempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return null;
+}
+
+async function triggerRequiredProfileCheckAfterFastTrackSignup() {
+  const authUser = await waitForAuthenticatedUser();
+  if (!authUser) {
+    console.warn('[PROFILE] Fast Track signup: authenticated user not ready for immediate profile check');
+    return;
+  }
+
+  if (typeof loadMyProfileAndHydrateUI === 'function') {
+    await loadMyProfileAndHydrateUI();
+  }
+}
+
 // ===== MY PROFILE MODULE =====
 // Stock avatars configuration
 const AVATAR_BASE_URL = 'https://vlcjilzgntxweomnyfgd.supabase.co/storage/v1/object/public/avatars/';
@@ -543,6 +581,68 @@ const STOCK_AVATARS = [
 // Profile configuration
 const DISPLAY_NAME_MAX_LEN = 15;
 const DEFAULT_PLAYER_PREFIX = 'player_';
+const FT_DISPLAY_NAME_REQUIRED_KEY = 'SC_FT_DISPLAY_NAME_REQUIRED';
+
+window.__fastTrackDisplayNameLockActive = false;
+
+function setFastTrackDisplayNameRequired(required) {
+  if (required) {
+    localStorage.setItem(FT_DISPLAY_NAME_REQUIRED_KEY, 'true');
+  } else {
+    localStorage.removeItem(FT_DISPLAY_NAME_REQUIRED_KEY);
+  }
+}
+
+function isFastTrackDisplayNameRequired() {
+  return localStorage.getItem(FT_DISPLAY_NAME_REQUIRED_KEY) === 'true';
+}
+
+function isValidDisplayName(displayName) {
+  const trimmed = String(displayName || '').trim();
+  return trimmed.length >= 3 && trimmed.length <= DISPLAY_NAME_MAX_LEN;
+}
+
+function isEmailLikeDisplayName(displayName) {
+  const trimmed = String(displayName || '').trim();
+  return /^\S+@\S+\.\S+$/.test(trimmed);
+}
+
+function hasValidDisplayName(profileOrDisplayName) {
+  const rawValue =
+    typeof profileOrDisplayName === 'object' && profileOrDisplayName !== null
+      ? (profileOrDisplayName.display_name || profileOrDisplayName.username || '')
+      : (profileOrDisplayName || '');
+
+  const trimmed = String(rawValue).trim();
+  if (!isValidDisplayName(trimmed)) return false;
+  if (trimmed.toLowerCase() === 'player') return false;
+  if (isEmailLikeDisplayName(trimmed)) return false;
+  if (isDefaultPlayerName(trimmed)) return false;
+
+  return true;
+}
+
+function isAcceptableFirstTimeDisplayName(displayName) {
+  return hasValidDisplayName(displayName);
+}
+
+function setProfileModalMode(isLocked) {
+  window.__fastTrackDisplayNameLockActive = !!isLocked;
+
+  const titleEl = document.getElementById('profileModalTitle');
+  if (titleEl) {
+    titleEl.textContent = isLocked ? 'Choose Your Display Name' : 'Update Your Profile Below';
+  }
+
+  const helperEl = document.getElementById('profileModalHelperText');
+  if (helperEl) {
+    helperEl.style.display = isLocked ? 'block' : 'none';
+  }
+}
+
+function isProfileDisplayNameLockActive() {
+  return !!window.__fastTrackDisplayNameLockActive;
+}
 
 function generatePlayerName() {
   // 7-digit random number (1000000–9999999)
@@ -580,6 +680,42 @@ function mergeSolvedStages(existing = [], incoming = []) {
   const merged = Array.from(new Set([...(existing || []), ...(incoming || [])]));
   merged.sort((a, b) => a - b);
   return merged;
+}
+
+function triggerSolveConfetti(stage, step = 1) {
+  try {
+    const s = Number(stage) || 1;
+    const p = Number(step) || 1;
+    let userId =
+      supabaseAuth?.user?.id ||
+      window.authUser?.id ||
+      window.state?.user?.id ||
+      null;
+
+    // Fast Track guest solves should not reuse a global anon confetti key.
+    if (!userId && typeof FAST_TRACK !== 'undefined' && FAST_TRACK.isActive()) {
+      const ftLeadEmail = localStorage.getItem('fastTrackLeadEmail');
+      let ftSessionId = sessionStorage.getItem('fastTrackConfettiSessionId');
+      if (!ftSessionId) {
+        ftSessionId = `ft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        sessionStorage.setItem('fastTrackConfettiSessionId', ftSessionId);
+      }
+      userId = ftLeadEmail || ftSessionId;
+    }
+
+    // script.js is an ES module; use window-scoped function from confetti-guard.js.
+    if (typeof window.fireConfettiOnce === 'function') {
+      window.fireConfettiOnce(userId, s, p);
+      return;
+    }
+
+    // Fallback if guard is unavailable.
+    if (typeof window.confetti === 'function') {
+      window.confetti();
+    }
+  } catch (e) {
+    console.warn('[CONFETTI] triggerSolveConfetti failed', e);
+  }
 }
 
 // FAST TRACK SOLVE MIGRATION - After signup, migrate guest solves to Supabase
@@ -835,15 +971,7 @@ function updateHeaderUserLabel(user, profile) {
 }
 
 function isProfileComplete(profile) {
-  const name = (profile?.display_name || profile?.username || '').trim();
-  const hasName = name.length >= 3;
-
-  // You appear to use avatar_key for presets and avatar_url/public url for uploads
-  const hasAvatar =
-    !!(profile?.avatar_key && String(profile.avatar_key).trim()) ||
-    !!(profile?.avatar_url && String(profile.avatar_url).trim());
-
-  return hasName && hasAvatar;
+  return hasValidDisplayName(profile);
 }
 
 // PROFILE LOAD + HYDRATE START
@@ -872,12 +1000,18 @@ async function loadMyProfileAndHydrateUI() {
   window.__didSoftNagProfile = true;
 
   try {
-    if (window.currentProfile?.display_name && isDefaultPlayerName(window.currentProfile.display_name)) {
-      console.log('[PROFILE] Soft nag: default name detected, opening profile modal');
+    if (!hasValidDisplayName(window.currentProfile)) {
+      console.log('[PROFILE] Soft nag: invalid display name detected, opening profile modal');
       openProfileModal(); // user can close and continue playing
     }
   } catch (e) {
     console.warn('[PROFILE] Soft nag skipped due to error', e);
+  }
+
+  if (isFastTrackDisplayNameRequired() && !hasValidDisplayName(window.currentProfile)) {
+    console.log('[PROFILE] Fast Track first-time signup: forcing display-name modal lock');
+    openProfileModal();
+    return;
   }
 
   // AUTO-OPEN: check profile completion AFTER load succeeds
@@ -888,39 +1022,26 @@ async function loadMyProfileAndHydrateUI() {
 let __profilePromptedThisSession = false;
 
 function maybeAutoOpenProfileModal(profile) {
-  // FAILSAFE: If user previously saved profile, never auto-open again (even if data looks incomplete)
-  if (localStorage.getItem('profileComplete') === 'true') {
-    console.log('[PROFILE] localStorage failsafe: profileComplete=true, skipping auto-open');
-    return;
-  }
-
   // GUARD: only run auto-open once per session
   if (__profilePromptedThisSession) return;
   __profilePromptedThisSession = true;
 
-  // DEFINE COMPLETE: display_name non-empty AND (avatar_key OR avatar_url non-empty)
-  const hasDisplayName = !!(profile?.display_name && String(profile.display_name).trim());
-  const hasAvatar = 
-    !!(profile?.avatar_key && String(profile.avatar_key).trim()) ||
-    !!(profile?.avatar_url && String(profile.avatar_url).trim());
-  const isComplete = hasDisplayName && hasAvatar;
+  const hasValidName = hasValidDisplayName(profile);
 
   console.log('[PROFILE] maybeAutoOpen check', {
     display_name: profile?.display_name,
-    avatar_key: profile?.avatar_key,
-    avatar_url: profile?.avatar_url,
-    isComplete
+    hasValidName
   });
 
-  // Only open if profile is INCOMPLETE
-  if (!isComplete) {
-    console.log('[PROFILE] Profile incomplete; auto-opening modal');
+  // Only open if display name is invalid
+  if (!hasValidName) {
+    console.log('[PROFILE] Invalid display name; auto-opening modal');
     openProfileModal();
     if (typeof hydrateProfileModal === 'function') {
       hydrateProfileModal(profile);
     }
   } else {
-    console.log('[PROFILE] Profile complete, skipping auto-open');
+    console.log('[PROFILE] Valid display name detected, skipping auto-open');
   }
 }
 
@@ -944,12 +1065,10 @@ async function promptProfileCompletionIfNeeded() {
       return;
     }
 
-    if (!isProfileComplete(profile)) {
+    if (!hasValidDisplayName(profile)) {
       __profilePromptedThisSession = true;
-      console.log('[PROFILE] Auto-open: profile incomplete', {
-        display_name: profile?.display_name,
-        avatar_key: profile?.avatar_key,
-        avatar_url: profile?.avatar_url
+      console.log('[PROFILE] Auto-open: invalid display name', {
+        display_name: profile?.display_name
       });
 
       // You already have this (based on your logs/screens)
@@ -962,15 +1081,8 @@ async function promptProfileCompletionIfNeeded() {
 
       // Optional: if you want to block closing until complete (see Step 4)
     } else {
-      console.log('[PROFILE] Profile complete, skipping auto-open');
+      console.log('[PROFILE] Valid display name detected, skipping auto-open');
       __profilePromptedThisSession = true;
-    }
-
-    // Auto-prompt if user still has a default player_XXXXX name
-    if (profile?.display_name && isDefaultPlayerName(profile.display_name)) {
-      console.log('[PROFILE] Default name detected; prompting user to complete profile');
-      __profilePromptedThisSession = true;
-      openProfileModal();
     }
   } catch (err) {
     console.error('[PROFILE] promptProfileCompletionIfNeeded failed', err);
@@ -1278,6 +1390,17 @@ async function handleProfileSave(event) {
     // Get display name input with validation
     const nameInput = document.getElementById("profileDisplayName");
     let display_name = nameInput ? nameInput.value.trim() : '';
+
+    if (isProfileDisplayNameLockActive() && !hasValidDisplayName(display_name)) {
+      if (typeof showToast === 'function') {
+        showToast('Choose a valid display name (3-15 chars, not Player/email/default)', { type: 'error', durationMs: 3000 });
+      }
+      if (errorEl) {
+        errorEl.textContent = 'Use 3-15 characters and avoid Player, email-like, or player_ names.';
+        errorEl.classList.remove('hidden');
+      }
+      return;
+    }
     
     // Validate display name length
     if (display_name.length > DISPLAY_NAME_MAX_LEN) {
@@ -1380,11 +1503,24 @@ async function handleProfileSave(event) {
       
       alert('Failed to save profile. Please try again.');
     } else {
-      currentProfile = payload;
+      const normalizedProfile = {
+        ...payload,
+        display_name: display_name || null
+      };
+      currentProfile = normalizedProfile;
+      window.currentProfile = normalizedProfile;
       console.log('[PROFILE] saved ok');
+
+      if (isProfileDisplayNameLockActive() && isAcceptableFirstTimeDisplayName(display_name)) {
+        setFastTrackDisplayNameRequired(false);
+        setProfileModalMode(false);
+      }
       
-      // Set localStorage failsafe to prevent re-opening on future sessions
-      localStorage.setItem('profileComplete', 'true');
+      if (hasValidDisplayName(normalizedProfile)) {
+        localStorage.setItem('profileComplete', 'true');
+      } else {
+        localStorage.removeItem('profileComplete');
+      }
       
       // Once a photo is uploaded, disable avatar switching
       if (file) {
@@ -1395,7 +1531,7 @@ async function handleProfileSave(event) {
       await loadMyProfileAndHydrateUI();
       
       // Update UI using consolidated helper
-      applyProfileToUI(payload);
+      applyProfileToUI(normalizedProfile);
       
       closeProfileModal();
       showToast('Profile updated successfully!', { type: 'success', durationMs: 3000 });
@@ -1468,6 +1604,11 @@ async function openProfileModal() {
 
     const profile = (await loadUserProfile()) || {};
     displayNameEl.value = profile.display_name || "";
+
+    const lockForFastTrackSignup =
+      isFastTrackDisplayNameRequired() &&
+      !isAcceptableFirstTimeDisplayName(profile.display_name);
+    setProfileModalMode(lockForFastTrackSignup);
     
     // Populate read-only email field
     const emailEl = document.getElementById("profile-email");
@@ -1540,6 +1681,12 @@ async function openProfileModal() {
 }
 
 function closeProfileModal() {
+  if (isProfileDisplayNameLockActive()) {
+    if (typeof showToast === 'function') {
+      showToast('Please choose a valid display name to continue.', { type: 'error', durationMs: 2500 });
+    }
+    return;
+  }
   const backdrop = document.getElementById("profileModalBackdrop");
   if (backdrop) {
     backdrop.classList.add("hidden");
@@ -1548,10 +1695,7 @@ function closeProfileModal() {
 }
 
 function hasCompleteProfile(profile) {
-  if (!profile) return false;
-  const hasName = !!(profile.display_name && profile.display_name.trim());
-  const hasAvatar = !!(profile.avatar_key || profile.avatar_url);
-  return hasName && hasAvatar;
+  return hasValidDisplayName(profile);
 }
 
 function maybePromptForProfile(user, profile) {
@@ -1629,6 +1773,12 @@ function wireProfileModalControls() {
     closeBtns.forEach(btn => {
       btn.onclick = (evt) => {
         evt.preventDefault();
+        if (isProfileDisplayNameLockActive()) {
+          if (typeof showToast === 'function') {
+            showToast('Please choose a valid display name to continue.', { type: 'error', durationMs: 2500 });
+          }
+          return;
+        }
         closeProfileModal();
       };
     });
@@ -1683,10 +1833,34 @@ function wireProfileModalControls() {
   if (backdrop) {
     backdrop.addEventListener('click', (evt) => {
       if (evt.target === backdrop) {
+        if (isProfileDisplayNameLockActive()) {
+          if (typeof showToast === 'function') {
+            showToast('Please choose a valid display name to continue.', { type: 'error', durationMs: 2500 });
+          }
+          return;
+        }
         closeProfileModal();
       }
     });
     console.log('[PROFILE] Backdrop click-to-close enabled');
+  }
+
+  if (!window.__profileEscLockWired) {
+    window.__profileEscLockWired = true;
+    document.addEventListener('keydown', (evt) => {
+      if (evt.key !== 'Escape') return;
+
+      const modalBackdrop = document.getElementById('profileModalBackdrop');
+      if (!modalBackdrop || modalBackdrop.classList.contains('hidden')) return;
+
+      if (isProfileDisplayNameLockActive()) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        if (typeof showToast === 'function') {
+          showToast('Please choose a valid display name to continue.', { type: 'error', durationMs: 2500 });
+        }
+      }
+    });
   }
 }
 
@@ -1719,6 +1893,20 @@ function wireAuthModalControls() {
     authModal.addEventListener('click', (evt) => {
       // Check if click was on the modal backdrop itself, not the content
       if (evt.target === authModal || evt.target.classList.contains('auth-modal')) {
+        const resetModal = document.getElementById('password-reset-modal');
+        const resetCancelBtn = document.getElementById('password-reset-cancel');
+        const resetVisible = !!(resetModal && !resetModal.classList.contains('hidden'));
+        const requiredPasswordModalActive = resetVisible && (
+          (typeof isFastTrackRequiredPasswordSetup === 'function' && isFastTrackRequiredPasswordSetup()) ||
+          resetCancelBtn?.style.display === 'none'
+        );
+
+        if (requiredPasswordModalActive) {
+          evt.preventDefault();
+          evt.stopPropagation();
+          return;
+        }
+
         if (typeof authUI !== 'undefined' && authUI && typeof authUI.closeModal === 'function') {
           authUI.closeModal();
           console.log('[AUTH] Auth modal closed via backdrop click (authUI.closeModal)');
@@ -2420,17 +2608,12 @@ class ContestApp {
         console.log(`[ADVANCE] Marking stage ${stage} as solved and advancing...`);
         // === CONFETTI HOOK (fires once per user per step) ===
 try {
-  const userId =
-    (window.authUser && window.authUser.id) ||
-    (window.state && window.state.user && window.state.user.id) ||
-    null;
-
   const s = Number(stage) || Number(window.state?.stage) || 1;
   // If you track per-stage multi-steps, replace the `1` with your step var (e.g., this.currentStep)
   const p = (typeof this?.currentStep !== "undefined") ? Number(this.currentStep) : 1;
 
-  if (DEBUG) console.log("[CONFETTI] Hook reached with", { userId, stage: s, step: p });
-  fireConfettiOnce(userId, s, p);
+  if (DEBUG) console.log("[CONFETTI] Hook reached with", { stage: s, step: p });
+  triggerSolveConfetti(s, p);
 } catch (e) {
   console.warn("[CONFETTI] error calling fireConfettiOnce", e);
 }
@@ -2668,6 +2851,7 @@ try {
         } else if (this.hasTwoRiddles(this.currentStage)) {
             // Check if Step 1 or Step 2 was already solved (from DB solves rows)
             const maxStepSolved = await this.getMaxStepSolved(this.currentStage);
+          const hasSignedInSupabaseUser = !!(supabaseAuth && supabaseAuth.user);
             
             if (maxStepSolved >= 2) {
                 // Step 2 exists in DB => stage is complete
@@ -2677,7 +2861,7 @@ try {
                 // Step 1 exists in DB => show Step 2 UI
                 this.showSecondRiddle(this.currentStage);
                 console.log(`[RENDER] Restored Step 2 for stage ${this.currentStage} (step 1 found)`);
-            } else if (this.isFirstRiddleSolved(this.currentStage)) {
+          } else if (!hasSignedInSupabaseUser && this.isFirstRiddleSolved(this.currentStage)) {
                 // Local flag says Step 1 solved (fallback for cache)
                 this.showSecondRiddle(this.currentStage);
                 console.log(`[RENDER] Restored Step 2 for stage ${this.currentStage} (local flag)`);
@@ -3049,7 +3233,7 @@ try {
 {
     const s = (this?.stage ?? window?.state?.stage ?? 1); // stage number fallback
     const p = (this?.step  ?? window?.state?.step  ?? 1); // step number fallback
-    fireConfettiOnce(currentUserIdSafe(), s, p);
+      triggerSolveConfetti(s, p);
 }
     }
 
@@ -3123,6 +3307,9 @@ try {
                     // Mark first riddle as solved and show second riddle
                     const newFirstRiddleSolved = [...this.firstRiddleSolved, this.currentStage];
                     this.setFirstRiddleSolvedLocal(newFirstRiddleSolved);
+
+                  // Fire confetti for successful Step 1 solve on two-step stages.
+                  triggerSolveConfetti(this.currentStage, 1);
                     
                     // Persist Step 1 progress to database immediately (no winner logic yet)
                     if (leaderboardManager) {
@@ -4050,12 +4237,25 @@ function adminBulkOperation(action, stages = null) {
 }
 
 // --- Password reset modal helpers ---
-function showPasswordResetModal(onSubmit) {
+function isFastTrackRequiredPasswordSetup() {
+  try {
+    if (localStorage.getItem('fastTrackNeedsAuth') === 'true') return true;
+    return !!(typeof FAST_TRACK !== 'undefined' && FAST_TRACK.isActive() && FAST_TRACK.needsAuth());
+  } catch (e) {
+    return false;
+  }
+}
+
+function showPasswordResetModal(options = {}) {
+  const requiredMode = !!options.requiredMode;
     const modal = document.getElementById('password-reset-modal');
     const form = document.getElementById('password-reset-form');
     const input = document.getElementById('password-reset-input');
+  const confirmInput = document.getElementById('password-reset-confirm-input');
+  const confirmRow = document.getElementById('password-reset-confirm-row');
     const toggle = document.getElementById('password-reset-toggle');
     const cancelBtn = document.getElementById('password-reset-cancel');
+  const closeBtn = document.getElementById('password-reset-close');
     const submitBtn = document.getElementById('password-reset-submit');
     const errorEl = document.getElementById('password-reset-error');
     const successEl = document.getElementById('password-reset-success');
@@ -4065,30 +4265,98 @@ function showPasswordResetModal(onSubmit) {
         return;
     }
 
-    console.log('[RESET] Opening password reset modal');
+    console.log('[RESET] Opening password reset modal', { requiredMode });
+
+    let isLocked = requiredMode;
+
+    function showRequiredLockMessage() {
+      errorEl.textContent = 'Please set and confirm your password to continue.';
+      errorEl.classList.remove('hidden');
+    }
+
+    function attemptClose() {
+      if (isLocked) {
+        showRequiredLockMessage();
+        return false;
+      }
+
+      modal.classList.add('hidden');
+      return true;
+    }
+
+    if (modal.__passwordResetEscHandler) {
+      document.removeEventListener('keydown', modal.__passwordResetEscHandler);
+    }
+    if (modal.__passwordResetBackdropHandler) {
+      modal.removeEventListener('click', modal.__passwordResetBackdropHandler);
+      modal.removeEventListener('click', modal.__passwordResetBackdropHandler, true);
+    }
+
+    const escHandler = (evt) => {
+      if (!requiredMode || evt.key !== 'Escape') return;
+      evt.preventDefault();
+      attemptClose();
+    };
+
+    const backdropHandler = (evt) => {
+      if (!requiredMode) return;
+      if (evt.target === modal || evt.target.classList.contains('reset-modal-backdrop')) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        if (typeof evt.stopImmediatePropagation === 'function') {
+          evt.stopImmediatePropagation();
+        }
+        attemptClose();
+      }
+    };
+
+    modal.__passwordResetEscHandler = escHandler;
+    modal.__passwordResetBackdropHandler = backdropHandler;
+
+    document.addEventListener('keydown', escHandler);
+    modal.addEventListener('click', backdropHandler, true);
+
     modal.classList.remove('hidden');
     errorEl.classList.add('hidden');
     successEl.classList.add('hidden');
     errorEl.textContent = '';
     successEl.textContent = '';
     input.value = '';
+    if (confirmInput) confirmInput.value = '';
+    if (confirmRow) {
+      confirmRow.style.display = requiredMode ? '' : 'none';
+    }
+
+    if (cancelBtn) {
+      cancelBtn.style.display = requiredMode ? 'none' : '';
+    }
+
     input.focus();
 
     toggle.onclick = () => {
         input.type = input.type === 'password' ? 'text' : 'password';
     };
 
-    cancelBtn.onclick = () => {
+    if (cancelBtn) {
+      cancelBtn.onclick = () => {
         console.log('[RESET] User cancelled password reset');
-        modal.classList.add('hidden');
+        if (!attemptClose()) return;
         if (window.location.hash.includes('type=recovery')) {
-            window.location.hash = '';
+          window.location.hash = '';
         }
-    };
+      };
+    }
+
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        attemptClose();
+      };
+    }
 
     form.onsubmit = async (evt) => {
         evt.preventDefault();
         const newPassword = input.value.trim();
+      const confirmPassword = confirmInput ? confirmInput.value.trim() : '';
 
         errorEl.classList.add('hidden');
         successEl.classList.add('hidden');
@@ -4099,6 +4367,19 @@ function showPasswordResetModal(onSubmit) {
             errorEl.textContent = 'Password must be at least 8 characters.';
             errorEl.classList.remove('hidden');
             return;
+        }
+
+        if (requiredMode) {
+          if (!confirmPassword) {
+            errorEl.textContent = 'Please confirm your password.';
+            errorEl.classList.remove('hidden');
+            return;
+          }
+          if (newPassword !== confirmPassword) {
+            errorEl.textContent = 'Passwords do not match.';
+            errorEl.classList.remove('hidden');
+            return;
+          }
         }
 
         submitBtn.disabled = true;
@@ -4122,8 +4403,10 @@ function showPasswordResetModal(onSubmit) {
             const cleanUrl = window.location.origin + window.location.pathname;
             window.history.replaceState({}, document.title, cleanUrl);
 
+            isLocked = false;
+
             setTimeout(() => {
-                modal.classList.add('hidden');
+              attemptClose();
                 window.location.reload();
             }, 1000);
         } catch (err) {
@@ -4150,7 +4433,7 @@ async function handlePasswordResetFromAuthState(session) {
         }
 
         console.log('[RESET] Supabase PASSWORD_RECOVERY link detected:', hash);
-        showPasswordResetModal();
+        showPasswordResetModal({ requiredMode: isFastTrackRequiredPasswordSetup() });
     } catch (error) {
         console.error('[RESET] Failed to handle password recovery URL:', error);
     }
@@ -4459,8 +4742,19 @@ function initializeSupabase() {
   // Special case: password recovery flow
   if (event === 'PASSWORD_RECOVERY') {
     console.log('[AUTH] PASSWORD_RECOVERY detected; showing password reset modal');
+    // Close the auth modal before opening the password reset modal so it does
+    // not sit underneath as an active backdrop and steal outside clicks.
+    const _recoveryAuthModal = document.getElementById('auth-modal');
+    if (_recoveryAuthModal) {
+      _recoveryAuthModal.style.display = 'none';
+      _recoveryAuthModal.classList.remove('show');
+      _recoveryAuthModal.classList.add('hidden');
+    }
+    if (typeof authUI !== 'undefined' && authUI && typeof authUI.closeModal === 'function') {
+      authUI.closeModal();
+    }
     // Do NOT call onUserSignedIn here; user must set a new password first
-    showPasswordResetModal();
+    showPasswordResetModal({ requiredMode: isFastTrackRequiredPasswordSetup() });
     return;
   }
 
@@ -4477,6 +4771,11 @@ function initializeSupabase() {
       // MIGRATE guest solves to Supabase before closing modal
       if (session?.user?.id) {
         await migrateFastTrackSolvesToSupabase(session.user.id);
+        // Clear stale local first-riddle cache after account creation/migration.
+        localStorage.removeItem('contest_first_riddle_solved');
+        if (window.contestApp) {
+          window.contestApp.firstRiddleSolved = [];
+        }
       }
       
       // HARD CLOSE the auth modal overlay (multiple strategies to ensure it closes)
@@ -4523,6 +4822,13 @@ function initializeSupabase() {
           window.contestApp.currentStage = nextStage;
           window.contestApp.renderCurrentStage();
         }, 300); // Brief delay to ensure auth UI is cleaned up
+      }
+
+      // Force required display-name modal immediately after first-time Fast Track signup.
+      if (isFastTrackDisplayNameRequired()) {
+        setTimeout(() => {
+          openProfileModal();
+        }, 350);
       }
     }
 
@@ -5345,6 +5651,11 @@ class AuthUI {
         const email = document.getElementById('signup-email').value;
         const password = document.getElementById('signup-password').value;
         const passwordConfirm = document.getElementById('signup-password-confirm').value;
+        const isFastTrackSignupFlow = FAST_TRACK.isActive() && FAST_TRACK.needsAuth();
+
+        if (isFastTrackSignupFlow) {
+          setFastTrackDisplayNameRequired(true);
+        }
 
         // Validate passwords match
         if (password !== passwordConfirm) {
@@ -5369,6 +5680,9 @@ class AuthUI {
                     this.showTab('signin');
                 }, 3000);
             } else {
+              if (isFastTrackSignupFlow) {
+                await triggerRequiredProfileCheckAfterFastTrackSignup();
+              }
                 this.showMessage('Account created! Let\'s start your journey!', 'success');
                 localStorage.setItem(SC_AUTO_ENTER_GAME_KEY, "1");
                 setTimeout(() => {
@@ -5377,6 +5691,9 @@ class AuthUI {
                 }, 2000);
             }
         } catch (error) {
+            if (isFastTrackSignupFlow) {
+              setFastTrackDisplayNameRequired(false);
+            }
             console.error('Sign up error:', error);
             let errorMessage = 'Failed to create account. Please try again.';
             
@@ -5732,9 +6049,9 @@ const CONFIG = {
         9: { title: "Stage 9", yt: "y7eWLrz-Lyk" },
         10: { title: "Stage 10", yt: "5qkIptxr_4Y" },
         11: { title: "Stage 11", yt: "oCFz8i2d6hM" },
-          12: { title: "Stage 12", yt: "xt46MpHHjJ4" },
-          13: { title: "Stage 13", yt: "xt46MpHHjJ4" },
-          14: { title: "Stage 14", yt: "xt46MpHHjJ4" },
+          12: { title: "Stage 12", yt: "-IvSEObUesc" },
+          13: { title: "Stage 13", yt: "p-QscRL_uyI" },
+          14: { title: "Stage 14", yt: "8n7eJpcMR1I" },
           15: { title: "Stage 15", yt: "xt46MpHHjJ4" },
         16: { title: "Stage 16", yt: "xxAU10mE0ik" }
     }

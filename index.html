@@ -583,6 +583,7 @@
 <div id="password-reset-modal" class="reset-modal hidden">
     <div class="reset-modal-backdrop"></div>
     <div class="reset-modal-panel">
+        <button type="button" id="password-reset-close" class="reset-modal-close" aria-label="Close">&times;</button>
         <h2 class="reset-modal-title">Set a New Password</h2>
         <p class="reset-modal-text">
             Enter a new password to finish resetting your account and get back into the game.
@@ -602,6 +603,19 @@
                         placeholder="At least 8 characters"
                     />
                     <button type="button" id="password-reset-toggle" class="reset-modal-toggle">👁</button>
+                </div>
+            </label>
+
+            <label id="password-reset-confirm-row" class="reset-modal-label" style="display:none;">
+                Confirm password
+                <div class="reset-modal-input-wrap">
+                    <input
+                        id="password-reset-confirm-input"
+                        type="password"
+                        autocomplete="new-password"
+                        class="reset-modal-input"
+                        placeholder="Re-enter your password"
+                    />
                 </div>
             </label>
 
@@ -648,7 +662,8 @@
 <div id="profileModalBackdrop" class="profile-modal-backdrop hidden">
   <div id="profileModal" class="profile-modal">
     <div class="profile-modal-header">
-      <h2>Update Your Profile Below</h2>
+            <h2 id="profileModalTitle">Update Your Profile Below</h2>
+            <p id="profileModalHelperText" class="profile-helper-text" style="display:none; margin: 6px 0 0;">This name will appear on leaderboards and winner cards.</p>
       <button class="profile-modal-close" data-profile-close>&times;</button>
     </div>
 
