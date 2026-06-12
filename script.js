@@ -1,4 +1,4 @@
-// === BUILD ID FOR VERIFICATION ===
+﻿// === BUILD ID FOR VERIFICATION ===
 window.BUILD_ID = "dev-23da9c4-2026-01-20";
 console.log("[BUILD]", window.BUILD_ID);
 
@@ -2337,7 +2337,7 @@ class ContestApp {
         if (!this.solvedStages.includes(stage)) {
             return false;
         }
-        
+
         // Additional safety check for two-step stages: verify step 2 was actually completed
         // This protects against stale localStorage data where stage 12 was marked solved with only step 1
         const twoStepStages = [12]; // only stage 12 requires step 2 for solved check
@@ -2349,7 +2349,7 @@ class ContestApp {
                 return false;
             }
         }
-        
+
         return true;
     }
 
@@ -2622,7 +2622,9 @@ try {
         document.getElementById('successPanel').style.display = 'none';
         document.getElementById('errorMessage').style.display = 'none';
         document.getElementById('secondRiddleError').style.display = 'none';
-        document.getElementById('stageDisabledPanel').style.display = 'none'; // NEW: Hide stage disabled panel
+        document.getElementById('stageDisabledPanel').style.display = 'none';
+        const firstClueBox = document.getElementById('firstRiddleClue');
+        if (firstClueBox) firstClueBox.style.display = 'none';
     }
 
     // Validation methods
@@ -2682,10 +2684,12 @@ try {
             } else {
                 // No progress => show first riddle input
                 document.getElementById('inputSection').style.display = 'flex';
+                this.showFirstRiddleClue(this.currentStage);
             }
         } else {
             // Show first riddle input
             document.getElementById('inputSection').style.display = 'flex';
+            this.showFirstRiddleClue(this.currentStage);
         }
 
         // Re-attach profile button handler after stage render
@@ -2725,10 +2729,30 @@ try {
     }
 
     // Show second riddle
+    showFirstRiddleClue(stage) {
+        const clueBox = document.getElementById('firstRiddleClue');
+        if (!clueBox) return;
+        const clue = FIRST_RIDDLE_CLUES[stage];
+        if (clue) {
+            // Use child spans so the label and text are styled separately.
+            clueBox.innerHTML =
+            '<span class="first-riddle-clue__label">Hint</span>' +
+                '<span class="first-riddle-clue__text">' +
+                clue.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+                '</span>';
+            clueBox.style.display = 'block';
+        } else {
+            clueBox.style.display = 'none';
+        }
+    }
+
     showSecondRiddle(stage) {
         const clue = SECOND_RIDDLE_CLUES[stage] || 'Second riddle clue not available.';
         document.getElementById('secondRiddleClue').textContent = clue;
         document.getElementById('secondRiddlePanel').style.display = 'block';
+        // Hide the Step 1 hint box once Step 2 is revealed.
+        const firstClueBox = document.getElementById('firstRiddleClue');
+        if (firstClueBox) firstClueBox.style.display = 'none';
     }
 
     // Render stages grid
@@ -3680,24 +3704,31 @@ const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5c
 // Admin email for role detection
 const ADMIN_EMAIL = 'hola@theaccidentalretiree.mx';
 
+// Stage-specific first riddle clues (shown beneath the video before Step 1 is solved)
+const FIRST_RIDDLE_CLUES = {
+    6:  'Think about the longest river in Africa. The answer starts with "theriver____".',
+    7:  'This famous bay near Sydney is where Captain Cook first landed in Australia.',
+    8:  'This famous explorer charted much of Australia and New Zealand, and he was not a chef. The answer starts with "captain____".',
+    9:  'Suleiman was known throughout history as Suleiman the ________.',
+    10: 'This ancient archaeological site in Turkey may be the oldest known temple complex in the world.',
+    11: 'A famous lady stands in New York Harbor. This is the Statue of ______.',
+    12: 'This U.S. president shares his name with many famous hotels.',
+    13: 'That sake was straight out of the _______.',
+    14: 'This fictitious WWE wrestler once lived in Winnipeg. He was known as the ___________.'
+};
+
 // Stage-specific second riddle clues
 const SECOND_RIDDLE_CLUES = {
     5: "We slept where Ra's first light awoke, In walls that held the desert's smoke. Seek not the tombs of kings long gone, But the humble door our fate shone on— Three numbers guard the path once more, The code that wakes the chamber door.",
-    6: "From city skies to seaside song, Where golden butter makes you strong. The name is whispered, soft and gone, A coastal town where flavors dawn.",
-    7: "A whisper called before we flew, A brand appeared, then left our view. The clue was fleeting, yet it's true— One word, four numbers—seen and heard by few.",
-    8: "A sign of steel, a steady hand, The numbers bold, the prices stand. For blade and shear, combine their wit— Old phrase says, 'two bits!'",
-    9: "Between the floors we rose in steel, A glowing screen revealed the deal. Not where we slept, nor where we flew, but a city that flashed and vanished from view. Catch the name in that blink-short quirk, the word you seek is one place: no space.",
-    10: "This clue isn’t spoken, it shines in the night. Two words are written next to neon so bright. No need to listen, just read what you see — What’s the first word staring back at thee?",
-    11: `A quiet moment, poured just right.
-Careful — it’s not what keeps you up all night.
-One plus one is two, we all agree,
-But one and two-thirds tells you what to see.`,
- 12: `I didn’t order, taste, or take a bite,
-Just read two words that felt exactly right.
-It’s not the chicken, fire, or heat,
-It’s what those words promise before you eat.`,
-    13: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released.",
-    14: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released.",
+    6: "Go to the Stage 6 video and fast forward to about 2:50. We're previewing a breakfast menu. I mention that nothing is better than the countryside butter from a particular town. What is the name of that town?",
+    7: "Go to the Stage 7 video. Listen carefully during the first few seconds, then jump ahead to around the 13-minute mark. What was the name of the compression socks and what was the flight number to Helsinki? Put the two together in that order: socks + flight number.",
+    8: "Go to around 9 minutes in the Stage 8 video. Look carefully at the barber shop menu. How much would it cost for a hot towel shave and a haircut? Add the two prices together. Format your answer like this: $20. No decimals.",
+    9: "Go to the Stage 9 video. What is the next city Jillian and I fly to?",
+    10: "Go to the video and start around the 2-minute mark. While riding in the Uber we pass a sign. They weren't Golden Dolls. They were ______ Dolls.",
+    11: "Watch the end of the Stage 11 video. Jillian is drinking a canned martini in Central Park. What alcohol is in the drink?",
+    12: "Go to around 7:30 in the video. Watch carefully as we ride in the Uber. Find the Mexican restaurant sign. The name is: El ______ de Mexico. What is the missing Spanish word?",
+    13: "Right off the bat, a lot of ________",
+    14: "The clue is in the 100-year-old home video in Ome, Japan. Watch carefully after solving the first riddle. The answer comes from the guardian of the house and the _________.",
     15: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released."
 };
 
@@ -4934,8 +4965,26 @@ function localLogSolveFallback(payload) {
     }
 }
 
+function isEmailLike(value) {
+  const text = String(value || '').trim();
+  return !!text && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text);
+}
+
+function getWinnerDisplayName(winner, winnerProfile) {
+  const profileDisplayName = String(winnerProfile?.display_name || '').trim();
+  if (profileDisplayName) return profileDisplayName;
+
+  const profileUsername = String(winnerProfile?.username || '').trim();
+  if (profileUsername && !isEmailLike(profileUsername)) return profileUsername;
+
+  const winnerUsername = String(winner?.username || '').trim();
+  if (winnerUsername && !isEmailLike(winnerUsername)) return winnerUsername;
+
+  return 'Winner';
+}
+
 // FIXED: Leaderboard functionality - Ensure proper rendering
-function renderLbCard(stage, winner) {
+function renderLbCard(stage, winner, winnerProfile = null) {
     const hasWinner = !!winner;
     
     let prizeText;
@@ -4953,11 +5002,12 @@ function renderLbCard(stage, winner) {
 
     if (hasWinner) {
         const formattedDate = winner.won_at ? new Date(winner.won_at).toLocaleDateString() : '';
+        const winnerDisplayName = getWinnerDisplayName(winner, winnerProfile);
         
         card.innerHTML = `
             <div class="lb-left">
-                <div class="lb-winner-pill">Winner: ${winner.username || '—'}</div>
-                <div class="lb-congrats">🎉 Congratulations!</div>
+                <div class="lb-winner-pill">Winner: ${winnerDisplayName}</div>
+                <div class="lb-congrats">&#127881; Congratulations!</div>
                 <div class="lb-stage-label">Stage ${stage}${stage === 16 ? ' · Master' : ''}</div>
                 <div class="lb-prize">${prizeText}</div>
                 <div class="lb-date">Won ${formattedDate}</div>
@@ -4967,7 +5017,7 @@ function renderLbCard(stage, winner) {
         card.innerHTML = `
             <div class="lb-left">
                 <div class="lb-winner-pill" style="background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.6);">No Winner Yet</div>
-                <div class="lb-stage-label">Stage ${stage}${stage === 16 ? ' · Master' : ''}</div>
+            <div class="lb-stage-label">Stage ${stage}${stage === 16 ? ' · Master' : ''}</div>
                 <div class="lb-prize">${prizeText}</div>
                 <div class="lb-date">Prize Still Available</div>
             </div>
@@ -4991,6 +5041,7 @@ async function renderLeaderboard() {
     grid.innerHTML = '';
 
     let winnersMap = {};
+    let winnerProfilesById = {};
 
     // Try to fetch winners data
     try {
@@ -4998,7 +5049,7 @@ async function renderLeaderboard() {
             console.log('[LEADERBOARD] Fetching winners from stage_winners table...');
             const { data, error } = await supabase
                 .from('stage_winners')
-                .select('stage, username, won_at')
+                .select('stage, user_id, username, won_at')
                 .order('stage', { ascending: true });
 
             if (error) {
@@ -5008,6 +5059,27 @@ async function renderLeaderboard() {
                 data.forEach(winner => {
                     winnersMap[winner.stage] = winner;
                 });
+
+                const winnerUserIds = Array.from(new Set(
+                    data
+                        .map((winner) => winner.user_id)
+                        .filter(Boolean)
+                ));
+
+                if (winnerUserIds.length > 0) {
+                    const { data: profiles, error: profilesError } = await supabase
+                        .from('profiles')
+                        .select('id, display_name, username')
+                        .in('id', winnerUserIds);
+
+                    if (profilesError) {
+                        console.warn('[LEADERBOARD] Error fetching winner profiles:', profilesError);
+                    } else {
+                        (profiles || []).forEach((profile) => {
+                            winnerProfilesById[profile.id] = profile;
+                        });
+                    }
+                }
             } else {
                 console.log('[LEADERBOARD] No winners found in database');
             }
@@ -5023,7 +5095,8 @@ async function renderLeaderboard() {
     // Render cards for stages 1-15 only (Stage 16 has its own Master Stage section)
     for (let stage = 1; stage <= 15; stage++) {
         const winner = winnersMap[stage];
-        const card = renderLbCard(stage, winner);
+        const winnerProfile = winner?.user_id ? winnerProfilesById[winner.user_id] || null : null;
+        const card = renderLbCard(stage, winner, winnerProfile);
         grid.appendChild(card);
     }
 
@@ -6112,3 +6185,24 @@ window.addEventListener('unhandledrejection', function(event) {
 });
 
 console.log('[SCRIPT] Contest app script loaded successfully');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

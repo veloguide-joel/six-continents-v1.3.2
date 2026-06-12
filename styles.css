@@ -1459,10 +1459,50 @@ input:checked + .toggle-slider:before {
 }
 
 .second-riddle-clue {
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 17px;
+    line-height: 1.7;
+    font-weight: 500;
     margin-bottom: 16px;
     color: #bf360c;
+}
+
+/* First-riddle hint box (shown beneath the video on Step 1) */
+.first-riddle-clue {
+    margin: 12px 0 16px;
+    padding: 14px 18px;
+    border: 1.5px solid #f5a623;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #fffde7 0%, #fff3cd 100%);
+    font-size: 17px;
+    line-height: 1.7;
+    color: #3d2800;
+    box-shadow: 0 1px 4px rgba(245,166,35,0.15);
+}
+
+.first-riddle-clue__label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #b36b00;
+    margin-bottom: 6px;
+}
+
+.first-riddle-clue__text {
+    display: block;
+    font-weight: 500;
+}
+
+@media (max-width: 480px) {
+    .first-riddle-clue {
+        font-size: 16px;
+        padding: 12px 14px;
+    }
+
+    .second-riddle-clue {
+        font-size: 16px;
+    }
 }
 
 /* Stage Disabled Notification Panel */
