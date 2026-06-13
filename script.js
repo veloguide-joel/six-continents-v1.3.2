@@ -59,6 +59,15 @@ const AUTH_MODAL_DEFAULT_TAB_KEY = "authModalDefaultTabOnce";
 window.__SOLVED_STAGES = [];
 window.__MAX_SOLVED_STAGE = 0;
 
+function requiresTwoSteps(stage) {
+  const n = Number(stage);
+  return n >= 5 && n <= 15;
+}
+
+function getRequiredStepForStage(stage) {
+  return requiresTwoSteps(stage) ? 2 : 1;
+}
+
 // ---------------------------
 // ACCIDENTAL RETIREE CONTEST APP
 // Auth + Leaderboard stabilized 2025-11-12
@@ -828,14 +837,12 @@ async function migrateFastTrackSolvesToSupabase(userId) {
         stageMaxStep[stage] = Math.max(stageMaxStep[stage] || 0, step);
       });
       
-      // Filter to solvedStages: for two-step stages need step 2, otherwise step 1
-      const twoStepStages = [12]; // only stage 12 requires step 2
+      // Filter to solvedStages: stages 5-15 require step 2, all others require step 1
       const solvedStages = Object.keys(stageMaxStep)
         .map(Number)
         .filter(stage => {
           const maxStep = stageMaxStep[stage];
-          const isTwoStep = twoStepStages.includes(stage);
-          return isTwoStep ? maxStep >= 2 : maxStep >= 1;
+          return maxStep >= getRequiredStepForStage(stage);
         });
       console.log('[MIGRATION] Fetched solves fallback:', solvedStages);
       
@@ -1184,7 +1191,7 @@ async function restoreStageFromSolves(userId) {
     // Query solves table for this user
     const { data: solves, error } = await window.supabaseClient
       .from("solves")
-      .select("stage")
+      .select("stage,step,max_step_solved")
       .eq("user_id", userId);
 
     if (error) {
@@ -1203,14 +1210,16 @@ async function restoreStageFromSolves(userId) {
     (solves || []).forEach(s => {
       const stage = Number(s.stage);
       const step = Number(s.step) || 1;
-      stageMaxStep[stage] = Math.max(stageMaxStep[stage] || 0, step);
+      const maxStepSolved = Number(s.max_step_solved) || 0;
+      const rowMaxStep = Math.max(step, maxStepSolved);
+      stageMaxStep[stage] = Math.max(stageMaxStep[stage] || 0, rowMaxStep);
     });
 
-    // Find the highest FULLY solved stage (stage 12 requires step 2, others require step 1)
+    // Find the highest FULLY solved stage using canonical per-stage step requirements
     let maxFullySolvedStage = 0;
     for (let stage = 1; stage <= 16; stage++) {
       const maxStep = stageMaxStep[stage] || 0;
-      const isFullySolved = (stage === 12) ? (maxStep >= 2) : (maxStep >= 1);
+      const isFullySolved = maxStep >= getRequiredStepForStage(stage);
       if (isFullySolved) {
         maxFullySolvedStage = stage;
       } else {
@@ -1238,7 +1247,7 @@ async function computeNextUnsolvedFromSolves(userId) {
     // Query all solved stages from DB
     const { data: solves, error } = await window.supabaseClient
       .from("solves")
-      .select("stage,step")
+      .select("stage,step,max_step_solved")
       .eq("user_id", userId);
 
     if (error) {
@@ -1251,21 +1260,21 @@ async function computeNextUnsolvedFromSolves(userId) {
     (solves || []).forEach(s => {
       const stage = Number(s.stage);
       const step = Number(s.step) || 1;
+      const maxStepSolved = Number(s.max_step_solved) || 0;
+      const rowMaxStep = Math.max(step, maxStepSolved);
       if (stage >= 1 && stage <= MAX_STAGE) {
-        stageMaxStep[stage] = Math.max(stageMaxStep[stage] || 0, step);
+        stageMaxStep[stage] = Math.max(stageMaxStep[stage] || 0, rowMaxStep);
       }
     });
 
     // ✅ STORE step data globally for isSolved() to use
     window.__dbStepByStage = stageMaxStep;
 
-    // Build set of solved stages (accounting for two-step requirements)
+    // Build set of solved stages (accounting for canonical per-stage requirements)
     const solvedSet = new Set();
-    const twoStepStages = [12]; // only stage 12 requires step 2
     for (let stage = 1; stage <= MAX_STAGE; stage++) {
       const maxStep = stageMaxStep[stage] || 0;
-      const isTwoStep = twoStepStages.includes(stage);
-      const minStepRequired = isTwoStep ? 2 : 1;
+      const minStepRequired = getRequiredStepForStage(stage);
       if (maxStep >= minStepRequired) {
         solvedSet.add(stage);
       }
@@ -2526,13 +2535,11 @@ class ContestApp {
             return false;
         }
 
-        // Additional safety check for two-step stages: verify step 2 was actually completed
-        // This protects against stale localStorage data where stage 12 was marked solved with only step 1
-        const twoStepStages = [12]; // only stage 12 requires step 2 for solved check
-        if (twoStepStages.includes(stage)) {
-            // For two-step stages, require max step to be at least 2
-            const maxStep = window.__dbStepByStage?.[stage] || 0;
-            if (maxStep < 2) {
+      // Additional safety check for multi-step stages: verify required step was completed.
+      const requiredStep = getRequiredStepForStage(stage);
+      if (requiredStep > 1) {
+        const maxStep = window.__dbStepByStage?.[stage] || 0;
+        if (maxStep < requiredStep) {
                 console.warn(`[isSolved] Stage ${stage} has only step ${maxStep}, not fully solved`);
                 return false;
             }
@@ -4884,7 +4891,7 @@ function initializeSupabase() {
 
                     const { data: solves, error } = await supabase
                         .from('solves')
-                        .select('stage')
+                      .select('stage,step,max_step_solved')
                         .eq('user_id', supabaseAuth.user.id)
                         .order('stage', { ascending: true });
 
@@ -4894,7 +4901,18 @@ function initializeSupabase() {
                     }
 
                     if (solves && solves.length > 0) {
-                        const cloudStages = solves.map(solve => solve.stage);
+                      const stageMaxStep = {};
+                      solves.forEach(solve => {
+                        const stage = Number(solve.stage);
+                        const step = Number(solve.step) || 1;
+                        const maxStepSolved = Number(solve.max_step_solved) || 0;
+                        const rowMaxStep = Math.max(step, maxStepSolved);
+                        stageMaxStep[stage] = Math.max(stageMaxStep[stage] || 0, rowMaxStep);
+                      });
+
+                      const cloudStages = Object.keys(stageMaxStep)
+                        .map(Number)
+                        .filter(stage => stageMaxStep[stage] >= getRequiredStepForStage(stage));
                         console.log('[progressManager] Found cloud progress:', cloudStages);
 
                         const localStages = window.contestApp ? window.contestApp.getSolvedStagesFromLocal() : [];
