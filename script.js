@@ -1900,31 +1900,12 @@ function wireAuthModalControls() {
   // Wire backdrop click to close modal using AuthUI logic (if applicable)
   if (authModal) {
     authModal.addEventListener('click', (evt) => {
-      // Check if click was on the modal backdrop itself, not the content
-      if (evt.target === authModal || evt.target.classList.contains('auth-modal')) {
-        const resetModal = document.getElementById('password-reset-modal');
-        const resetCancelBtn = document.getElementById('password-reset-cancel');
-        const resetVisible = !!(resetModal && !resetModal.classList.contains('hidden'));
-        const requiredPasswordModalActive = resetVisible && (
-          (typeof isFastTrackRequiredPasswordSetup === 'function' && isFastTrackRequiredPasswordSetup()) ||
-          resetCancelBtn?.style.display === 'none'
-        );
-
-        if (requiredPasswordModalActive) {
-          evt.preventDefault();
-          evt.stopPropagation();
-          return;
-        }
-
-        if (typeof authUI !== 'undefined' && authUI && typeof authUI.closeModal === 'function') {
-          authUI.closeModal();
-          console.log('[AUTH] Auth modal closed via backdrop click (authUI.closeModal)');
-        } else {
-          authModal.classList.remove('show');
-          authModal.classList.add('hidden');
-          authModal.style.display = '';
-          console.log('[AUTH] Auth modal closed via backdrop click (fallback)');
-        }
+      // Backdrop clicks should be absorbed and must not close auth modal.
+      if (evt.target === authModal) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        console.log('[AUTH] Backdrop click ignored; auth modal remains open');
+        return;
       }
     });
   }
