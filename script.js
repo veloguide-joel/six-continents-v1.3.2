@@ -3322,7 +3322,9 @@ try {
 
     // Handle first riddle submission
     async handleFirstRiddleSubmit() {
-        const answer = document.getElementById('answerInput').value.trim();
+      const inputSection = document.getElementById('inputSection');
+      const answerInput = inputSection?.querySelector('#answerInput, input.answer-input, input[name="answer"]');
+      const answer = answerInput ? answerInput.value.trim() : '';
         if (!answer) return;
         
         const submitBtn = document.getElementById('submitBtn');
@@ -3334,7 +3336,7 @@ try {
             
             if (result.correct) {
                 // Clear input
-                document.getElementById('answerInput').value = '';
+              if (answerInput) answerInput.value = '';
                 document.getElementById('errorMessage').style.display = 'none';
                 // Reset wrong-attempt counter on success
                 try { resetWrongAttempts(); } catch (e) { /* noop if not available */ }
