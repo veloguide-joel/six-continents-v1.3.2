@@ -61,11 +61,14 @@ window.__MAX_SOLVED_STAGE = 0;
 
 function requiresTwoSteps(stage) {
   const n = Number(stage);
-  return n >= 5 && n <= 15;
+  return n >= 5 && n <= 14;
 }
 
 function getRequiredStepForStage(stage) {
-  return requiresTwoSteps(stage) ? 2 : 1;
+  const n = Number(stage);
+  if (n === 15) return 3;
+  if (n >= 5 && n <= 14) return 2;
+  return 1;
 }
 
 // ---------------------------
@@ -2539,7 +2542,7 @@ class ContestApp {
             .select('step')
             .eq('user_id', user.id)
             .eq('stage', Number(stage))
-            .in('step', [1, 2]);
+            .in('step', [1, 2, 3]);
 
         if (!error && data && data.length > 0) {
             return Math.max(...data.map(row => row.step));
@@ -2571,7 +2574,15 @@ class ContestApp {
     }
 
     hasTwoRiddles(stage) {
-        return stage >= 5 && stage <= 15;
+      return getRequiredStepForStage(stage) === 2;
+    }
+
+    hasThreeRiddles(stage) {
+      return getRequiredStepForStage(stage) === 3;
+    }
+
+    hasMultipleRiddles(stage) {
+      return getRequiredStepForStage(stage) > 1;
     }
 
     getNextUnsolvedStage(fromStage) {
@@ -2790,9 +2801,13 @@ try {
     hideAllPanels() {
         document.getElementById('inputSection').style.display = 'none';
         document.getElementById('secondRiddlePanel').style.display = 'none';
+      const thirdRiddlePanel = document.getElementById('thirdRiddlePanel');
+      if (thirdRiddlePanel) thirdRiddlePanel.style.display = 'none';
         document.getElementById('successPanel').style.display = 'none';
         document.getElementById('errorMessage').style.display = 'none';
         document.getElementById('secondRiddleError').style.display = 'none';
+      const thirdRiddleError = document.getElementById('thirdRiddleError');
+      if (thirdRiddleError) thirdRiddleError.style.display = 'none';
         document.getElementById('stageDisabledPanel').style.display = 'none';
         const firstClueBox = document.getElementById('firstRiddleClue');
         if (firstClueBox) firstClueBox.style.display = 'none';
@@ -2836,15 +2851,20 @@ try {
         if (this.isSolved(this.currentStage)) {
             // Stage already solved, show success
             this.showSuccess(this.currentStage);
-        } else if (this.hasTwoRiddles(this.currentStage)) {
-            // Check if Step 1 or Step 2 was already solved (from DB solves rows)
+        } else if (this.hasMultipleRiddles(this.currentStage)) {
+          // Check if step progress was already solved (from DB solves rows)
             const maxStepSolved = await this.getMaxStepSolved(this.currentStage);
           const hasSignedInSupabaseUser = !!(supabaseAuth && supabaseAuth.user);
+          const requiredStep = getRequiredStepForStage(this.currentStage);
             
-            if (maxStepSolved >= 2) {
-                // Step 2 exists in DB => stage is complete
+          if (maxStepSolved >= requiredStep) {
+            // Required step exists in DB => stage is complete
                 this.showSuccess(this.currentStage);
-                console.log(`[RENDER] Restored stage complete for stage ${this.currentStage} (step 2 found)`);
+            console.log(`[RENDER] Restored stage complete for stage ${this.currentStage} (step ${requiredStep} found)`);
+          } else if (requiredStep >= 3 && maxStepSolved >= 2) {
+            // Stage 15 Step 2 exists in DB => show Step 3 UI
+            this.showThirdRiddle(this.currentStage);
+            console.log(`[RENDER] Restored Step 3 for stage ${this.currentStage} (step 2 found)`);
             } else if (maxStepSolved >= 1) {
                 // Step 1 exists in DB => show Step 2 UI
                 this.showSecondRiddle(this.currentStage);
@@ -2922,9 +2942,24 @@ try {
         const clue = SECOND_RIDDLE_CLUES[stage] || 'Second riddle clue not available.';
         document.getElementById('secondRiddleClue').textContent = clue;
         document.getElementById('secondRiddlePanel').style.display = 'block';
+      const thirdRiddlePanel = document.getElementById('thirdRiddlePanel');
+      if (thirdRiddlePanel) thirdRiddlePanel.style.display = 'none';
         // Hide the Step 1 hint box once Step 2 is revealed.
         const firstClueBox = document.getElementById('firstRiddleClue');
         if (firstClueBox) firstClueBox.style.display = 'none';
+    }
+
+    showThirdRiddle(stage) {
+      const clue = THIRD_RIDDLE_CLUES[stage] || 'Third riddle clue not available yet (placeholder).';
+      const clueEl = document.getElementById('thirdRiddleClue');
+      const panelEl = document.getElementById('thirdRiddlePanel');
+      if (!clueEl || !panelEl) return;
+      clueEl.textContent = clue;
+      panelEl.style.display = 'block';
+      document.getElementById('secondRiddlePanel').style.display = 'none';
+      // Hide the Step 1 hint box once later steps are revealed.
+      const firstClueBox = document.getElementById('firstRiddleClue');
+      if (firstClueBox) firstClueBox.style.display = 'none';
     }
 
     // Render stages grid
@@ -3252,6 +3287,19 @@ try {
                 if (e.key === 'Enter') this.handleSecondRiddleSubmit();
             };
         }
+
+        // Third riddle submission (Stage 15 only)
+        const thirdRiddleSubmit = document.getElementById('thirdRiddleSubmit');
+        if (thirdRiddleSubmit) {
+          thirdRiddleSubmit.onclick = () => this.handleThirdRiddleSubmit();
+        }
+
+        const thirdRiddleInput = document.getElementById('thirdRiddleInput');
+        if (thirdRiddleInput) {
+          thirdRiddleInput.onkeypress = (e) => {
+            if (e.key === 'Enter') this.handleThirdRiddleSubmit();
+          };
+        }
         
         // Modal close
         const closeModal = document.getElementById('closeModal');
@@ -3291,7 +3339,7 @@ try {
                 // Reset wrong-attempt counter on success
                 try { resetWrongAttempts(); } catch (e) { /* noop if not available */ }
                 
-                if (this.hasTwoRiddles(this.currentStage)) {
+                if (this.hasMultipleRiddles(this.currentStage)) {
                     // Mark first riddle as solved and show second riddle
                     const newFirstRiddleSolved = [...this.firstRiddleSolved, this.currentStage];
                     this.setFirstRiddleSolvedLocal(newFirstRiddleSolved);
@@ -3416,9 +3464,15 @@ try {
                 
                 // Only advance if persist succeeded
                 if (persistSuccess) {
-                    // Mark stage as completely solved (set step to 2 for proper logging)
+                  if (this.hasThreeRiddles(this.currentStage)) {
+                    // Stage 15 Step 2 solved: proceed to Step 3, do not complete stage yet.
+                    this.showThirdRiddle(this.currentStage);
+                    document.getElementById('secondRiddlePanel').style.display = 'none';
+                  } else {
+                    // Two-step stages (5-14): Step 2 completes stage.
                     this.currentStep = 2;
                     await this.markStageSolvedAndAdvance(this.currentStage);
+                  }
                 }
             } else {
                 // Show error
@@ -3444,6 +3498,86 @@ try {
             submitBtn.textContent = 'Submit';
         }
     }
+
+        // Handle third riddle submission (Stage 15 only)
+        async handleThirdRiddleSubmit() {
+          if (!this.hasThreeRiddles(this.currentStage)) return;
+
+          const answer = document.getElementById('thirdRiddleInput').value.trim();
+          if (!answer) return;
+
+          const submitBtn = document.getElementById('thirdRiddleSubmit');
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Checking...';
+
+          try {
+            const result = await this.validateAnswer(this.currentStage, 3, answer);
+
+            if (result.correct) {
+              document.getElementById('thirdRiddleInput').value = '';
+              document.getElementById('thirdRiddleError').style.display = 'none';
+              try { resetWrongAttempts(); } catch (e) { /* noop if not available */ }
+
+              let persistSuccess = false;
+              try {
+                const user = supabaseAuth?.user;
+                if (user) {
+                  const { data, error } = await supabase
+                    .from('solves')
+                    .upsert({
+                      user_id: user.id,
+                      stage: Number(this.currentStage),
+                      step: 3,
+                      username: user.email || user.id,
+                      email: user.email,
+                      max_step_solved: 3,
+                      solved_at: new Date().toISOString()
+                    }, { onConflict: 'user_id,stage,step' });
+
+                  if (error) {
+                    console.error('[S15 STEP3] persist failed', error);
+                    document.getElementById('thirdRiddleError').style.display = 'block';
+                    document.getElementById('thirdRiddleError').textContent = 'Failed to save your progress. Please try again.';
+                    persistSuccess = false;
+                  } else {
+                    console.log('[S15 STEP3] persist success', data);
+                    persistSuccess = true;
+                  }
+                }
+              } catch (err) {
+                console.error('[S15 STEP3] Exception during persist:', err);
+                document.getElementById('thirdRiddleError').style.display = 'block';
+                document.getElementById('thirdRiddleError').textContent = 'Failed to save your progress. Please try again.';
+                persistSuccess = false;
+              }
+
+              if (persistSuccess) {
+                this.currentStep = 3;
+                await this.markStageSolvedAndAdvance(this.currentStage);
+              }
+            } else {
+              document.getElementById('thirdRiddleError').style.display = 'block';
+              try {
+                const attempts = incrementWrongAttempts();
+                if (attempts === 2) {
+                  if (typeof showHintPopup === 'function') {
+                    showHintPopup();
+                  } else {
+                    console.warn('[HINT] showHintPopup not defined yet');
+                  }
+                }
+              } catch (e) {
+                console.warn('[HINT] Failed to increment wrong attempts', e);
+              }
+            }
+          } catch (error) {
+            console.error('Third riddle validation error:', error);
+            document.getElementById('thirdRiddleError').style.display = 'block';
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit';
+          }
+        }
 
     // Handle sign out
         async handleSignOut() {
@@ -3889,7 +4023,8 @@ const FIRST_RIDDLE_CLUES = {
     11: 'A famous lady stands in New York Harbor. This is the Statue of ______.',
     12: 'This U.S. president shares his name with many famous hotels.',
     13: 'That sake was straight out of the _______.',
-    14: 'This fictitious WWE wrestler once lived in Winnipeg. He was known as the ___________.'
+    14: 'This fictitious WWE wrestler once lived in Winnipeg. He was known as the ___________.',
+    15: 'Joel is the proud owner of a new ________ bag.'
 };
 
 // Stage-specific second riddle clues
@@ -3904,8 +4039,13 @@ const SECOND_RIDDLE_CLUES = {
     12: "Go to around 7:30 in the video. Watch carefully as we ride in the Uber. Find the Mexican restaurant sign. The name is: El ______ de Mexico. What is the missing Spanish word?",
     13: "Right off the bat, a lot of ________",
     14: "The clue is in the 100-year-old home video in Ome, Japan. Watch carefully after solving the first riddle. The answer comes from the guardian of the house and the _________.",
-    15: "Congratulations on solving Clue #1. The second clue isn't live yet. Please keep an eye on the Community tab — we publish the next clue 24–36 hours after the video is released."
+    15: "This clue will be given during the live stream"
 };
+
+  // Stage-specific third riddle clues (currently only Stage 15)
+  const THIRD_RIDDLE_CLUES = {
+    15: 'Congratulations, you are one step away from winning 50,000 Turkish Airlines Miles! The live stream will continue until someone wins!'
+  };
 
 // === SAFE SUPABASE SINGLETON (prevents redeclare crash) ===
 // Initialize only if not already loaded (prevents crash if script.js loads twice)
@@ -6051,7 +6191,7 @@ const CONFIG = {
           12: { title: "Stage 12", yt: "-IvSEObUesc" },
           13: { title: "Stage 13", yt: "p-QscRL_uyI" },
           14: { title: "Stage 14", yt: "8n7eJpcMR1I" },
-          15: { title: "Stage 15", yt: "xt46MpHHjJ4" },
+          15: { title: "Stage 15", yt: "EHPNWrqMygM" },
         16: { title: "Stage 16", yt: "xxAU10mE0ik" }
     }
 };
