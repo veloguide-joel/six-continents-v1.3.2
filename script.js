@@ -2471,8 +2471,13 @@ class ContestApp {
         if (preset > 1) {
             this.currentStage = preset;
             console.log("[ContestApp] Skipping localStorage stage calc, preset stage:", preset);
-            // Still load solved stages from localStorage for UI rendering
+          // Preserve canonical DB solved state if it was already applied before init.
+          if (Array.isArray(window.__dbSolvedArray)) {
+            this.solvedStages = window.__dbSolvedArray;
+          } else {
+            // Fallback for local-only/offline paths when DB solved state is unavailable.
             this.solvedStages = this.getSolvedStagesFromLocal();
+          }
             this.firstRiddleSolved = this.getFirstRiddleSolvedFromLocal();
             return;
         }
