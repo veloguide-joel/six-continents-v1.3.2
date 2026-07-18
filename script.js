@@ -6424,6 +6424,8 @@ function updateStage16() {
             window.contestApp.currentStage = 16;
             window.currentStage = 16;
             window.contestApp.renderCurrentStage();
+            const panel = document.getElementById('currentStage');
+            if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         };
     } else {
