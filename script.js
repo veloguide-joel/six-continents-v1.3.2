@@ -71,6 +71,14 @@ function getRequiredStepForStage(stage) {
   return 1;
 }
 
+function isStage16UnlockedByProgress(isSolved) {
+  if (typeof isSolved !== 'function') return false;
+  for (let stage = 1; stage <= 15; stage++) {
+    if (!isSolved(stage)) return false;
+  }
+  return true;
+}
+
 // ---------------------------
 // ACCIDENTAL RETIREE CONTEST APP
 // Auth + Leaderboard stabilized 2025-11-12
@@ -2554,10 +2562,21 @@ class ContestApp {
         return this.firstRiddleSolved.includes(stage);
     }
 
+    isStage16UnlockedByProgress() {
+      return isStage16UnlockedByProgress((stage) => this.isSolved(stage));
+    }
+
     // UPDATED: Now checks both progression AND admin control
     isUnlocked(stage) {
         if (stage >= 1 && stage <= 15) {
           return true;
+        }
+
+        if (stage === 16) {
+          const adminEnabled = stageControlManager
+            ? stageControlManager.isStageEnabled(16)
+            : true;
+          return adminEnabled && this.isStage16UnlockedByProgress();
         }
 
         const adminEnabled = stageControlManager
@@ -2678,6 +2697,7 @@ try {
 
         // Step 2: Save to database (async, don't block UI updates) and capture winner status
         let isStageWinner = false;
+        let persistedSolve = false;
         if (leaderboardManager) {
             console.log(`[ADVANCE] Attempting to save stage ${stage} to database...`);
             try {
@@ -2685,6 +2705,7 @@ try {
                 if (result.success) {
                     console.log(`[ADVANCE] Database save successful for stage ${stage}:`, result.reason || 'saved');
                     isStageWinner = result.isStageWinner || false;
+              persistedSolve = true;
                 } else {
                     console.warn(`[ADVANCE] Database save failed for stage ${stage}, but continuing...`);
                     console.error('[ADVANCE] Database save error:', result);
@@ -2725,8 +2746,24 @@ try {
             progressManager.logStageCompletion(`stage_${stage}`, `Stage ${stage} Complete`);
         }
 
+        // Keep canonical DB-derived step state in sync before Stage 16 unlock checks.
+        if (persistedSolve) {
+          try {
+            const userId = supabaseAuth?.user?.id;
+            if (userId && window.supabaseClient) {
+              await computeNextUnsolvedFromSolves(userId);
+              if (Array.isArray(window.__dbSolvedArray)) {
+                this.solvedStages = window.__dbSolvedArray;
+              }
+            }
+          } catch (e) {
+            console.warn('[ADVANCE] Failed to refresh canonical progress state after solve:', e);
+          }
+        }
+
         // Step 4: Force UI updates with fresh data
         console.log(`[ADVANCE] Updating UI for stage ${stage} completion...`);
+
         this.renderStagesGrid();
         this.updateProgress();
         updateStage16();
@@ -2742,18 +2779,61 @@ try {
         }, 100);
 
         // Step 6: Find and advance to next stage
-        // After solving a stage, advance to the next sequential stage (not the lowest unsolved)
-        const nextStage = stage < CONFIG.total ? stage + 1 : null;
-        
-        if (nextStage && nextStage <= CONFIG.total && this.isUnlocked(nextStage)) {
+        const stage16AdminEnabled = stageControlManager
+          ? stageControlManager.isStageEnabled(16)
+          : true;
+        const stage16ProgressUnlocked = this.isStage16UnlockedByProgress();
+        const stage16Unlocked = stage16AdminEnabled && stage16ProgressUnlocked;
+
+        if (stage === 15 && !stage16ProgressUnlocked) {
+          console.log('[ADVANCE] Stage 15 solved but earlier stages remain unsolved; Stage 16 stays locked');
+          this.currentStage = 15;
+          this.renderCurrentStage();
+
+          const successPanel = document.getElementById('successPanel');
+          const successTitle = successPanel ? successPanel.querySelector('.success-title') : null;
+          const successText = document.getElementById('successText');
+          const continueBtn = document.getElementById('continueBtn');
+          const nextUnsolved = this.findNextUnsolvedStage();
+
+          if (successTitle) successTitle.textContent = 'Stage 15 solved!';
+          if (successText) {
+            successText.textContent = 'Congratulations on solving Stage 15. To unlock Stage 16, you will need to solve all previous stages.';
+          }
+          if (continueBtn) {
+            continueBtn.style.display = '';
+            if (nextUnsolved && nextUnsolved <= 15) {
+              continueBtn.textContent = `Continue to Stage ${nextUnsolved}`;
+              continueBtn.onclick = () => {
+                this.currentStage = nextUnsolved;
+                this.renderCurrentStage();
+              };
+            } else {
+              continueBtn.textContent = 'Back to Journey';
+              continueBtn.onclick = () => {
+                this.renderStagesGrid();
+              };
+            }
+          }
+          if (successPanel) successPanel.style.display = 'block';
+        } else if (stage < 16 && stage16Unlocked) {
+          console.log(`[ADVANCE] Stage 16 unlocked after stage ${stage}; opening Stage 16`);
+          this.currentStage = 16;
+          this.renderCurrentStage();
+        } else {
+          // After solving a stage, advance to the next sequential stage.
+          const nextStage = stage < CONFIG.total ? stage + 1 : null;
+
+          if (nextStage && nextStage <= CONFIG.total && this.isUnlocked(nextStage)) {
             console.log(`[ADVANCE] Advancing from stage ${stage} to stage ${nextStage}`);
             this.currentStage = nextStage;
             this.renderCurrentStage();
-        } else if (nextStage && nextStage <= CONFIG.total) {
-            console.log(`[ADVANCE] Stage ${nextStage} is locked, cannot advance (admin control)`);
-        } else {
+          } else if (nextStage && nextStage <= CONFIG.total) {
+            console.log(`[ADVANCE] Stage ${nextStage} is locked, cannot advance`);
+          } else {
             console.log(`[ADVANCE] All stages complete! Rendering grand prize.`);
             this.renderGrandPrize();
+          }
         }
         
         // Step 7: Show celebration modal (after confetti has fired)
@@ -2828,6 +2908,11 @@ try {
         updateStageStatusBanner(this.currentStage);
         
         this.hideAllPanels();
+
+        const stageSuccessPanel = document.getElementById('successPanel');
+        if (stageSuccessPanel) {
+          stageSuccessPanel.classList.remove('stage16-placeholder');
+        }
         
         // Check if current stage is admin disabled
         if (this.isAdminDisabled(this.currentStage)) {
@@ -2836,12 +2921,56 @@ try {
             document.getElementById('stageDisabledPanel').style.display = 'block';
             return;
         }
+
+        if (this.currentStage === 16) {
+          const stage16AdminEnabled = stageControlManager
+            ? stageControlManager.isStageEnabled(16)
+            : true;
+          if (!stage16AdminEnabled || !this.isStage16UnlockedByProgress()) {
+            document.getElementById('disabledStageNumber').textContent = 16;
+            document.getElementById('stageDisabledPanel').style.display = 'block';
+            return;
+          }
+        }
         
         // Update stage title and video
         const stageConfig = CONFIG.stages[this.currentStage];
         if (stageConfig) {
             document.querySelector('.stage-title').textContent = `S${this.currentStage}`;
             document.getElementById('currentVideo').src = `https://www.youtube.com/embed/${stageConfig.yt}`;
+        }
+
+        if (this.currentStage === 16) {
+          document.getElementById('inputSection').style.display = 'none';
+          document.getElementById('errorMessage').style.display = 'none';
+          document.getElementById('secondRiddlePanel').style.display = 'none';
+          const thirdPanel = document.getElementById('thirdRiddlePanel');
+          if (thirdPanel) thirdPanel.style.display = 'none';
+          const clueBox = document.getElementById('firstRiddleClue');
+          if (clueBox) clueBox.style.display = 'none';
+
+          const successPanel = document.getElementById('successPanel');
+          const successTitle = successPanel ? successPanel.querySelector('.success-title') : null;
+          const successText = document.getElementById('successText');
+          const continueBtn = document.getElementById('continueBtn');
+
+          if (successPanel) {
+            successPanel.classList.add('stage16-placeholder');
+          }
+          if (successTitle) {
+            successTitle.textContent = '🎉 Congratulations on making it to Stage 16! 🎉';
+          }
+          if (successText) {
+            successText.innerHTML = '<p class="stage16-placeholder-prize">You now have a chance to win 100,000 Turkish Airlines Miles.</p>' +
+              '<p class="stage16-placeholder-note">Stay tuned for the announcement of the Live Stream date where the clues will be given.</p>';
+          }
+          if (continueBtn) {
+            continueBtn.style.display = 'none';
+          }
+          if (successPanel) {
+            successPanel.style.display = 'block';
+          }
+          return;
         }
 
         // Render Fast Track badge if applicable
@@ -2900,6 +3029,7 @@ try {
         
         const successText = document.getElementById('successText');
         const continueBtn = document.getElementById('continueBtn');
+        if (continueBtn) continueBtn.style.display = '';
         
         if (nextSequentialStage && nextSequentialStage <= CONFIG.total) {
             successText.textContent = `Stage ${stage} complete! Ready for the next challenge?`;
@@ -6218,7 +6348,7 @@ const CONFIG = {
           13: { title: "Stage 13", yt: "p-QscRL_uyI" },
           14: { title: "Stage 14", yt: "8n7eJpcMR1I" },
           15: { title: "Stage 15", yt: "EHPNWrqMygM" },
-        16: { title: "Stage 16", yt: "xxAU10mE0ik" }
+          16: { title: "Stage 16", yt: "URRljx8eZNs" }
     }
 };
 
@@ -6227,20 +6357,7 @@ function updateStage16() {
     const stage16Card = document.getElementById('stage16Card');
     if (!stage16Card) return;
 
-    // Get solved stages from contestApp if available, otherwise from localStorage
-    let solvedStages = [];
-    if (window.contestApp && window.contestApp.getSolvedStagesFromLocal) {
-        solvedStages = window.contestApp.getSolvedStagesFromLocal();
-    } else {
-        try {
-            solvedStages = JSON.parse(localStorage.getItem("contest_solved_stages") || "[]");
-        } catch (e) {
-            solvedStages = [];
-        }
-    }
-
-    const solved = new Set(solvedStages.filter(n => n >= 1 && n <= 15));
-    const progressUnlocked = solved.size === 15; // gate condition
+  const progressUnlocked = !!(window.contestApp && typeof window.contestApp.isStage16UnlockedByProgress === 'function' && window.contestApp.isStage16UnlockedByProgress());
     
     // NEW: Check admin control for Stage 16
     const adminEnabled = stageControlManager ? stageControlManager.isStageEnabled(16) : true;
@@ -6286,8 +6403,10 @@ function updateStage16() {
         // Add click handler for open Stage 16
         stage16Card.style.cursor = 'pointer';
         stage16Card.onclick = () => {
-            if (window.contestApp && window.contestApp.openStageModal) {
-                window.contestApp.openStageModal(16);
+          if (window.contestApp && typeof window.contestApp.renderCurrentStage === 'function') {
+            window.contestApp.currentStage = 16;
+            window.currentStage = 16;
+            window.contestApp.renderCurrentStage();
             }
         };
     } else {

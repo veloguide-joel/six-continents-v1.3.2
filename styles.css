@@ -1427,6 +1427,38 @@ input:checked + .toggle-slider:before {
     margin-bottom: 12px;
 }
 
+.success-panel.stage16-placeholder {
+  text-align: center;
+  padding: 28px 24px;
+  line-height: 1.7;
+}
+
+.success-panel.stage16-placeholder .success-title {
+  font-size: 34px;
+  font-weight: 800;
+  color: #1b8f2a;
+  line-height: 1.25;
+  margin-bottom: 16px;
+}
+
+.success-panel.stage16-placeholder .success-text {
+  opacity: 1;
+  color: #1f2937;
+  font-size: 1.18rem;
+  margin-bottom: 0;
+}
+
+.stage16-placeholder-prize {
+  margin: 0 0 12px 0;
+  font-weight: 800;
+  color: #14532d;
+}
+
+.stage16-placeholder-note {
+  margin: 0;
+  color: #243043;
+}
+
 .continue-btn {
     padding: 10px 14px;
     border: none;
