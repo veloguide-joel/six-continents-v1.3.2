@@ -3430,10 +3430,21 @@ try {
                 // ✅ PERSIST Step 2 to database BEFORE advancing
                 let persistSuccess = false;
                 try {
-                    const user = supabaseAuth?.user;
+                  let user = supabaseAuth?.user;
+                  if (!user) {
+                    console.log('[S15 STEP2] session rehydration attempted');
+                    const { data } = await supabase.auth.getUser();
+                    user = data?.user || null;
+                  }
+
+                  if (!user) {
+                    console.warn('[S15 STEP2] session still missing');
+                    document.getElementById('secondRiddleError').style.display = 'block';
+                    document.getElementById('secondRiddleError').textContent = 'Your session expired. Please sign in again.';
+                    return;
+                  }
+
                     if (user) {
-                        console.log("[S12 STEP2] attempting persist", { stage: this.currentStage, step: 2, user_id: user.id, username: user.email, email: user.email });
-                        
                         const { data, error } = await supabase
                             .from('solves')
                             .upsert({
@@ -3447,18 +3458,18 @@ try {
                             }, { onConflict: 'user_id,stage,step' });
                         
                         if (error) {
-                            console.error("[S12 STEP2] persist failed", error);
+                          console.error('[S15 STEP2] persist failed', error);
                             // DO NOT advance if persist fails
                             document.getElementById('secondRiddleError').style.display = 'block';
                             document.getElementById('secondRiddleError').textContent = 'Failed to save your progress. Please try again.';
                             persistSuccess = false;
                         } else {
-                            console.log("[S12 STEP2] persist success", data);
+                          console.log('[S15 STEP2] persist success', data);
                             persistSuccess = true;
                         }
                     }
                 } catch (err) {
-                    console.error('[S12 STEP2] Exception during persist:', err);
+                      console.error('[S15 STEP2] persist failed', err);
                     document.getElementById('secondRiddleError').style.display = 'block';
                     document.getElementById('secondRiddleError').textContent = 'Failed to save your progress. Please try again.';
                     persistSuccess = false;
@@ -3522,7 +3533,20 @@ try {
 
               let persistSuccess = false;
               try {
-                const user = supabaseAuth?.user;
+                let user = supabaseAuth?.user;
+                if (!user) {
+                  console.log('[S15 STEP3] session rehydration attempted');
+                  const { data } = await supabase.auth.getUser();
+                  user = data?.user || null;
+                }
+
+                if (!user) {
+                  console.warn('[S15 STEP3] session still missing');
+                  document.getElementById('thirdRiddleError').style.display = 'block';
+                  document.getElementById('thirdRiddleError').textContent = 'Your session expired. Please sign in again.';
+                  return;
+                }
+
                 if (user) {
                   const { data, error } = await supabase
                     .from('solves')
@@ -3547,7 +3571,7 @@ try {
                   }
                 }
               } catch (err) {
-                console.error('[S15 STEP3] Exception during persist:', err);
+                console.error('[S15 STEP3] persist failed', err);
                 document.getElementById('thirdRiddleError').style.display = 'block';
                 document.getElementById('thirdRiddleError').textContent = 'Failed to save your progress. Please try again.';
                 persistSuccess = false;
