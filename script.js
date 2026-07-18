@@ -2909,6 +2909,15 @@ try {
         
         this.hideAllPanels();
 
+        const stageInstructions = document.querySelector('.stage-instructions.how-to-play-text');
+        if (stageInstructions && !stageInstructions.dataset.defaultText) {
+          stageInstructions.dataset.defaultText = stageInstructions.textContent.trim();
+        }
+        if (stageInstructions && this.currentStage !== 16) {
+          stageInstructions.classList.remove('stage16-video-intro');
+          stageInstructions.textContent = stageInstructions.dataset.defaultText || stageInstructions.textContent;
+        }
+
         const stageSuccessPanel = document.getElementById('successPanel');
         if (stageSuccessPanel) {
           stageSuccessPanel.classList.remove('stage16-placeholder');
@@ -2941,6 +2950,14 @@ try {
         }
 
         if (this.currentStage === 16) {
+          if (stageInstructions) {
+            stageInstructions.classList.add('stage16-video-intro');
+            stageInstructions.innerHTML = '<h2>🎥 Watch this video very carefully.</h2>' +
+              '<p>The answers to the future <span class="live-stream">LIVE Stream</span> clues<br>are hidden in this video.</p>' +
+              '<p>Pay close attention-you\'ll need them for your chance to win</p>' +
+              '<p class="grand-prize">100,000 Turkish Airlines Miles!</p>';
+          }
+
           document.getElementById('inputSection').style.display = 'none';
           document.getElementById('errorMessage').style.display = 'none';
           document.getElementById('secondRiddlePanel').style.display = 'none';

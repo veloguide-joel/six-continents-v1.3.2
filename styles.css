@@ -1248,6 +1248,41 @@ input:checked + .toggle-slider:before {
     line-height: 1.5;
 }
 
+  .stage16-video-intro {
+    text-align: center;
+    padding: 16px 0 22px 0;
+    margin-bottom: 22px;
+    line-height: 1.45;
+  }
+
+  .stage16-video-intro h2 {
+    margin: 0 0 14px 0;
+    font-size: clamp(30px, 4.2vw, 36px);
+    font-weight: 800;
+    color: #f3f4f6;
+    line-height: 1.18;
+  }
+
+  .stage16-video-intro p {
+    margin: 0 0 12px 0;
+    font-size: clamp(22px, 2.9vw, 24px);
+    font-weight: 600;
+    color: #e5e7eb;
+  }
+
+  .stage16-video-intro .live-stream {
+    font-weight: 800;
+    color: #6366f1;
+  }
+
+  .stage16-video-intro .grand-prize {
+    margin-top: 8px;
+    font-size: clamp(34px, 4.8vw, 40px);
+    line-height: 1.15;
+    font-weight: 800;
+    color: #6366f1;
+  }
+
 /* Legacy support for old class name */
 .stage-subtitle {
     font-size: 0.95rem;
