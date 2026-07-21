@@ -2361,16 +2361,42 @@ function showSolveCelebrationModal(stageNumber, { isMasterStage = false, isStage
     const backdrop = document.getElementById('solveCelebrationModal');
     const title = document.getElementById('solveCelebrationTitle');
     const body = document.getElementById('solveCelebrationBody');
+  const primaryBtn = document.getElementById('solveCelebrationPrimary');
     
     if (!backdrop || !title || !body) {
         console.warn('[CELEBRATION] Modal elements not found');
         return;
     }
     
+    const stage16AdminEnabled = stageControlManager
+      ? stageControlManager.isStageEnabled(16)
+      : true;
+    const stage16ProgressUnlocked = window.app && typeof window.app.isStage16UnlockedByProgress === 'function'
+      ? window.app.isStage16UnlockedByProgress()
+      : false;
+    const stage16Unlocked = stage16AdminEnabled && stage16ProgressUnlocked;
+
+    if (primaryBtn) {
+      primaryBtn.textContent = 'Continue';
+    }
+
     // Set content based on stage and winner status
     if (isMasterStage) {
         title.textContent = 'You cracked the Master Stage!';
         body.textContent = "You've completed the journey. If you're the grand prize winner, we'll contact you with next steps.";
+    } else if (stageNumber === 15 && isStageWinner) {
+      title.textContent = '🏆 You won Stage 15!';
+      body.textContent = "You solved all three Stage 15 riddles first and claimed the main Stage 15 prize. You're also entered into the draw for any applicable Stage 15 bonus prizes.";
+      if (primaryBtn && stage16Unlocked) {
+        primaryBtn.textContent = 'Continue to Stage 16';
+      }
+    } else if (stageNumber === 15) {
+      title.textContent = '🎉 Congratulations — Stage 15 Complete!';
+      body.innerHTML = '<p>You solved all three Stage 15 riddles! The Stage 15 prize has already been claimed, but you are now one step closer to winning the 100,000 Turkish Airlines Miles Grand Prize.</p>' +
+        '<p>You have also been entered into the draw for any applicable Stage 15 bonus prizes.</p>';
+      if (primaryBtn && stage16Unlocked) {
+        primaryBtn.textContent = 'Continue to Stage 16';
+      }
     } else if (isStageWinner) {
         title.textContent = `You won Stage ${stageNumber}!`;
         body.textContent = `You were the first to solve Stage ${stageNumber} and you've claimed the main prize for this stage. You're also entered into the draw for the bonus prizes. Keep going to get closer to the Master Stage.`;
@@ -3092,6 +3118,12 @@ try {
 
     showSecondRiddle(stage) {
         const clue = SECOND_RIDDLE_CLUES[stage] || 'Second riddle clue not available.';
+      const titleEl = document.querySelector('#secondRiddlePanel .second-riddle-title');
+      if (titleEl) {
+        titleEl.textContent = stage === 15
+          ? "🎉 Congratulations! You're almost there. Just two more riddles to solve 😊"
+          : "🎉 Congratulations! You're almost there. Just one last riddle to solve 😊";
+      }
         document.getElementById('secondRiddleClue').textContent = clue;
         document.getElementById('secondRiddlePanel').style.display = 'block';
       const thirdRiddlePanel = document.getElementById('thirdRiddlePanel');
@@ -3106,6 +3138,10 @@ try {
       const clueEl = document.getElementById('thirdRiddleClue');
       const panelEl = document.getElementById('thirdRiddlePanel');
       if (!clueEl || !panelEl) return;
+      const titleEl = panelEl.querySelector('.second-riddle-title');
+      if (titleEl && stage === 15) {
+        titleEl.textContent = '🎉 Great work! Final riddle for Stage 15.';
+      }
       clueEl.textContent = clue;
       panelEl.style.display = 'block';
       document.getElementById('secondRiddlePanel').style.display = 'none';
@@ -4217,12 +4253,12 @@ const SECOND_RIDDLE_CLUES = {
     12: "Go to around 7:30 in the video. Watch carefully as we ride in the Uber. Find the Mexican restaurant sign. The name is: El ______ de Mexico. What is the missing Spanish word?",
     13: "Right off the bat, a lot of ________",
     14: "The clue is in the 100-year-old home video in Ome, Japan. Watch carefully after solving the first riddle. The answer comes from the guardian of the house and the _________.",
-    15: "This clue will be given during the live stream"
+    15: 'Watch the video and listen to the song. Find the name, and it will not be long.'
 };
 
   // Stage-specific third riddle clues (currently only Stage 15)
   const THIRD_RIDDLE_CLUES = {
-    15: 'Congratulations, you are one step away from winning 50,000 Turkish Airlines Miles! The live stream will continue until someone wins!'
+    15: 'Congratulations! You are one step away from solving Stage 15 and getting in the running to win 100,000 Turkish Airlines Miles! Watch the recorded livestream. Good morning, Jillian!'
   };
 
 // === SAFE SUPABASE SINGLETON (prevents redeclare crash) ===
