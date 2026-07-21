@@ -4229,6 +4229,11 @@ const ADMIN_EMAIL = 'hola@theaccidentalretiree.mx';
 
 // Stage-specific first riddle clues (shown beneath the video before Step 1 is solved)
 const FIRST_RIDDLE_CLUES = {
+  1:  'The answer is the capital city of Romania. Enter it as one lowercase word.',
+  2:  'The answer is the famous Romanian poet mentioned in the video. Enter his full name as one lowercase word with no spaces.',
+  3:  'The answer is the desert in Jordan featured in the video. Enter it as one lowercase word with no spaces.',
+  4:  'The answer is the full name of the person mentioned in the video. Remove the space between the first and last name and enter it all in lowercase.',
+  5:  'Think about ancient Egypt. The answer is the name of an ancient book mentioned in the video. It begins with: thebook... Enter it as one lowercase word with no spaces.',
     6:  'Think about the longest river in Africa. The answer starts with "theriver____".',
     7:  'This famous bay near Sydney is where Captain Cook first landed in Australia.',
     8:  'This famous explorer charted much of Australia and New Zealand, and he was not a chef. The answer starts with "captain____".',
@@ -4243,7 +4248,7 @@ const FIRST_RIDDLE_CLUES = {
 
 // Stage-specific second riddle clues
 const SECOND_RIDDLE_CLUES = {
-    5: "We slept where Ra's first light awoke, In walls that held the desert's smoke. Seek not the tombs of kings long gone, But the humble door our fate shone on— Three numbers guard the path once more, The code that wakes the chamber door.",
+    5: "We slept where Ra's first light awoke, In walls that held the desert's smoke. Seek not the tombs of kings long gone, But the humble door our fate shone on— Three numbers guard the path once more, The code that wakes the chamber door.\n\n---\n\n**Extra Hint:**\n\nSkip to around **9:45** in the video and watch closely.\n\n---",
     6: "Go to the Stage 6 video and fast forward to about 2:50. We're previewing a breakfast menu. I mention that nothing is better than the countryside butter from a particular town. What is the name of that town?",
     7: "Go to the Stage 7 video. Listen carefully during the first few seconds, then jump ahead to around the 13-minute mark. What was the name of the compression socks and what was the flight number to Helsinki? Put the two together in that order: socks + flight number.",
     8: "Go to around 9 minutes in the Stage 8 video. Look carefully at the barber shop menu. How much would it cost for a hot towel shave and a haircut? Add the two prices together. Format your answer like this: $20. No decimals.",
