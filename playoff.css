@@ -84,6 +84,22 @@ body {
   line-height: 1.6;
 }
 
+.playoff-auth-help a {
+  color: var(--ar-gold);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.16em;
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+
+.playoff-auth-help a:hover,
+.playoff-auth-help a:focus-visible {
+  color: #ffe8ab;
+  text-decoration-color: #ffe8ab;
+  outline: none;
+}
+
 .playoff-auth-detail {
   margin-bottom: 14px;
 }
