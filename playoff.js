@@ -465,7 +465,7 @@
         ? {
           mode: "eliminated",
           cardClass: "playoff-player-state-card--eliminated",
-          title: "😔 So Close! You Finished as a Finalist",
+          title: "😔 So Close!",
           body: [
             "Another finalist submitted the correct answer first.",
             "Making it all the way to the final was an outstanding achievement, and we sincerely appreciate you being part of this special playoff.",
@@ -479,7 +479,7 @@
         : {
           mode: "eliminated",
           cardClass: "playoff-player-state-card--eliminated",
-          title: "Thank You for Playing",
+          title: "😔 So Close!",
           body: [
             "Two other contestants answered correctly before you and advanced to the final.",
             "You had an incredible run, and we truly appreciate you taking part in the Stage 15 Playoff.",
