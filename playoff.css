@@ -1,0 +1,1050 @@
+:root {
+  --ar-bg-dark: #444552;
+  --ar-bg-light: #f2f2f7;
+  --ar-card: #555668;
+  --ar-gold: #f4c770;
+  --ar-red: #e60000;
+  --ar-blue: #1e6dff;
+  --ar-text-main: #ffffff;
+  --ar-text-muted: #d5d5e3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: radial-gradient(circle at 40% 0%, #3c4659 0%, #232a34 45%, #1a2029 100%);
+  color: var(--ar-text-main);
+}
+
+#playoff-app,
+#playoff-admin-app {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.playoff-shell {
+  width: min(680px, 100%);
+  padding: 36px 32px;
+  border-radius: 20px;
+  background: rgba(85, 86, 104, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+
+.playoff-shell--auth {
+  width: min(560px, 100%);
+}
+
+.playoff-auth-card {
+  margin-top: 18px;
+  padding: 28px;
+  border-radius: 18px;
+  background: rgba(12, 15, 20, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  text-align: left;
+}
+
+.playoff-auth-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(244, 199, 112, 0.18);
+  color: #ffe8ab;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.playoff-auth-card h1 {
+  margin: 12px 0 8px;
+  font-size: clamp(1.7rem, 3vw, 2.25rem);
+  line-height: 1.1;
+}
+
+.playoff-auth-intro,
+.playoff-auth-detail,
+.playoff-auth-help {
+  margin: 0 0 8px;
+  color: var(--ar-text-muted);
+  line-height: 1.6;
+}
+
+.playoff-auth-detail {
+  margin-bottom: 14px;
+}
+
+.playoff-auth-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.playoff-auth-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ar-text-main);
+}
+
+.playoff-auth-form input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ar-text-main);
+  font-size: 1rem;
+}
+
+.playoff-auth-form input:focus {
+  outline: 2px solid rgba(244, 199, 112, 0.44);
+  outline-offset: 1px;
+}
+
+.playoff-auth-password-row {
+  display: flex;
+  gap: 8px;
+}
+
+.playoff-auth-password-row input {
+  flex: 1;
+}
+
+.playoff-auth-toggle,
+.playoff-auth-button,
+.playoff-auth-link-button {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.playoff-auth-toggle {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--ar-text-main);
+}
+
+.playoff-auth-button {
+  width: 100%;
+  background: linear-gradient(135deg, var(--ar-gold), #ffdf98);
+  color: #1d1d1f;
+}
+
+.playoff-auth-button:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.playoff-auth-link-button {
+  margin-top: 12px;
+  background: transparent;
+  color: var(--ar-gold);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.playoff-auth-error {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(230, 0, 0, 0.16);
+  border: 1px solid rgba(230, 0, 0, 0.3);
+  color: #ffd6d6;
+  line-height: 1.5;
+}
+
+.playoff-auth-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+@media (max-width: 640px) {
+  .playoff-auth-card {
+    padding: 22px;
+  }
+
+  .playoff-auth-password-row {
+    flex-direction: column;
+  }
+
+  .playoff-auth-toggle {
+    width: 100%;
+  }
+}
+
+.playoff-brand {
+  display: inline-block;
+  margin-bottom: 14px;
+  color: var(--ar-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.playoff-shell h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.playoff-status {
+  margin: 14px 0 0;
+  color: var(--ar-text-muted);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.playoff-status--loading {
+  color: var(--ar-text-main);
+}
+
+.playoff-status--authenticated {
+  color: #d8e7ff;
+}
+
+.playoff-status--unauthenticated {
+  color: #f0d7d7;
+}
+
+.playoff-status--error {
+  color: #ffd6d6;
+}
+
+.playoff-status--host-verified {
+  color: #bff5d4;
+}
+
+.playoff-status--host-unauthorized {
+  color: #ffd0d0;
+}
+
+.playoff-status--authz-error {
+  color: #ffe1bf;
+}
+
+.playoff-status-detail {
+  margin: 8px 0 0;
+  color: var(--ar-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.playoff-panel {
+  margin: 14px 0 0;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(12, 15, 20, 0.28);
+  text-align: left;
+}
+
+.playoff-panel p {
+  margin: 6px 0;
+  color: var(--ar-text-muted);
+  font-size: 0.95rem;
+}
+
+.playoff-prompt {
+  color: var(--ar-text-main);
+  line-height: 1.5;
+}
+
+.playoff-player-state-card--draft,
+.playoff-player-state-card--waiting-room {
+  position: relative;
+  overflow: hidden;
+}
+
+.playoff-player-state-card--draft::before,
+.playoff-player-state-card--waiting-room::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top, rgba(244, 199, 112, 0.16), transparent 52%);
+  pointer-events: none;
+}
+
+.playoff-player-state-card--waiting-room::before {
+  background: radial-gradient(circle at top, rgba(105, 232, 169, 0.14), transparent 52%);
+}
+
+.playoff-player-state-card--waiting-room .playoff-player-state-label {
+  position: relative;
+  padding-left: 18px;
+}
+
+.playoff-player-state-card--waiting-room .playoff-player-state-label::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.35em;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #69e8a9;
+  box-shadow: 0 0 0 0 rgba(105, 232, 169, 0.45);
+  animation: playoff-live-pulse 1.8s ease-in-out infinite;
+}
+
+.playoff-player-state-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--ar-gold);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.playoff-checklist {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.playoff-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ar-text-main);
+  font-size: 0.95rem;
+}
+
+.playoff-checklist li::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--ar-gold);
+  box-shadow: 0 0 0 3px rgba(244, 199, 112, 0.14);
+  flex: 0 0 auto;
+}
+
+.playoff-waiting-room-panel {
+  margin-top: 14px;
+}
+
+.playoff-panel-title {
+  margin: 0 0 10px;
+  color: var(--ar-text-main);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.playoff-waiting-room-list {
+  display: grid;
+  gap: 8px;
+}
+
+.playoff-waiting-room-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.playoff-waiting-room-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(244, 199, 112, 0.16);
+  color: var(--ar-gold);
+  font-weight: 700;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.playoff-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.playoff-avatar--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+
+.playoff-waiting-room-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.playoff-waiting-room-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.playoff-waiting-room-name {
+  color: var(--ar-text-main);
+  font-weight: 700;
+}
+
+.playoff-waiting-room-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.playoff-waiting-room-message {
+  color: var(--ar-text-muted);
+  font-size: 0.92rem;
+}
+
+.playoff-waiting-room-counter {
+  margin: 0 0 10px;
+  color: var(--ar-gold);
+  font-weight: 700;
+}
+
+.playoff-waiting-room-footer {
+  margin: 10px 0 0;
+  color: var(--ar-text-muted);
+  font-size: 0.95rem;
+}
+
+.playoff-pill--gold {
+  border-color: rgba(244, 199, 112, 0.8);
+  background: rgba(244, 199, 112, 0.18);
+  color: #ffe8ab;
+}
+
+.playoff-status--authenticated.playoff-status--live {
+  position: relative;
+}
+
+.playoff-status--authenticated.playoff-status--live::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 999px;
+  background: #69e8a9;
+  box-shadow: 0 0 0 0 rgba(105, 232, 169, 0.45);
+  animation: playoff-live-pulse 1.8s ease-in-out infinite;
+  vertical-align: middle;
+}
+
+@keyframes playoff-live-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(105, 232, 169, 0.45); }
+  70% { box-shadow: 0 0 0 10px rgba(105, 232, 169, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(105, 232, 169, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playoff-status--authenticated.playoff-status--live::before {
+    animation: none;
+  }
+}
+
+.playoff-shell--player {
+  width: min(720px, 100%);
+  text-align: left;
+}
+
+.playoff-player-state-card {
+  margin-top: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.playoff-player-state-card h2 {
+  margin: 8px 0 10px;
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.playoff-player-state-card p {
+  margin: 0 0 8px;
+  color: var(--ar-text-muted);
+  line-height: 1.55;
+}
+
+.playoff-player-state-kicker {
+  margin: 0;
+  color: var(--ar-gold);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.playoff-player-state-card--waiting {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.playoff-player-state-card--success {
+  border-color: rgba(105, 232, 169, 0.4);
+  background: linear-gradient(180deg, rgba(105, 232, 169, 0.12), rgba(255, 255, 255, 0.03));
+}
+
+.playoff-player-state-card--finalist {
+  border-color: rgba(244, 199, 112, 0.52);
+  background: linear-gradient(180deg, rgba(244, 199, 112, 0.18), rgba(255, 255, 255, 0.03));
+}
+
+.playoff-player-state-card--eliminated {
+  border-color: rgba(255, 142, 142, 0.48);
+  background: linear-gradient(180deg, rgba(255, 142, 142, 0.14), rgba(255, 255, 255, 0.03));
+}
+
+.playoff-player-state-card--winner {
+  border-color: rgba(244, 199, 112, 0.9);
+  background:
+    radial-gradient(circle at top, rgba(244, 199, 112, 0.24), transparent 55%),
+    linear-gradient(180deg, rgba(34, 27, 10, 0.92), rgba(18, 20, 28, 0.95));
+  box-shadow:
+    0 0 0 1px rgba(244, 199, 112, 0.18),
+    0 20px 45px rgba(0, 0, 0, 0.38),
+    0 0 42px rgba(244, 199, 112, 0.18);
+}
+
+.playoff-player-state-card--winner h2 {
+  color: #ffe69a;
+  text-shadow: 0 0 18px rgba(244, 199, 112, 0.3);
+}
+
+.playoff-question-panel {
+  margin-top: 14px;
+}
+
+.playoff-feedback-card {
+  margin-top: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 142, 142, 0.44);
+  background: linear-gradient(180deg, rgba(255, 142, 142, 0.12), rgba(255, 255, 255, 0.03));
+  text-align: left;
+}
+
+.playoff-feedback-card__title {
+  margin: 0 0 8px;
+  color: #ffd0d0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.playoff-feedback-card p {
+  margin: 0 0 8px;
+  color: var(--ar-text-muted);
+}
+
+.playoff-feedback-card__button {
+  margin-top: 8px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: #c73f4c;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.playoff-feedback-card__button:focus-visible,
+.playoff-answer-form button:focus-visible,
+.playoff-refresh-btn:focus-visible,
+.playoff-action-btn:focus-visible {
+  outline: 2px solid rgba(244, 199, 112, 0.75);
+  outline-offset: 2px;
+}
+
+.playoff-celebration-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 9999;
+}
+
+.playoff-celebration-burst {
+  position: absolute;
+  inset: 0;
+}
+
+.playoff-confetti-piece {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 16px;
+  margin-left: -5px;
+  margin-top: -8px;
+  background: hsl(var(--confetti-hue) 90% 60%);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) rotate(0deg) scale(var(--confetti-scale, 1));
+  animation: playoff-confetti-fall var(--confetti-duration) cubic-bezier(0.16, 0.84, 0.28, 1) var(--confetti-delay) forwards;
+  will-change: transform, opacity;
+}
+
+.playoff-confetti-piece--diamond {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+
+.playoff-confetti-piece--round {
+  border-radius: 999px;
+}
+
+.playoff-celebration-layer--winner .playoff-confetti-piece {
+  width: 12px;
+  height: 18px;
+}
+
+@keyframes playoff-confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(var(--confetti-scale, 1));
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--confetti-x), calc(-1 * var(--confetti-y)), 0) rotate(var(--confetti-rotate)) scale(calc(var(--confetti-scale, 1) * 0.9));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playoff-celebration-layer {
+    display: none;
+  }
+
+  .playoff-confetti-piece {
+    animation: none;
+  }
+}
+
+.playoff-answer-form {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+  text-align: left;
+}
+
+.playoff-answer-form label {
+  color: var(--ar-text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.playoff-answer-form input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ar-text-main);
+  font-size: 1rem;
+}
+
+.playoff-answer-form input:disabled {
+  opacity: 0.6;
+}
+
+.playoff-answer-form button {
+  width: fit-content;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--ar-blue);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.playoff-answer-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.playoff-feedback {
+  margin: 14px 0 0;
+  color: var(--ar-gold);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.playoff-email {
+  margin: 10px 0 0;
+  color: var(--ar-gold);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.playoff-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 18px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(244, 199, 112, 0.45);
+  background: rgba(244, 199, 112, 0.12);
+  color: var(--ar-gold);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.playoff-shell--admin {
+  width: min(1080px, 100%);
+  text-align: left;
+}
+
+.playoff-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.playoff-admin-banner {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(244, 199, 112, 0.36);
+  background: linear-gradient(180deg, rgba(244, 199, 112, 0.12), rgba(255, 255, 255, 0.03));
+}
+
+.playoff-admin-banner--ready {
+  border-color: rgba(244, 199, 112, 0.5);
+}
+
+.playoff-admin-banner--complete {
+  border-color: rgba(105, 232, 169, 0.45);
+  background: linear-gradient(180deg, rgba(105, 232, 169, 0.12), rgba(255, 255, 255, 0.03));
+}
+
+.playoff-admin-banner h2 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+
+.playoff-admin-banner p {
+  margin: 0;
+  color: var(--ar-text-muted);
+  line-height: 1.5;
+}
+
+.playoff-title-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.playoff-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ar-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.playoff-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #69e8a9;
+  box-shadow: 0 0 0 4px rgba(105, 232, 169, 0.12);
+}
+
+.playoff-live-timestamp {
+  color: rgba(213, 213, 227, 0.72);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .playoff-live-dot {
+    animation: playoff-admin-live-pulse 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes playoff-admin-live-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(105, 232, 169, 0.42); }
+  70% { box-shadow: 0 0 0 8px rgba(105, 232, 169, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(105, 232, 169, 0); }
+}
+
+.playoff-refresh-btn {
+  border: 0;
+  border-radius: 10px;
+  background: var(--ar-blue);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.playoff-refresh-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.playoff-dashboard-block {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(12, 15, 20, 0.28);
+}
+
+.playoff-dashboard-block h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  letter-spacing: 0.01em;
+}
+
+.playoff-dashboard-block--disabled {
+  opacity: 0.85;
+}
+
+.playoff-count-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+}
+
+.playoff-count-card {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.playoff-count-card h3 {
+  margin: 0;
+  color: var(--ar-text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.playoff-count-card p {
+  margin: 8px 0 0;
+  color: var(--ar-text-main);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.playoff-item-list {
+  display: grid;
+  gap: 10px;
+}
+
+.playoff-item-card {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.playoff-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.playoff-item-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.playoff-item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px 12px;
+}
+
+.playoff-item-grid p {
+  margin: 0;
+  color: var(--ar-text-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.playoff-item-grid--summary {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.playoff-question-prompt {
+  margin: 0 0 10px;
+  color: var(--ar-text-main);
+  line-height: 1.45;
+}
+
+.playoff-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ar-text-main);
+  padding: 4px 9px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.playoff-pill--ok {
+  border-color: rgba(105, 232, 169, 0.55);
+  background: rgba(105, 232, 169, 0.18);
+  color: #bbffd8;
+}
+
+.playoff-pill--warning {
+  border-color: rgba(255, 211, 125, 0.55);
+  background: rgba(255, 211, 125, 0.18);
+  color: #ffe6b0;
+}
+
+.playoff-pill--danger {
+  border-color: rgba(255, 142, 142, 0.55);
+  background: rgba(255, 142, 142, 0.18);
+  color: #ffd0d0;
+}
+
+.playoff-pill--muted {
+  border-color: rgba(194, 199, 214, 0.45);
+  background: rgba(194, 199, 214, 0.14);
+  color: #d9deee;
+}
+
+.playoff-disabled-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.playoff-disabled-actions button {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ar-text-main);
+  padding: 8px 11px;
+}
+
+.playoff-empty {
+  margin: 0;
+  color: var(--ar-text-muted);
+}
+
+.playoff-host-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.playoff-action-btn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #fff;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.playoff-action-btn--primary {
+  background: #276fe6;
+}
+
+.playoff-action-btn--pause {
+  background: #8f5a00;
+}
+
+.playoff-action-btn--resume {
+  background: #1f8e58;
+}
+
+.playoff-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.playoff-host-action-feedback {
+  margin: 10px 0 0;
+  color: var(--ar-text-muted);
+}
+
+.playoff-host-action-feedback--success {
+  color: #bff5d4;
+}
+
+.playoff-host-action-feedback--error {
+  color: #ffd6d6;
+}
+
+@media (max-width: 760px) {
+  .playoff-shell--admin {
+    padding: 24px 18px;
+  }
+
+  .playoff-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .playoff-refresh-btn {
+    width: 100%;
+  }
+}
