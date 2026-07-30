@@ -465,10 +465,10 @@
         ? {
           mode: "eliminated",
           cardClass: "playoff-player-state-card--eliminated",
-          title: "You Made It to the Final",
+          title: "😔 So Close!",
           body: [
             "Another finalist submitted the correct answer first.",
-            "Reaching the final was an outstanding achievement, and we sincerely appreciate you being part of this special playoff.",
+            "Making it all the way to the final was an outstanding achievement, and we sincerely appreciate you being part of this special playoff.",
             "Remember, you are still in the running to win the Stage 16 Grand Prize of 100,000 Turkish Airlines Miles.",
             "Thank you for playing the Six Continents Challenge!"
           ],
