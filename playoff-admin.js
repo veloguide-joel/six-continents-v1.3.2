@@ -73,7 +73,10 @@
     lastRenderedHostStateKey: "",
     lastUpdatedLabel: "",
     lastAutoCompletedAction: "",
-    lastAutoCompletedStatus: ""
+    lastAutoCompletedStatus: "",
+    authSubmitting: false,
+    authError: "",
+    authEmail: ""
   };
 
   root.addEventListener("click", (event) => {
@@ -511,6 +514,71 @@
       || hint.includes("permission");
   }
 
+  function renderAuthView() {
+    root.innerHTML = `
+      <main class="playoff-shell" aria-label="Playoff admin authentication shell">
+        <div class="playoff-brand">The Accidental Retiree</div>
+        <h1>Live Playoff Host Console</h1>
+        <p class="playoff-status playoff-status--unauthenticated">Sign in to continue.</p>
+        <form id="playoff-admin-auth-form" class="playoff-answer-form" novalidate>
+          <label for="playoff-admin-email">Email</label>
+          <input id="playoff-admin-email" name="email" type="email" autocomplete="email" value="${escapeHtml(state.authEmail)}" required>
+          <label for="playoff-admin-password">Password</label>
+          <input id="playoff-admin-password" name="password" type="password" autocomplete="current-password" required>
+          <button type="submit">${state.authSubmitting ? "Signing in..." : "Sign In"}</button>
+        </form>
+        ${state.authError ? `<p class="playoff-status playoff-status--error">${escapeHtml(state.authError)}</p>` : ""}
+        <div class="playoff-badge">DEVELOPMENT SHELL</div>
+      </main>
+    `;
+
+    const form = document.getElementById("playoff-admin-auth-form");
+    if (form) {
+      form.addEventListener("submit", handleAuthSubmit);
+    }
+  }
+
+  async function handleAuthSubmit(event) {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const emailInput = form?.querySelector('input[name="email"]');
+    const passwordInput = form?.querySelector('input[name="password"]');
+    const email = String(emailInput?.value || "").trim();
+    const password = String(passwordInput?.value || "").trim();
+
+    if (!email || !password) {
+      state.authError = "Enter your email address and password to continue.";
+      renderAuthView();
+      return;
+    }
+
+    state.authSubmitting = true;
+    state.authError = "";
+    state.authEmail = email;
+    renderAuthView();
+
+    try {
+      const signInData = await api.signInWithPassword(email, password);
+      state.session = signInData?.session || null;
+      if (!state.session?.user) {
+        throw new Error("Sign in did not return an authenticated session.");
+      }
+
+      state.status = "loading";
+      state.message = "Checking your session...";
+      state.loading = true;
+      await initialize();
+    } catch (error) {
+      state.authError = sanitizeErrorMessage(error);
+      state.status = "unauthenticated";
+      state.loading = false;
+      renderAuthView();
+    } finally {
+      state.authSubmitting = false;
+    }
+  }
+
   function renderDashboard() {
     const hostData = state.hostData;
     const event = hostData?.event || {};
@@ -701,10 +769,7 @@
 
   function renderCurrentView() {
     if (state.status === "unauthenticated") {
-      renderShell(
-        "playoff-status--unauthenticated",
-        "Sign in through the main Six Continents game before opening this page."
-      );
+      renderAuthView();
       return;
     }
 
