@@ -767,8 +767,9 @@
       state.lastStateScore = 0;
       state.feedback = "";
       state.incorrectFeedback = null;
-      setAuthUi("signin", "Welcome to the Stage 15 Playoff", "Sign in with the email address that received this invitation.", "Your invitation has already been detected. After signing in, you will enter the playoff automatically.", { isError: false, showSignOut: false });
-      renderApp();
+      stopPolling();
+      const invite = state.inviteToken ? `?invite=${encodeURIComponent(state.inviteToken)}` : "";
+      window.location.replace(`/playoff.html${invite}`);
     }
   };
 
@@ -961,7 +962,10 @@
       <main class="playoff-shell playoff-shell--player" aria-label="Live Playoff player shell">
         <div class="playoff-brand">The Accidental Retiree</div>
         <h1>Live Playoff</h1>
-        <p class="playoff-email">${emailText}</p>
+        <div class="playoff-header-row playoff-header-row--player">
+          <p class="playoff-email">${emailText}</p>
+          <button type="button" id="playoff-logout-btn" class="playoff-auth-link-button">Logout</button>
+        </div>
         <section class="playoff-player-state-card ${presentation.cardClass}" aria-label="Player status">
           <p class="playoff-player-state-kicker">${eventName}</p>
           ${presentation.label ? `<p class="playoff-player-state-label">${presentation.label}</p>` : ""}
@@ -1059,6 +1063,11 @@
           window.requestAnimationFrame(() => input.focus());
         }
       });
+    }
+
+    const logoutButton = document.getElementById("playoff-logout-btn");
+    if (logoutButton) {
+      logoutButton.addEventListener("click", handleSignOut);
     }
   };
 
