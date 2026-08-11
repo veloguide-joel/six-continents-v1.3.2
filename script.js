@@ -2289,6 +2289,10 @@ async function hardSignOut(e) {
 // ===== END HEADER AUTH UI WIRING =====
 
 // CRITICAL FIX: Complete validation function with proper API integration
+function normalizeAnswerValue(value) {
+    return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
 async function validateAnswer(stage, step, answer) {
     if (DEBUG) console.log(`[VALIDATE] Validating stage ${stage}, step ${step}, answer: ${answer}`);
 
@@ -2303,7 +2307,7 @@ async function validateAnswer(stage, step, answer) {
             body: JSON.stringify({
                 stage: stage,
                 step: step,
-                answer: answer.toLowerCase().trim()
+                answer: answer
             })
         });
 
@@ -2330,7 +2334,7 @@ async function validateAnswer(stage, step, answer) {
 
 // Local fallback validation
 function validateAnswerLocal(stage, step, answer) {
-    const cleanAnswer = answer.toLowerCase().trim();
+    const cleanAnswer = normalizeAnswerValue(answer);
     
     // Basic validation for known answers
     const knownAnswers = {
@@ -2341,10 +2345,11 @@ function validateAnswerLocal(stage, step, answer) {
     };
     
     if (knownAnswers[stage] && knownAnswers[stage][step]) {
+        const expectedAnswer = normalizeAnswerValue(knownAnswers[stage][step]);
         return {
             success: true,
-            correct: cleanAnswer === knownAnswers[stage][step],
-            message: cleanAnswer === knownAnswers[stage][step] ? 'Correct!' : 'Incorrect answer'
+            correct: cleanAnswer === expectedAnswer,
+            message: cleanAnswer === expectedAnswer ? 'Correct!' : 'Incorrect answer'
         };
     }
     
@@ -2381,7 +2386,18 @@ function showSolveCelebrationModal(stageNumber, { isMasterStage = false, isStage
     }
 
     // Set content based on stage and winner status
-    if (isMasterStage) {
+    if (stageNumber === 16) {
+        title.textContent = '🏆 You’re In the Grand Finale!';
+        body.innerHTML = [
+            '<p>Congratulations! You completed Stage 16 and earned your place in the Grand Finale Playoff.</p>',
+            '<p>Live from Istanbul, Turkey — Sunday, September 6</p>',
+            '<p>Start time to be announced.</p>',
+            '<p>We’ll see you in the Final!</p>'
+        ].join('');
+        if (primaryBtn) {
+            primaryBtn.textContent = 'Continue to Finale Details';
+        }
+    } else if (isMasterStage) {
         title.textContent = 'You cracked the Master Stage!';
         body.textContent = "You've completed the journey. If you're the grand prize winner, we'll contact you with next steps.";
     } else if (stageNumber === 15 && isStageWinner) {
@@ -2729,10 +2745,13 @@ try {
         // Step 2: Save to database (async, don't block UI updates) and capture winner status
         let isStageWinner = false;
         let persistedSolve = false;
+        const solveStep = Number.isFinite(Number(this.currentStep)) && Number(this.currentStep) > 0
+          ? Number(this.currentStep)
+          : 1;
         if (leaderboardManager) {
             console.log(`[ADVANCE] Attempting to save stage ${stage} to database...`);
             try {
-                const result = await leaderboardManager.logSolve(stage, this.currentStep);
+                const result = await leaderboardManager.logSolve(stage, solveStep);
                 if (result.success) {
                     console.log(`[ADVANCE] Database save successful for stage ${stage}:`, result.reason || 'saved');
                     isStageWinner = result.isStageWinner || false;
@@ -2816,7 +2835,11 @@ try {
         const stage16ProgressUnlocked = this.isStage16UnlockedByProgress();
         const stage16Unlocked = stage16AdminEnabled && stage16ProgressUnlocked;
 
-        if (stage === 15 && !stage16ProgressUnlocked) {
+        if (stage === 16) {
+          console.log('[ADVANCE] Stage 16 solved; rendering the solved success state immediately');
+          this.currentStage = 16;
+          await this.renderCurrentStage();
+        } else if (stage === 15 && !stage16ProgressUnlocked) {
           console.log('[ADVANCE] Stage 15 solved but earlier stages remain unsolved; Stage 16 stays locked');
           this.currentStage = 15;
           this.renderCurrentStage();
@@ -2915,13 +2938,29 @@ try {
       const thirdRiddlePanel = document.getElementById('thirdRiddlePanel');
       if (thirdRiddlePanel) thirdRiddlePanel.style.display = 'none';
         document.getElementById('successPanel').style.display = 'none';
-        document.getElementById('errorMessage').style.display = 'none';
+        this.clearFirstRiddleFeedback();
         document.getElementById('secondRiddleError').style.display = 'none';
       const thirdRiddleError = document.getElementById('thirdRiddleError');
       if (thirdRiddleError) thirdRiddleError.style.display = 'none';
         document.getElementById('stageDisabledPanel').style.display = 'none';
         const firstClueBox = document.getElementById('firstRiddleClue');
         if (firstClueBox) firstClueBox.style.display = 'none';
+    }
+
+    clearFirstRiddleFeedback() {
+        const errorMessage = document.getElementById('errorMessage');
+        if (errorMessage) {
+            errorMessage.style.display = 'none';
+            errorMessage.textContent = '';
+        }
+    }
+
+    showFirstRiddleFeedback(message = "That's not it. Watch & listen again 👀") {
+        const errorMessage = document.getElementById('errorMessage');
+        if (errorMessage) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
     }
 
     // Validation methods
@@ -2944,9 +2983,19 @@ try {
         if (stageInstructions && !stageInstructions.dataset.defaultText) {
           stageInstructions.dataset.defaultText = stageInstructions.textContent.trim();
         }
-        if (stageInstructions && this.currentStage !== 16) {
-          stageInstructions.classList.remove('stage16-video-intro');
-          stageInstructions.textContent = stageInstructions.dataset.defaultText || stageInstructions.textContent;
+        if (stageInstructions) {
+          if (this.currentStage === 16) {
+            stageInstructions.classList.add('stage16-finale-instructions');
+            stageInstructions.innerHTML = [
+              '<div class="stage16-finale-headline">🎉 Congratulations — You Made It to Stage 16!</div>',
+              '<div class="stage16-finale-subhead">One final clue stands between you and the Grand Finale.</div>',
+              '<div class="stage16-finale-body">Watch the video and answer the clue below to be entered into the <strong>Grand Finale Playoff</strong>, held live from <strong>Istanbul, Turkey</strong> — <strong>Sunday, September 6</strong>.</div>',
+              '<div class="stage16-finale-footnote">Start time to be announced.</div>'
+            ].join('');
+          } else {
+            stageInstructions.classList.remove('stage16-video-intro', 'stage16-finale-instructions');
+            stageInstructions.textContent = stageInstructions.dataset.defaultText || stageInstructions.textContent;
+          }
         }
 
         const stageSuccessPanel = document.getElementById('successPanel');
@@ -2980,53 +3029,13 @@ try {
             document.getElementById('currentVideo').src = `https://www.youtube.com/embed/${stageConfig.yt}`;
         }
 
-        if (this.currentStage === 16) {
-          if (stageInstructions) {
-            stageInstructions.classList.add('stage16-video-intro');
-            stageInstructions.innerHTML = '<h2>🎥 Watch this video very carefully.</h2>' +
-              '<p>The answers to the future <span class="live-stream">LIVE Stream</span> clues<br>are hidden in this video.</p>' +
-              '<p>Pay close attention-you\'ll need them for your chance to win</p>' +
-              '<p class="grand-prize">100,000 Turkish Airlines Miles!</p>';
-          }
-
-          document.getElementById('inputSection').style.display = 'none';
-          document.getElementById('errorMessage').style.display = 'none';
-          document.getElementById('secondRiddlePanel').style.display = 'none';
-          const thirdPanel = document.getElementById('thirdRiddlePanel');
-          if (thirdPanel) thirdPanel.style.display = 'none';
-          const clueBox = document.getElementById('firstRiddleClue');
-          if (clueBox) clueBox.style.display = 'none';
-
-          const successPanel = document.getElementById('successPanel');
-          const successTitle = successPanel ? successPanel.querySelector('.success-title') : null;
-          const successText = document.getElementById('successText');
-          const continueBtn = document.getElementById('continueBtn');
-
-          if (successPanel) {
-            successPanel.classList.add('stage16-placeholder');
-          }
-          if (successTitle) {
-            successTitle.textContent = '🎉 Congratulations on making it to Stage 16! 🎉';
-          }
-          if (successText) {
-            successText.innerHTML = '<p class="stage16-placeholder-prize">You now have a chance to win 100,000 Turkish Airlines Miles.</p>' +
-              '<p class="stage16-placeholder-note">Stay tuned for the announcement of the Live Stream date where the clues will be given.</p>';
-          }
-          if (continueBtn) {
-            continueBtn.style.display = 'none';
-          }
-          if (successPanel) {
-            successPanel.style.display = 'block';
-          }
-          return;
-        }
-
         // Render Fast Track badge if applicable
         renderFastTrackBadge(this.currentStage);
         
         // Show appropriate input section
         if (this.isSolved(this.currentStage)) {
             // Stage already solved, show success
+            this.clearFirstRiddleFeedback();
             this.showSuccess(this.currentStage);
         } else if (this.hasMultipleRiddles(this.currentStage)) {
           // Check if step progress was already solved (from DB solves rows)
@@ -3077,9 +3086,32 @@ try {
         
         const successText = document.getElementById('successText');
         const continueBtn = document.getElementById('continueBtn');
-        if (continueBtn) continueBtn.style.display = '';
+        const successPanel = document.getElementById('successPanel');
+        const successTitle = successPanel ? successPanel.querySelector('.success-title') : null;
         
-        if (nextSequentialStage && nextSequentialStage <= CONFIG.total) {
+        if (successPanel) {
+            successPanel.classList.toggle('stage16-solved-success', stage === 16);
+            if (stage !== 16) {
+                successPanel.classList.remove('stage16-solved-success');
+            }
+        }
+        
+        if (stage === 16) {
+            if (successTitle) {
+                successTitle.style.display = 'none';
+            }
+            successText.innerHTML = [
+              '<div class="stage16-success-headline">🏆 You’re In!</div>',
+              '<div class="stage16-success-body">Congratulations! You completed Stage 16 and earned your place in the <strong>Grand Finale Playoff</strong>.</div>',
+              '<div class="stage16-success-body">Live from <strong>Istanbul, Turkey</strong> — <strong>Sunday, September 6</strong>.</div>',
+              '<div class="stage16-success-footnote">Start time to be announced. Stay tuned! We’ll share the official start time and Grand Finale details soon.</div>'
+            ].join('');
+            if (continueBtn) {
+                continueBtn.style.display = 'none';
+                continueBtn.onclick = null;
+            }
+        } else if (nextSequentialStage && nextSequentialStage <= CONFIG.total) {
+            if (continueBtn) continueBtn.style.display = '';
             successText.textContent = `Stage ${stage} complete! Ready for the next challenge?`;
             // Label shows next sequential stage
             continueBtn.textContent = `Continue to Stage ${nextSequentialStage}`;
@@ -3090,6 +3122,7 @@ try {
                 this.renderCurrentStage();
             };
         } else {
+            if (continueBtn) continueBtn.style.display = '';
             successText.textContent = `Congratulations! You've completed all stages!`;
             continueBtn.textContent = 'View Your Achievement';
             continueBtn.onclick = () => this.renderGrandPrize();
@@ -3525,7 +3558,7 @@ try {
             if (result.correct) {
                 // Clear input
               if (answerInput) answerInput.value = '';
-                document.getElementById('errorMessage').style.display = 'none';
+                this.clearFirstRiddleFeedback();
                 // Reset wrong-attempt counter on success
                 try { resetWrongAttempts(); } catch (e) { /* noop if not available */ }
                 
@@ -3569,11 +3602,19 @@ try {
                     document.getElementById('inputSection').style.display = 'none';
                 } else {
                     // Single riddle stage - mark as completely solved
+                    this.currentStep = 1;
                     await this.markStageSolvedAndAdvance(this.currentStage);
                 }
             } else {
                 // Show error
-                document.getElementById('errorMessage').style.display = 'block';
+                this.showFirstRiddleFeedback();
+                if (this.currentStage === 16 && answerInput) {
+                    answerInput.value = '';
+                    answerInput.focus();
+                    if (typeof answerInput.setSelectionRange === 'function') {
+                        answerInput.setSelectionRange(0, 0);
+                    }
+                }
                 try {
                     const attempts = incrementWrongAttempts();
                     if (attempts === 2) {
@@ -3589,7 +3630,14 @@ try {
             }
         } catch (error) {
             console.error('Validation error:', error);
-            document.getElementById('errorMessage').style.display = 'block';
+            this.showFirstRiddleFeedback();
+            if (this.currentStage === 16 && answerInput) {
+                answerInput.value = '';
+                answerInput.focus();
+                if (typeof answerInput.setSelectionRange === 'function') {
+                    answerInput.setSelectionRange(0, 0);
+                }
+            }
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = 'Submit';
@@ -4243,7 +4291,8 @@ const FIRST_RIDDLE_CLUES = {
     12: 'This U.S. president shares his name with many famous hotels.',
     13: 'That sake was straight out of the _______.',
     14: 'This fictitious WWE wrestler once lived in Winnipeg. He was known as the ___________.',
-    15: 'Joel is the proud owner of a new ________ bag.'
+    15: 'Joel is the proud owner of a new ________ bag.',
+    16: 'We were asked to go back to our room because this animal was very close. It was an ____________.'
 };
 
 // Stage-specific second riddle clues
