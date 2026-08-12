@@ -481,7 +481,7 @@
           cardClass: "playoff-player-state-card--eliminated",
           title: "😔 So Close!",
           body: [
-            "Two other contestants answered correctly before you and advanced to the final.",
+            "Other contestants answered correctly before you and advanced to the final.",
             "You had an incredible run, and we truly appreciate you taking part in the Stage 15 Playoff.",
             "You are still in the running for the Stage 16 100,000 Turkish Airlines Miles Grand Prize.",
             "Thanks for playing the Six Continents Challenge!"
@@ -499,7 +499,7 @@
         title: "You’re in the Final!",
         label: "Waiting for the Final Round",
         body: [
-          "Congratulations — you secured one of the two finalist positions.",
+          "Congratulations — you secured one of the finalist positions.",
           "Your answer was accepted and your finalist place is confirmed.",
           "Please keep this page open. The final round will appear here automatically when the host begins Round 3."
         ],
