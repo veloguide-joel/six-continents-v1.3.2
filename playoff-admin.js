@@ -985,7 +985,7 @@
     const eventStatusLower = normalizeStatus(eventStatus).toLowerCase();
     const isSetupEditable = eventStatusLower === "draft";
     const canRunFullReset = eventStatusLower === "waiting_for_players";
-    const canRestartCurrentRound = eventStatusLower === "question_1_open";
+    const canRestartCurrentRound = eventStatusLower === "question_1_open" || eventStatusLower === "question_2_open";
     const recoveryFeedbackMarkup = state.recoveryFeedback
       ? `<p class="playoff-recovery-feedback ${state.recoveryFeedbackType === "error" ? "playoff-recovery-feedback--error" : state.recoveryFeedbackType === "success" ? "playoff-recovery-feedback--success" : ""}">${escapeHtml(state.recoveryFeedback)}</p>`
       : "";
@@ -1256,7 +1256,7 @@
               </div>`
             : ""}
           ${!canRunFullReset && !canRestartCurrentRound
-            ? '<p class="playoff-status-detail">Full Reset Event is currently available only while the event is waiting for players. Restart Current Round is currently available only while Round 1 is open.</p>'
+            ? '<p class="playoff-status-detail">Full Reset Event is currently available only while the event is waiting for players. Restart Current Round is currently available only while Round 1 or Round 2 is open.</p>'
             : ""}
         </section>
       </main>
@@ -1441,17 +1441,32 @@
       const entered = window.prompt(confirmationText);
       if (entered === null || String(entered).trim().toUpperCase() !== "RESET") return;
     } else {
-      const confirmationText = [
-        "RESTART ROUND 1?",
-        "",
-        "All Round 1 submissions and Round 1 advancement results will be erased.",
-        "",
-        "All joined players will return to Round 1 and can answer again.",
-        "",
-        "Questions, advancement settings and player account bindings will be preserved.",
-        "",
-        "This does NOT affect Six Continents game solves or stage progress."
-      ].join("\n");
+      const currentStatus = normalizeStatus(state.hostData?.event?.status || "").toLowerCase();
+      const confirmationText = currentStatus === "question_2_open"
+        ? [
+          "RESTART ROUND 2?",
+          "",
+          "All Round 2 submissions and Round 2 advancement results will be erased.",
+          "",
+          "Round 1 results and qualifiers will be preserved.",
+          "",
+          "All Round 1 qualifiers will return to Round 2 and can answer again.",
+          "",
+          "Questions, advancement settings and player account bindings will be preserved.",
+          "",
+          "This does NOT affect Six Continents game solves or stage progress."
+        ].join("\n")
+        : [
+          "RESTART ROUND 1?",
+          "",
+          "All Round 1 submissions and Round 1 advancement results will be erased.",
+          "",
+          "All joined players will return to Round 1 and can answer again.",
+          "",
+          "Questions, advancement settings and player account bindings will be preserved.",
+          "",
+          "This does NOT affect Six Continents game solves or stage progress."
+        ].join("\n");
 
       const confirmed = window.confirm(confirmationText);
       if (!confirmed) return;
@@ -1475,7 +1490,9 @@
       state.refreshNotice = `Last refresh: ${formatDateTime(new Date().toISOString())}`;
       const nextStatus = normalizeStatus(payload?.event?.status || "").toLowerCase();
       if (action === "restart_current_round") {
-        state.recoveryFeedback = "Round 1 restarted. All joined players can answer again.";
+        state.recoveryFeedback = nextStatus === "question_2_open"
+          ? "Round 2 restarted. Round 1 qualifiers can answer again."
+          : "Round 1 restarted. All joined players can answer again.";
       } else {
         state.recoveryFeedback = nextStatus === "draft"
           ? "Full reset completed. Event returned to draft."
