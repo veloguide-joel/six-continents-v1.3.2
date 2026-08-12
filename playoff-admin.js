@@ -2,7 +2,7 @@
 
 (() => {
   const DEFAULT_EVENT_ID = "591ec441-e182-46b5-82d5-345c7d9c82c0";
-  const REQUIRED_API_METHODS = ["getSession", "getHostState"];
+  const REQUIRED_API_METHODS = ["getSession", "getHostState", "configureQuestions"];
   const ACTIONS_BY_STATUS = {
     draft: ["start_waiting"],
     waiting_for_players: ["open_round_1", "pause"],
@@ -84,7 +84,15 @@
     eventTargetId: DEFAULT_EVENT_ID,
     eventTargetMode: "production",
     eventTargetValid: true,
-    eventTargetError: ""
+    eventTargetError: "",
+    setupSaveLoading: false,
+    setupFeedback: "",
+    setupFeedbackType: "",
+    setupDirty: false,
+    setupForm: {
+      q1Limit: "",
+      q2Limit: ""
+    }
   };
 
   root.addEventListener("click", (event) => {
@@ -95,6 +103,8 @@
       void refreshHostState();
       return;
     }
+
+    if (target.closest("[data-setup-form]")) return;
 
     if (target.dataset.hostAction) {
       void executeHostAction(target.dataset.hostAction);
@@ -288,6 +298,120 @@
       advancement_mode: effectiveMode,
       advance_limit: effectiveMode === "first_n" ? effectiveLimit : null
     };
+  }
+
+  function normalizeSetupMode(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    return normalized === "first_n" ? "first_n" : "all_correct";
+  }
+
+  function isSetupFormActive() {
+    const active = document.activeElement;
+    return Boolean(active && active.closest?.("[data-setup-form]"));
+  }
+
+  function formatSetupModeLabel(mode) {
+    return normalizeSetupMode(mode) === "first_n" ? "First N" : "All Correct";
+  }
+
+  function getJoinedParticipantCount(hostData) {
+    const participants = Array.isArray(hostData?.participants) ? hostData.participants : [];
+    return participants.filter((participant) => Boolean(participant?.joined)).length;
+  }
+
+  function isEventSetupEditable() {
+    return normalizeStatus(state.hostData?.event?.status, "").toLowerCase() === "draft";
+  }
+
+  function updateSetupLimitControl(roundNumber, limitValue) {
+    const inputId = roundNumber === 2 ? "playoff-setup-q2-limit" : "playoff-setup-q1-limit";
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    const isEditable = isEventSetupEditable();
+    input.disabled = !isEditable;
+
+    if (!isEditable) {
+      return;
+    }
+
+    const nextValue = String(limitValue ?? "").trim();
+    input.value = nextValue;
+  }
+
+  function syncSetupFormFromHostData(hostData, { force = false } = {}) {
+    if (!force && (state.setupSaveLoading || state.setupDirty)) return;
+
+    const q1Config = getQuestionConfig(hostData, 1);
+    const q2Config = getQuestionConfig(hostData, 2);
+    state.setupForm = {
+      q1Limit: q1Config?.advancement_mode === "first_n" && Number.isFinite(Number(q1Config?.advance_limit)) && Number(q1Config.advance_limit) > 0
+        ? String(q1Config.advance_limit)
+        : "",
+      q2Limit: q2Config?.advancement_mode === "first_n" && Number.isFinite(Number(q2Config?.advance_limit)) && Number(q2Config.advance_limit) > 0
+        ? String(q2Config.advance_limit)
+        : ""
+    };
+
+    if (!state.setupSaveLoading) {
+      updateSetupLimitControl(1, state.setupForm.q1Limit);
+      updateSetupLimitControl(2, state.setupForm.q2Limit);
+    }
+  }
+
+  function getSetupConfigFromForm() {
+    const q1LimitRaw = String(state.setupForm.q1Limit || "").trim();
+    const q2LimitRaw = String(state.setupForm.q2Limit || "").trim();
+    const q1Limit = Number(q1LimitRaw);
+    const q2Limit = Number(q2LimitRaw);
+
+    return {
+      q1Mode: "first_n",
+      q1Limit: Number.isInteger(q1Limit) && q1Limit > 0 ? q1Limit : null,
+      q2Mode: "first_n",
+      q2Limit: Number.isInteger(q2Limit) && q2Limit > 0 ? q2Limit : null
+    };
+  }
+
+  function validateSetupForm() {
+    const config = getSetupConfigFromForm();
+    if (config.q1Limit === null) {
+      return "Round 1 requires a positive player limit.";
+    }
+
+    if (config.q2Limit === null) {
+      return "Round 2 requires a positive player limit.";
+    }
+
+    return "";
+  }
+
+  function getSetupWarningMessage(hostData) {
+    const config = getSetupConfigFromForm();
+    const joinedCount = getJoinedParticipantCount(hostData);
+    const warnings = [];
+
+    if (config.q1Limit !== null && config.q1Limit > joinedCount) {
+      warnings.push("Round 1 limit is greater than the number of players currently joined.");
+    }
+
+    if (config.q2Limit !== null && config.q2Limit > joinedCount) {
+      warnings.push("Round 2 limit is greater than the number of players currently joined.");
+    }
+
+    return warnings[0] || "";
+  }
+
+  function getSetupConfirmationMessage(config) {
+    return [
+      "Save playoff event setup?",
+      "",
+      `Round 1: First ${config.q1Limit} advance`,
+      `Round 2: First ${config.q2Limit} advance`,
+      "Round 3: First correct finalist wins",
+      "",
+      "These settings will lock once the event begins."
+    ].join("\n");
   }
 
   function getUniqueCorrectParticipantIds(submissions, questionNumber) {
@@ -756,6 +880,75 @@
     }
   }
 
+  function handleSetupFieldInput(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+
+    if (target.id === "playoff-setup-q1-limit") {
+      state.setupForm.q1Limit = target.value;
+      state.setupDirty = true;
+    } else if (target.id === "playoff-setup-q2-limit") {
+      state.setupForm.q2Limit = target.value;
+      state.setupDirty = true;
+    }
+  }
+
+  function attachSetupHandlers() {
+    const form = document.getElementById("playoff-event-setup-form");
+    if (form) {
+      form.removeEventListener("input", handleSetupFieldInput);
+      form.removeEventListener("change", handleSetupFieldInput);
+      form.addEventListener("input", handleSetupFieldInput);
+      form.addEventListener("change", handleSetupFieldInput);
+    }
+  }
+
+  async function handleSetupSubmit(event) {
+    event.preventDefault();
+    if (state.setupSaveLoading || !state.hostData) return;
+
+    const validationError = validateSetupForm();
+    if (validationError) {
+      state.setupFeedback = validationError;
+      state.setupFeedbackType = "error";
+      renderView();
+      return;
+    }
+
+    const config = getSetupConfigFromForm();
+    const confirmed = window.confirm(getSetupConfirmationMessage(config));
+    if (!confirmed) return;
+
+    state.setupSaveLoading = true;
+    state.setupFeedback = "Saving event setup...";
+    state.setupFeedbackType = "info";
+    renderView();
+
+    try {
+      const payload = await api.configureQuestions(getActiveEventId(), config);
+      if (!payload || payload.ok !== true) {
+        throw new Error("Event setup RPC did not return a successful state payload.");
+      }
+
+      updateHostStateFromPayload(payload, { force: true });
+      syncSetupFormFromHostData(state.hostData, { force: true });
+      state.setupDirty = false;
+      state.setupFeedback = "Event setup saved.";
+      state.setupFeedbackType = "success";
+      state.refreshNotice = `Last refresh: ${formatDateTime(new Date().toISOString())}`;
+      renderView();
+    } catch (error) {
+      state.setupFeedback = sanitizeErrorMessage(error);
+      state.setupFeedbackType = "error";
+      console.error("Event setup save failed:", error);
+    } finally {
+      state.setupSaveLoading = false;
+      state.pollSuspended = false;
+      scheduleNextPoll();
+      renderCurrentView();
+    }
+  }
+
   function renderDashboard() {
     const hostData = state.hostData;
     const event = hostData?.event || {};
@@ -773,6 +966,19 @@
       ? `<div class="playoff-live-indicator" aria-label="Live updates on"><span class="playoff-live-dot" aria-hidden="true"></span><span>Live updates on</span><span class="playoff-live-timestamp">Last updated: ${escapeHtml(state.lastUpdatedLabel || formatLiveTimestamp())}</span></div>`
       : "";
     const readyBanner = getReadyBanner(hostData);
+    const eventStatusLower = normalizeStatus(eventStatus).toLowerCase();
+    const isSetupEditable = eventStatusLower === "draft";
+    const setupFeedbackMarkup = state.setupFeedback
+      ? `<p class="playoff-setup-feedback ${state.setupFeedbackType === "error" ? "playoff-setup-feedback--error" : state.setupFeedbackType === "success" ? "playoff-setup-feedback--success" : ""}">${escapeHtml(state.setupFeedback)}</p>`
+      : "";
+    const setupWarningMarkup = getSetupWarningMessage(hostData)
+      ? `<p class="playoff-setup-warning">${escapeHtml(getSetupWarningMessage(hostData))}</p>`
+      : "";
+    const q1Config = getQuestionConfig(hostData, 1);
+    const q2Config = getQuestionConfig(hostData, 2);
+    const setupLockedMessage = isSetupEditable
+      ? ""
+      : `<p class="playoff-setup-locked">Event setup is locked after the event begins.</p>`;
 
     const refreshDisabled = (state.loading || state.actionLoading) ? "disabled" : "";
     const refreshText = state.loading ? "Refreshing..." : "Refresh State";
@@ -949,6 +1155,63 @@
           <div class="playoff-item-list">${submissionRows}</div>
         </section>
 
+        <section class="playoff-dashboard-block" aria-label="Event setup">
+          <h2>Event Setup</h2>
+          <div class="playoff-setup-summary">
+            <p class="playoff-setup-summary__title">Current server configuration</p>
+            <p class="playoff-setup-summary__row">Round 1: ${escapeHtml(formatSetupModeLabel(q1Config.advancement_mode))}${q1Config.advancement_mode === "first_n" && q1Config.advance_limit !== null ? ` · ${q1Config.advance_limit} players` : ""}</p>
+            <p class="playoff-setup-summary__row">Round 2: ${escapeHtml(formatSetupModeLabel(q2Config.advancement_mode))}${q2Config.advancement_mode === "first_n" && q2Config.advance_limit !== null ? ` · ${q2Config.advance_limit} players` : ""}</p>
+            <p class="playoff-setup-summary__row">Round 3: First correct finalist wins · 1 winner</p>
+          </div>
+          <form id="playoff-event-setup-form" class="playoff-setup-form" data-setup-form="true" novalidate>
+            <div class="playoff-setup-card">
+              <div class="playoff-setup-row">
+                <div class="playoff-setup-copy">
+                  <h3>Round 1</h3>
+                  <p>Enter how many players should advance from this round.</p>
+                </div>
+                <div class="playoff-setup-controls">
+                  <label class="playoff-setup-field" for="playoff-setup-q1-limit">
+                    <span>Players Advancing</span>
+                    <input id="playoff-setup-q1-limit" data-setup-control="q1-limit" type="number" min="1" step="1" value="${escapeHtml(state.setupForm.q1Limit || "")}" ${isSetupEditable ? "" : "disabled"}>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div class="playoff-setup-card">
+              <div class="playoff-setup-row">
+                <div class="playoff-setup-copy">
+                  <h3>Round 2</h3>
+                  <p>Enter how many players should advance from this round.</p>
+                </div>
+                <div class="playoff-setup-controls">
+                  <label class="playoff-setup-field" for="playoff-setup-q2-limit">
+                    <span>Players Advancing</span>
+                    <input id="playoff-setup-q2-limit" data-setup-control="q2-limit" type="number" min="1" step="1" value="${escapeHtml(state.setupForm.q2Limit || "")}" ${isSetupEditable ? "" : "disabled"}>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div class="playoff-setup-card playoff-setup-card--readonly">
+              <div class="playoff-setup-row">
+                <div class="playoff-setup-copy">
+                  <h3>Round 3</h3>
+                  <p>First correct finalist wins.</p>
+                </div>
+                <div class="playoff-setup-readonly">
+                  <p>1 winner</p>
+                </div>
+              </div>
+            </div>
+            ${setupLockedMessage}
+            ${setupWarningMarkup}
+            ${setupFeedbackMarkup}
+            <div class="playoff-setup-actions">
+              <button id="playoff-setup-save" class="playoff-action-btn playoff-action-btn--primary" type="submit" ${isSetupEditable && !state.setupSaveLoading ? "" : "disabled"}>${state.setupSaveLoading ? "Saving..." : "Save Event Setup"}</button>
+            </div>
+          </form>
+        </section>
+
         <section class="playoff-dashboard-block" aria-label="Host controls">
           <h2>Host Controls</h2>
           <p class="playoff-status-detail">Controls are shown for operator UX only. Backend authorization and transition validation remain authoritative.</p>
@@ -958,6 +1221,12 @@
         </section>
       </main>
     `;
+
+    attachSetupHandlers();
+    const setupForm = document.getElementById("playoff-event-setup-form");
+    if (setupForm) {
+      setupForm.addEventListener("submit", handleSetupSubmit);
+    }
   }
 
   function renderCurrentView() {
@@ -1026,6 +1295,7 @@
     try {
       const payload = await api.getHostState(getActiveEventId());
       let changed = updateHostStateFromPayload(payload, { force: force || state.status !== "ready" });
+      syncSetupFormFromHostData(payload);
       if (!state.actionNoticeType || state.actionNoticeType === "success") {
         state.actionNotice = "";
         state.actionNoticeType = "";
@@ -1036,7 +1306,8 @@
         changed = updateHostStateFromPayload(autoCompletePayload, { force: true }) || changed;
       }
 
-      if (changed || state.status !== "ready" || fromPoll) {
+      const suppressPollRender = fromPoll && (state.setupDirty || isSetupFormActive());
+      if (!suppressPollRender && (changed || state.status !== "ready" || fromPoll)) {
         state.refreshNotice = `Last refresh: ${formatDateTime(new Date().toISOString())}`;
         renderView();
       }
@@ -1086,6 +1357,7 @@
       }
 
       updateHostStateFromPayload(data, { force: true });
+      syncSetupFormFromHostData(data);
       state.refreshNotice = `Last refresh: ${formatDateTime(new Date().toISOString())}`;
       state.actionNotice = `${ACTION_LABELS[action] || action} succeeded.`;
       state.actionNoticeType = "success";

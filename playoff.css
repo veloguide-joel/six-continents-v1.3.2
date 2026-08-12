@@ -1042,12 +1042,154 @@ body {
   color: var(--ar-text-muted);
 }
 
+.playoff-setup-summary {
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.playoff-setup-summary__title {
+  margin: 0 0 6px;
+  color: var(--ar-text-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.playoff-setup-summary__row {
+  margin: 4px 0;
+  color: var(--ar-text-main);
+}
+
+.playoff-setup-form {
+  display: grid;
+  gap: 10px;
+}
+
+.playoff-setup-card {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.playoff-setup-card--readonly {
+  opacity: 0.9;
+}
+
+.playoff-setup-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.playoff-setup-copy h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.playoff-setup-copy p {
+  margin: 0;
+  color: var(--ar-text-muted);
+  line-height: 1.45;
+}
+
+.playoff-setup-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.playoff-setup-field {
+  display: grid;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.playoff-setup-field span {
+  color: var(--ar-text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.playoff-setup-field input {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ar-text-main);
+}
+
+.playoff-setup-field input:disabled {
+  opacity: 0.7;
+}
+
+.playoff-setup-readonly p {
+  margin: 0;
+  color: var(--ar-text-main);
+  font-weight: 700;
+}
+
+.playoff-setup-locked,
+.playoff-setup-warning,
+.playoff-setup-feedback {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.playoff-setup-locked {
+  color: var(--ar-text-muted);
+}
+
+.playoff-setup-warning {
+  color: #ffe6b0;
+}
+
+.playoff-setup-feedback {
+  color: var(--ar-text-muted);
+}
+
+.playoff-setup-feedback--error {
+  color: #ffd0d0;
+}
+
+.playoff-setup-feedback--success {
+  color: #bbffd8;
+}
+
+.playoff-setup-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 4px;
+}
+
 .playoff-host-action-feedback--success {
   color: #bff5d4;
 }
 
 .playoff-host-action-feedback--error {
   color: #ffd6d6;
+}
+
+@media (max-width: 760px) {
+  .playoff-setup-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .playoff-setup-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 760px) {

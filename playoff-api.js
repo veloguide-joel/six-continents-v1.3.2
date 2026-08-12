@@ -166,6 +166,32 @@ async function getHostState(eventId) {
 }
 
 /**
+ * Configure the playoff question advancement rules for the current event.
+ * @param {string} eventId Event identifier.
+ * @param {{q1Mode:string,q1Limit:number|null,q2Mode:string,q2Limit:number|null}} config Setup payload.
+ * @returns {Promise<any>} Host state payload from the configuration RPC.
+ * @who Host
+ */
+async function configureQuestions(eventId, config) {
+  const client = getSupabaseClient();
+  const q1Mode = String(config?.q1Mode || "all_correct").trim().toLowerCase();
+  const q2Mode = String(config?.q2Mode || "all_correct").trim().toLowerCase();
+  const q1Limit = q1Mode === "first_n" ? config?.q1Limit ?? null : null;
+  const q2Limit = q2Mode === "first_n" ? config?.q2Limit ?? null : null;
+
+  const { data, error } = await client.rpc("host_configure_playoff_questions", {
+    input_event_id: eventId,
+    input_q1_mode: q1Mode === "first_n" ? "first_n" : "all_correct",
+    input_q1_limit: q1Limit,
+    input_q2_mode: q2Mode === "first_n" ? "first_n" : "all_correct",
+    input_q2_limit: q2Limit
+  });
+
+  if (error) throw rpcError(error);
+  return data;
+}
+
+/**
  * Open a question for contest play.
  * @param {string} questionId Question identifier.
  * @returns {Promise<any>} Host action result promise.
@@ -250,6 +276,7 @@ export const PlayoffAPI = {
   joinPlayoff,
   submitAnswer,
   getHostState,
+  configureQuestions,
   openQuestion,
   closeQuestion,
   advanceQuestion,
