@@ -614,14 +614,32 @@
   };
 
   const shouldIgnorePollUpdate = (currentState, incomingState) => {
+    if (!incomingState) {
+      return true;
+    }
+
+    const currentKey = buildPlayerStateKey(currentState);
+    const incomingKey = buildPlayerStateKey(incomingState);
+    if (currentKey === incomingKey) {
+      return true;
+    }
+
     const currentPresentation = getPlayerPresentation(currentState, state.joinData || {});
     const incomingPresentation = getPlayerPresentation(incomingState, state.joinData || {});
     const currentQuestionNumber = Number(currentState?.active_question_number || 0);
     const incomingQuestionNumber = Number(incomingState?.active_question_number || 0);
+    const currentHasQuestion = Boolean(currentState?.question?.id);
     const incomingHasQuestion = Boolean(incomingState?.question?.id);
+    const incomingParticipantStatus = String(incomingState?.participant_status || "").trim().toLowerCase();
+    const sameRoundReopened =
+      incomingQuestionNumber > 0 &&
+      currentQuestionNumber === incomingQuestionNumber &&
+      !currentHasQuestion &&
+      incomingHasQuestion &&
+      incomingParticipantStatus === "answering";
 
-    if (!incomingState) {
-      return true;
+    if (sameRoundReopened) {
+      return false;
     }
 
     if (currentPresentation.mode === "winner") {
@@ -1090,10 +1108,14 @@
     return JSON.stringify({
       eventStatus: playerState?.event_status || "",
       participantStatus: playerState?.participant_status || "",
+      participantCurrentStatus: playerState?.current_status || "",
       activeQuestionNumber: Number(playerState?.active_question_number || 0),
       questionId: question?.id || "",
       questionPrompt: question?.prompt || "",
       questionOpen: Boolean(playerState?.question?.id),
+      questionOpenedAt: question?.opened_at || playerState?.opened_at || "",
+      acceptedPosition: playerState?.accepted_position ?? null,
+      submissionStatus: playerState?.submission_status || "",
       isWinner: Boolean(playerState?.is_winner),
       isFinalist: Boolean(playerState?.is_finalist),
       eliminatedAt: playerState?.eliminated_at || "",

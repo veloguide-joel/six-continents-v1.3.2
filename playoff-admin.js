@@ -94,6 +94,7 @@
       q2Limit: ""
     },
     recoveryLoading: false,
+    recoveryAction: "",
     recoveryFeedback: "",
     recoveryFeedbackType: ""
   };
@@ -110,6 +111,12 @@
     if (target.id === "playoff-recovery-full-reset") {
       event.preventDefault();
       void handleRecoveryAction("full_reset");
+      return;
+    }
+
+    if (target.id === "playoff-recovery-restart-current-round") {
+      event.preventDefault();
+      void handleRecoveryAction("restart_current_round");
       return;
     }
 
@@ -978,6 +985,7 @@
     const eventStatusLower = normalizeStatus(eventStatus).toLowerCase();
     const isSetupEditable = eventStatusLower === "draft";
     const canRunFullReset = eventStatusLower === "waiting_for_players";
+    const canRestartCurrentRound = eventStatusLower === "question_1_open";
     const recoveryFeedbackMarkup = state.recoveryFeedback
       ? `<p class="playoff-recovery-feedback ${state.recoveryFeedbackType === "error" ? "playoff-recovery-feedback--error" : state.recoveryFeedbackType === "success" ? "playoff-recovery-feedback--success" : ""}">${escapeHtml(state.recoveryFeedback)}</p>`
       : "";
@@ -1239,9 +1247,17 @@
           ${recoveryFeedbackMarkup}
           ${canRunFullReset
             ? `<div class="playoff-recovery-actions">
-                <button id="playoff-recovery-full-reset" class="playoff-action-btn playoff-recovery-btn" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading ? "Resetting..." : "Full Reset Event"}</button>
+                <button id="playoff-recovery-full-reset" class="playoff-action-btn playoff-recovery-btn" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "full_reset" ? "Resetting..." : "Full Reset Event"}</button>
               </div>`
-            : '<p class="playoff-status-detail">Full Reset Event is currently available only while the event is waiting for players.</p>'}
+            : ""}
+          ${canRestartCurrentRound
+            ? `<div class="playoff-recovery-actions">
+                <button id="playoff-recovery-restart-current-round" class="playoff-action-btn playoff-action-btn--primary" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "restart_current_round" ? "Restarting..." : "Restart Current Round"}</button>
+              </div>`
+            : ""}
+          ${!canRunFullReset && !canRestartCurrentRound
+            ? '<p class="playoff-status-detail">Full Reset Event is currently available only while the event is waiting for players. Restart Current Round is currently available only while Round 1 is open.</p>'
+            : ""}
         </section>
       </main>
     `;
@@ -1400,32 +1416,50 @@
 
   async function handleRecoveryAction(action) {
     if (!action || state.recoveryLoading || state.actionLoading || state.loading || !state.hostData) return;
-    if (action !== "full_reset") return;
+    if (action !== "full_reset" && action !== "restart_current_round") return;
 
-    const confirmationText = [
-      "FULL RESET EVENT",
-      "",
-      "This will erase all playoff submissions, advancement results, eliminations, finalist results and winner results for this event.",
-      "",
-      "It will preserve:",
-      "- the event",
-      "- the questions",
-      "- advancement settings",
-      "- invitations",
-      "- joined player account bindings",
-      "",
-      "The event will return to DRAFT.",
-      "",
-      "This does NOT affect Six Continents game solves or stage progress.",
-      "",
-      "Type RESET to continue."
-    ].join("\n");
+    if (action === "full_reset") {
+      const confirmationText = [
+        "FULL RESET EVENT",
+        "",
+        "This will erase all playoff submissions, advancement results, eliminations, finalist results and winner results for this event.",
+        "",
+        "It will preserve:",
+        "- the event",
+        "- the questions",
+        "- advancement settings",
+        "- invitations",
+        "- joined player account bindings",
+        "",
+        "The event will return to DRAFT.",
+        "",
+        "This does NOT affect Six Continents game solves or stage progress.",
+        "",
+        "Type RESET to continue."
+      ].join("\n");
 
-    const entered = window.prompt(confirmationText);
-    if (entered === null || String(entered).trim().toUpperCase() !== "RESET") return;
+      const entered = window.prompt(confirmationText);
+      if (entered === null || String(entered).trim().toUpperCase() !== "RESET") return;
+    } else {
+      const confirmationText = [
+        "RESTART ROUND 1?",
+        "",
+        "All Round 1 submissions and Round 1 advancement results will be erased.",
+        "",
+        "All joined players will return to Round 1 and can answer again.",
+        "",
+        "Questions, advancement settings and player account bindings will be preserved.",
+        "",
+        "This does NOT affect Six Continents game solves or stage progress."
+      ].join("\n");
+
+      const confirmed = window.confirm(confirmationText);
+      if (!confirmed) return;
+    }
 
     state.recoveryLoading = true;
-    state.recoveryFeedback = "Resetting event...";
+    state.recoveryAction = action;
+    state.recoveryFeedback = action === "restart_current_round" ? "Restarting Round..." : "Resetting event...";
     state.recoveryFeedbackType = "info";
     renderView();
 
@@ -1440,9 +1474,13 @@
       state.setupDirty = false;
       state.refreshNotice = `Last refresh: ${formatDateTime(new Date().toISOString())}`;
       const nextStatus = normalizeStatus(payload?.event?.status || "").toLowerCase();
-      state.recoveryFeedback = nextStatus === "draft"
-        ? "Full reset completed. Event returned to draft."
-        : "Full reset completed.";
+      if (action === "restart_current_round") {
+        state.recoveryFeedback = "Round 1 restarted. All joined players can answer again.";
+      } else {
+        state.recoveryFeedback = nextStatus === "draft"
+          ? "Full reset completed. Event returned to draft."
+          : "Full reset completed.";
+      }
       state.recoveryFeedbackType = "success";
       renderView();
     } catch (error) {
@@ -1451,6 +1489,7 @@
       console.error("Recovery action failed:", error);
     } finally {
       state.recoveryLoading = false;
+      state.recoveryAction = "";
       state.pollSuspended = false;
       scheduleNextPoll();
       renderCurrentView();
