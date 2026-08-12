@@ -18,6 +18,8 @@
     open_round_1: "Begin Round 1",
     open_round_2: "Begin Round 2",
     open_round_3: "Begin Final Round",
+    complete_round_1: "Complete Round 1",
+    complete_round_2: "Complete Round 2",
     pause: "Pause Event",
     resume: "Resume Event"
   };
@@ -26,6 +28,8 @@
     open_round_1: "Begin Round 1?",
     open_round_2: "Begin Round 2?",
     open_round_3: "Begin Final Round?",
+    complete_round_1: "Complete Round 1 early?",
+    complete_round_2: "Complete Round 2 early?",
     pause: "Pause the live event?",
     resume: "Resume the live event?"
   };
@@ -174,6 +178,67 @@
     return text || fallback;
   }
 
+  function getQuestionConfig(hostData, questionNumber) {
+    const questions = Array.isArray(hostData?.questions) ? hostData.questions : [];
+    const normalizedNumber = Number(questionNumber || 0);
+    const fallback = normalizedNumber === 1
+      ? { advancement_mode: "all_correct", advance_limit: null }
+      : normalizedNumber === 2
+        ? { advancement_mode: "first_n", advance_limit: 2 }
+        : normalizedNumber === 3
+          ? { advancement_mode: "first_n", advance_limit: 1 }
+          : { advancement_mode: "all_correct", advance_limit: null };
+
+    const question = questions.find((entry) => Number(entry?.question_number || 0) === normalizedNumber);
+    const rawMode = String(question?.advancement_mode || "").trim().toLowerCase();
+    const effectiveMode = rawMode === "first_n" ? "first_n" : rawMode === "all_correct" ? "all_correct" : fallback.advancement_mode;
+    const parsedLimit = Number(question?.advance_limit ?? question?.advanceLimit);
+    const fallbackLimit = effectiveMode === "first_n" ? fallback.advance_limit : null;
+    const effectiveLimit = effectiveMode === "first_n"
+      ? (Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : fallbackLimit)
+      : null;
+
+    return {
+      advancement_mode: effectiveMode,
+      advance_limit: effectiveMode === "first_n" ? effectiveLimit : null
+    };
+  }
+
+  function getUniqueCorrectParticipantIds(submissions, questionNumber) {
+    const targetQuestionNumber = Number(questionNumber || 0);
+    return new Set(
+      (Array.isArray(submissions) ? submissions : [])
+        .filter((submission) => Number(submission?.question_number || 0) === targetQuestionNumber && submission?.is_correct === true)
+        .map((submission) => String(submission?.participant_id || "").trim())
+        .filter(Boolean)
+    );
+  }
+
+  function getUniqueAcceptedCorrectParticipantIds(submissions, questionNumber) {
+    const targetQuestionNumber = Number(questionNumber || 0);
+    return new Set(
+      (Array.isArray(submissions) ? submissions : [])
+        .filter((submission) => Number(submission?.question_number || 0) === targetQuestionNumber)
+        .filter((submission) => submission?.is_correct === true)
+        .filter((submission) => {
+          const position = Number(submission?.accepted_position);
+          return Number.isFinite(position) && position > 0;
+        })
+        .map((submission) => String(submission?.participant_id || "").trim())
+        .filter(Boolean)
+    );
+  }
+
+  function getFinalistParticipantCount(participants) {
+    return (Array.isArray(participants) ? participants : [])
+      .filter((participant) => {
+        const status = normalizeStatus(participant?.current_status, "").toLowerCase();
+        const isEliminated = Boolean(participant?.eliminated_at) || status.includes("eliminated") || status.includes("out");
+        return participant?.is_finalist === true && !isEliminated;
+      })
+      .length;
+  }
+
   function statusBadgeClass(rawStatus) {
     const value = normalizeStatus(rawStatus).toLowerCase();
     if (value.includes("paused")) return "playoff-pill playoff-pill--warning";
@@ -272,9 +337,33 @@
     return "playoff-action-btn playoff-action-btn--primary";
   }
 
-  function getActionsForStatus(eventStatus) {
+  function getActionsForStatus(eventStatus, hostData) {
     const statusKey = normalizeStatus(eventStatus, "").toLowerCase();
-    return ACTIONS_BY_STATUS[statusKey] || [];
+    const actions = [...(ACTIONS_BY_STATUS[statusKey] || [])];
+    const participants = Array.isArray(hostData?.participants) ? hostData.participants : [];
+    const submissions = Array.isArray(hostData?.submissions) ? hostData.submissions : [];
+
+    if (statusKey === "question_1_open") {
+      const q1Config = getQuestionConfig(hostData, 1);
+      if (q1Config.advancement_mode === "first_n") {
+        actions.push("complete_round_1");
+      }
+    }
+
+    if (statusKey === "question_2_open") {
+      const q2Config = getQuestionConfig(hostData, 2);
+      if (q2Config.advancement_mode === "first_n") {
+        actions.push("complete_round_2");
+      }
+    }
+
+    if (statusKey === "question_2_complete" && getFinalistParticipantCount(participants) >= 1) {
+      if (!actions.includes("open_round_3")) {
+        actions.push("open_round_3");
+      }
+    }
+
+    return actions;
   }
 
   function isActiveRoundParticipant(participant) {
@@ -292,52 +381,41 @@
     const submissions = Array.isArray(hostData?.submissions) ? hostData.submissions : [];
 
     if (eventStatus === "question_1_open") {
+      const q1Config = getQuestionConfig(hostData, 1);
       const activeParticipantIds = new Set(
         participants
           .filter(isActiveRoundParticipant)
           .map((participant) => String(participant.id || "").trim())
           .filter(Boolean)
       );
+      const correctRound1Ids = getUniqueCorrectParticipantIds(submissions, 1);
 
-      const correctRound1Ids = new Set(
-        submissions
-          .filter((submission) => Number(submission?.question_number || 0) === 1 && Boolean(submission?.is_correct))
-          .map((submission) => String(submission?.participant_id || "").trim())
-          .filter(Boolean)
-      );
-
-      if (activeParticipantIds.size > 0 && activeParticipantIds.size === correctRound1Ids.size) {
-        return "complete_round_1";
+      if (q1Config.advancement_mode === "all_correct") {
+        if (activeParticipantIds.size > 0 && activeParticipantIds.size === correctRound1Ids.size) {
+          return "complete_round_1";
+        }
       }
     }
 
     if (eventStatus === "question_2_open") {
+      const q2Config = getQuestionConfig(hostData, 2);
       const activeParticipantIds = new Set(
         participants
           .filter(isActiveRoundParticipant)
           .map((participant) => String(participant.id || "").trim())
           .filter(Boolean)
       );
+      const correctRound2Ids = getUniqueCorrectParticipantIds(submissions, 2);
 
-      const correctRound2Ids = new Set(
-        submissions
-          .filter((submission) => Number(submission?.question_number || 0) === 2 && Boolean(submission?.is_correct))
-          .map((submission) => String(submission?.participant_id || "").trim())
-          .filter(Boolean)
-      );
-
-      if (activeParticipantIds.size > 0 && correctRound2Ids.size >= 2) {
-        return "complete_round_2";
+      if (q2Config.advancement_mode === "all_correct") {
+        if (activeParticipantIds.size > 0 && activeParticipantIds.size === correctRound2Ids.size) {
+          return "complete_round_2";
+        }
       }
     }
 
     if (eventStatus === "question_3_open") {
-      const correctRound3Ids = new Set(
-        submissions
-          .filter((submission) => Number(submission?.question_number || 0) === 3 && Boolean(submission?.is_correct))
-          .map((submission) => String(submission?.participant_id || "").trim())
-          .filter(Boolean)
-      );
+      const correctRound3Ids = getUniqueCorrectParticipantIds(submissions, 3);
 
       if (correctRound3Ids.size >= 1) {
         return "complete_round_3";
@@ -404,76 +482,88 @@
     const submissions = Array.isArray(hostData?.submissions) ? hostData.submissions : [];
 
     if (eventStatus === "question_1_open") {
+      const q1Config = getQuestionConfig(hostData, 1);
       const activeParticipantIds = new Set(
         participants
           .filter(isActiveRoundParticipant)
           .map((participant) => String(participant.id || "").trim())
           .filter(Boolean)
       );
+      const correctRound1Ids = getUniqueCorrectParticipantIds(submissions, 1);
 
-      const correctRound1Ids = new Set(
-        submissions
-          .filter((submission) => Number(submission?.question_number || 0) === 1 && Boolean(submission?.is_correct))
-          .map((submission) => String(submission?.participant_id || "").trim())
-          .filter(Boolean)
-      );
-
-      if (activeParticipantIds.size > 0 && activeParticipantIds.size === correctRound1Ids.size) {
-        return {
-          className: "playoff-admin-banner--ready",
-          title: "ROUND 1 WILL COMPLETE AUTOMATICALLY",
-          body: "All active players have answered correctly. The round will complete automatically."
-        };
+      if (q1Config.advancement_mode === "all_correct") {
+        if (activeParticipantIds.size > 0 && activeParticipantIds.size === correctRound1Ids.size) {
+          return {
+            className: "playoff-admin-banner--ready",
+            title: "ROUND 1 WILL COMPLETE AUTOMATICALLY",
+            body: "All active players have answered correctly. The round will complete automatically."
+          };
+        }
+      } else if (q1Config.advancement_mode === "first_n") {
+        const acceptedCount = getUniqueAcceptedCorrectParticipantIds(submissions, 1).size;
+        const limit = Number(q1Config.advance_limit || 0);
+        if (limit > 0) {
+          return {
+            className: "playoff-admin-banner--ready",
+            title: "ROUND 1 PROGRESS",
+            body: `${acceptedCount} of ${limit} qualifying positions filled.`
+          };
+        }
       }
     }
 
     if (eventStatus === "question_2_open") {
+      const q2Config = getQuestionConfig(hostData, 2);
       const activeParticipantIds = new Set(
         participants
           .filter(isActiveRoundParticipant)
           .map((participant) => String(participant.id || "").trim())
           .filter(Boolean)
       );
+      const correctRound2Ids = getUniqueCorrectParticipantIds(submissions, 2);
 
-      const correctRound2Ids = new Set(
-        submissions
-          .filter((submission) => Number(submission?.question_number || 0) === 2 && Boolean(submission?.is_correct))
-          .map((submission) => String(submission?.participant_id || "").trim())
-          .filter(Boolean)
-      );
-
-      if (activeParticipantIds.size > 0 && correctRound2Ids.size >= 2) {
-        return {
-          className: "playoff-admin-banner--ready",
-          title: "ROUND 2 WILL COMPLETE AUTOMATICALLY",
-          body: "The first two eligible players have answered correctly. The round will complete automatically."
-        };
+      if (q2Config.advancement_mode === "all_correct") {
+        if (activeParticipantIds.size > 0 && activeParticipantIds.size === correctRound2Ids.size) {
+          return {
+            className: "playoff-admin-banner--ready",
+            title: "ROUND 2 WILL COMPLETE AUTOMATICALLY",
+            body: "All active players have answered correctly. The round will complete automatically."
+          };
+        }
+      } else if (q2Config.advancement_mode === "first_n") {
+        const acceptedCount = getUniqueAcceptedCorrectParticipantIds(submissions, 2).size;
+        const limit = Number(q2Config.advance_limit || 0);
+        if (limit > 0) {
+          return {
+            className: "playoff-admin-banner--ready",
+            title: "ROUND 2 PROGRESS",
+            body: `${acceptedCount} of ${limit} finalist positions filled.`
+          };
+        }
       }
     }
 
     if (eventStatus === "question_3_open") {
-      const correctRound3Ids = new Set(
-        submissions
-          .filter((submission) => Number(submission?.question_number || 0) === 3 && Boolean(submission?.is_correct))
-          .map((submission) => String(submission?.participant_id || "").trim())
-          .filter(Boolean)
-      );
+      const correctRound3Ids = getUniqueCorrectParticipantIds(submissions, 3);
 
       if (correctRound3Ids.size >= 1) {
         return {
           className: "playoff-admin-banner--ready",
           title: "FINAL ROUND WILL COMPLETE AUTOMATICALLY",
-          body: "The first correct finalist submission will complete the event automatically."
+          body: "First correct finalist wins."
         };
       }
     }
 
     if (eventStatus === "question_2_complete") {
-      return {
-        className: "playoff-admin-banner--ready",
-        title: "ROUND 3 IS READY",
-        body: "Two finalists have been confirmed. When both contestants are ready, click Open Round 3."
-      };
+      const finalistCount = getFinalistParticipantCount(participants);
+      if (finalistCount >= 1) {
+        return {
+          className: "playoff-admin-banner--ready",
+          title: "ROUND 3 IS READY",
+          body: `${finalistCount} finalist${finalistCount === 1 ? "" : "s"} confirmed. When you are ready, click Open Round 3.`
+        };
+      }
     }
 
     if (eventStatus === "winner_locked") {
@@ -590,7 +680,7 @@
     const eventStatus = normalizeStatus(event.status);
     const showPrePause = String(eventStatus).toLowerCase() === "paused" && event.pre_pause_status;
     const activeRoundText = formatRound(event.active_question_number);
-    const availableActions = getActionsForStatus(eventStatus);
+    const availableActions = getActionsForStatus(eventStatus, hostData);
     const liveIndicator = state.status === "ready"
       ? `<div class="playoff-live-indicator" aria-label="Live updates on"><span class="playoff-live-dot" aria-hidden="true"></span><span>Live updates on</span><span class="playoff-live-timestamp">Last updated: ${escapeHtml(state.lastUpdatedLabel || formatLiveTimestamp())}</span></div>`
       : "";
@@ -685,7 +775,15 @@
 
     const controlsMarkup = availableActions.length
       ? `<div class="playoff-host-actions">${availableActions.map((action) => {
-        const isDisabled = state.loading || state.actionLoading;
+        const isDisabled = state.loading || state.actionLoading || (
+          action === "complete_round_1"
+            ? getUniqueAcceptedCorrectParticipantIds(submissions, 1).size === 0
+            : action === "complete_round_2"
+              ? getUniqueAcceptedCorrectParticipantIds(submissions, 2).size === 0
+              : action === "open_round_3"
+                ? getFinalistParticipantCount(participants) < 1
+                : false
+        );
         return `<button type="button" class="${controlButtonClass(action)}" data-host-action="${escapeHtml(action)}" ${isDisabled ? "disabled" : ""}>${escapeHtml(ACTION_LABELS[action] || action)}</button>`;
       }).join("")}</div>`
       : "<p class=\"playoff-empty\">No currently supported host action is available for this event state.</p>";
