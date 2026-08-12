@@ -1180,6 +1180,33 @@ body {
   color: #ffd6d6;
 }
 
+.playoff-dashboard-block--danger {
+  border-color: rgba(255, 142, 142, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(255, 142, 142, 0.18);
+}
+
+.playoff-recovery-actions {
+  margin-top: 10px;
+}
+
+.playoff-recovery-btn {
+  background: #b91c1c;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.playoff-recovery-feedback {
+  margin: 8px 0 0;
+  color: var(--ar-text-muted);
+}
+
+.playoff-recovery-feedback--error {
+  color: #ffd0d0;
+}
+
+.playoff-recovery-feedback--success {
+  color: #bbffd8;
+}
+
 @media (max-width: 760px) {
   .playoff-setup-row {
     flex-direction: column;

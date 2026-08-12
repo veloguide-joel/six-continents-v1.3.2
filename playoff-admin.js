@@ -2,7 +2,7 @@
 
 (() => {
   const DEFAULT_EVENT_ID = "591ec441-e182-46b5-82d5-345c7d9c82c0";
-  const REQUIRED_API_METHODS = ["getSession", "getHostState", "configureQuestions"];
+  const REQUIRED_API_METHODS = ["getSession", "getHostState", "configureQuestions", "recoverEvent"];
   const ACTIONS_BY_STATUS = {
     draft: ["start_waiting"],
     waiting_for_players: ["open_round_1", "pause"],
@@ -92,7 +92,10 @@
     setupForm: {
       q1Limit: "",
       q2Limit: ""
-    }
+    },
+    recoveryLoading: false,
+    recoveryFeedback: "",
+    recoveryFeedbackType: ""
   };
 
   root.addEventListener("click", (event) => {
@@ -101,6 +104,12 @@
     if (target.id === "playoff-admin-refresh") {
       if (state.actionLoading) return;
       void refreshHostState();
+      return;
+    }
+
+    if (target.id === "playoff-recovery-full-reset") {
+      event.preventDefault();
+      void handleRecoveryAction("full_reset");
       return;
     }
 
@@ -968,6 +977,10 @@
     const readyBanner = getReadyBanner(hostData);
     const eventStatusLower = normalizeStatus(eventStatus).toLowerCase();
     const isSetupEditable = eventStatusLower === "draft";
+    const canRunFullReset = eventStatusLower === "waiting_for_players";
+    const recoveryFeedbackMarkup = state.recoveryFeedback
+      ? `<p class="playoff-recovery-feedback ${state.recoveryFeedbackType === "error" ? "playoff-recovery-feedback--error" : state.recoveryFeedbackType === "success" ? "playoff-recovery-feedback--success" : ""}">${escapeHtml(state.recoveryFeedback)}</p>`
+      : "";
     const setupFeedbackMarkup = state.setupFeedback
       ? `<p class="playoff-setup-feedback ${state.setupFeedbackType === "error" ? "playoff-setup-feedback--error" : state.setupFeedbackType === "success" ? "playoff-setup-feedback--success" : ""}">${escapeHtml(state.setupFeedback)}</p>`
       : "";
@@ -1219,6 +1232,17 @@
           ${actionFeedbackMarkup}
           ${controlsMarkup}
         </section>
+
+        <section class="playoff-dashboard-block playoff-dashboard-block--danger" aria-label="Recovery controls">
+          <h2>Recovery Controls</h2>
+          <p class="playoff-status-detail">Emergency controls for recovering this playoff event. These actions affect playoff data only and do not change Six Continents game solves or stage progress.</p>
+          ${recoveryFeedbackMarkup}
+          ${canRunFullReset
+            ? `<div class="playoff-recovery-actions">
+                <button id="playoff-recovery-full-reset" class="playoff-action-btn playoff-recovery-btn" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading ? "Resetting..." : "Full Reset Event"}</button>
+              </div>`
+            : '<p class="playoff-status-detail">Full Reset Event is currently available only while the event is waiting for players.</p>'}
+        </section>
       </main>
     `;
 
@@ -1274,7 +1298,7 @@
   }
 
   async function refreshHostState({ fromPoll = false, force = false } = {}) {
-    if (state.pollInFlight || state.actionLoading) return;
+    if (state.pollInFlight || state.actionLoading || state.recoveryLoading) return;
 
     state.pollInFlight = true;
 
@@ -1368,6 +1392,65 @@
       console.error("Host control action failed:", error);
     } finally {
       state.actionLoading = false;
+      state.pollSuspended = false;
+      scheduleNextPoll();
+      renderCurrentView();
+    }
+  }
+
+  async function handleRecoveryAction(action) {
+    if (!action || state.recoveryLoading || state.actionLoading || state.loading || !state.hostData) return;
+    if (action !== "full_reset") return;
+
+    const confirmationText = [
+      "FULL RESET EVENT",
+      "",
+      "This will erase all playoff submissions, advancement results, eliminations, finalist results and winner results for this event.",
+      "",
+      "It will preserve:",
+      "- the event",
+      "- the questions",
+      "- advancement settings",
+      "- invitations",
+      "- joined player account bindings",
+      "",
+      "The event will return to DRAFT.",
+      "",
+      "This does NOT affect Six Continents game solves or stage progress.",
+      "",
+      "Type RESET to continue."
+    ].join("\n");
+
+    const entered = window.prompt(confirmationText);
+    if (entered === null || String(entered).trim().toUpperCase() !== "RESET") return;
+
+    state.recoveryLoading = true;
+    state.recoveryFeedback = "Resetting event...";
+    state.recoveryFeedbackType = "info";
+    renderView();
+
+    try {
+      const payload = await api.recoverEvent(getActiveEventId(), action);
+      if (!payload || payload.ok !== true) {
+        throw new Error("Recovery RPC did not return a successful state payload.");
+      }
+
+      updateHostStateFromPayload(payload, { force: true });
+      syncSetupFormFromHostData(state.hostData, { force: true });
+      state.setupDirty = false;
+      state.refreshNotice = `Last refresh: ${formatDateTime(new Date().toISOString())}`;
+      const nextStatus = normalizeStatus(payload?.event?.status || "").toLowerCase();
+      state.recoveryFeedback = nextStatus === "draft"
+        ? "Full reset completed. Event returned to draft."
+        : "Full reset completed.";
+      state.recoveryFeedbackType = "success";
+      renderView();
+    } catch (error) {
+      state.recoveryFeedback = sanitizeErrorMessage(error);
+      state.recoveryFeedbackType = "error";
+      console.error("Recovery action failed:", error);
+    } finally {
+      state.recoveryLoading = false;
       state.pollSuspended = false;
       scheduleNextPoll();
       renderCurrentView();

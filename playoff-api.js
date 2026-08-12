@@ -192,6 +192,25 @@ async function configureQuestions(eventId, config) {
 }
 
 /**
+ * Run a host recovery action for the current playoff event.
+ * @param {string} eventId Event identifier.
+ * @param {string} action Recovery action such as full_reset.
+ * @returns {Promise<any>} Host state payload from the recovery RPC.
+ * @who Host
+ */
+async function recoverEvent(eventId, action) {
+  const client = getSupabaseClient();
+  const normalizedAction = String(action || "").trim().toLowerCase();
+  const { data, error } = await client.rpc("host_recover_playoff_event", {
+    input_event_id: eventId,
+    input_action: normalizedAction
+  });
+
+  if (error) throw rpcError(error);
+  return data;
+}
+
+/**
  * Open a question for contest play.
  * @param {string} questionId Question identifier.
  * @returns {Promise<any>} Host action result promise.
@@ -277,6 +296,7 @@ export const PlayoffAPI = {
   submitAnswer,
   getHostState,
   configureQuestions,
+  recoverEvent,
   openQuestion,
   closeQuestion,
   advanceQuestion,
