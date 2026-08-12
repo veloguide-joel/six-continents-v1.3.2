@@ -478,7 +478,7 @@
           cardClass: "playoff-player-state-card--eliminated",
           title: "😔 So Close!",
           body: [
-            "Other contestants answered correctly before you and advanced to the final.",
+            "Other contestants answered correctly before you and advanced to the next round.",
             "You had an incredible run, and we truly appreciate you taking part in the playoff.",
             "Thanks for playing the Six Continents Challenge!"
           ],
