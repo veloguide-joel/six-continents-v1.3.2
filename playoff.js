@@ -58,7 +58,7 @@
     incorrectFeedback: null,
     authUi: {
       mode: "loading",
-      title: "Welcome to the Stage 15 Playoff",
+      title: "Welcome to the Live Playoff",
       message: "Checking your invitation…",
       detail: "Your invitation has already been detected. After signing in, you will enter the playoff automatically.",
       isError: false,
@@ -404,7 +404,7 @@
         title: "Your Place Is Confirmed",
         label: "Waiting room not open yet",
         body: [
-          "You’re officially entered in the Stage 15 Playoff.",
+          "You’re officially entered in the live playoff.",
           "The live waiting room has not opened yet. Please return at the scheduled time, or keep this page open — it will update automatically when the host opens the room."
         ],
         checklist: [
@@ -443,10 +443,8 @@
         cardClass: "playoff-player-state-card--winner",
         title: "🏆 Congratulations! You Won!",
         body: [
-          "You are the official winner of the Stage 15 Playoff.",
-          "You have won 50,000 Turkish Airlines Miles.",
-          "You are also still in the running for the separate Stage 16 Grand Prize of 100,000 Turkish Airlines Miles.",
-          "Joel will contact you with the Stage 15 prize details.",
+          "You are the official playoff winner.",
+          "Joel will contact you with the prize details.",
           "Thank you for playing Six Continents Challenge!"
         ],
         canSubmit: false,
@@ -469,7 +467,6 @@
           body: [
             "Another finalist submitted the correct answer first.",
             "Making it all the way to the final was an outstanding achievement, and we sincerely appreciate you being part of this special playoff.",
-            "Remember, you are still in the running to win the Stage 16 Grand Prize of 100,000 Turkish Airlines Miles.",
             "Thank you for playing the Six Continents Challenge!"
           ],
           canSubmit: false,
@@ -482,8 +479,7 @@
           title: "😔 So Close!",
           body: [
             "Other contestants answered correctly before you and advanced to the final.",
-            "You had an incredible run, and we truly appreciate you taking part in the Stage 15 Playoff.",
-            "You are still in the running for the Stage 16 100,000 Turkish Airlines Miles Grand Prize.",
+            "You had an incredible run, and we truly appreciate you taking part in the playoff.",
             "Thanks for playing the Six Continents Challenge!"
           ],
           canSubmit: false,
@@ -829,7 +825,7 @@
         <div class="playoff-brand">The Accidental Retiree</div>
         <div class="playoff-auth-card">
           <div class="playoff-auth-badge">Private Invitation</div>
-          <h1>Stage 15 Playoff</h1>
+          <h1>Live Playoff</h1>
           <p class="playoff-auth-intro">${escapeHtml(auth.message || "Sign in with the email address that received this invitation.")}</p>
           <p class="playoff-auth-detail">${escapeHtml(auth.detail || "Your invitation has already been detected. After signing in, you will enter the playoff automatically.")}</p>
           ${showError ? `<div class="playoff-auth-error" role="alert">${escapeHtml(auth.error || auth.title || "We couldn’t sign you in.")}</div>` : ""}
@@ -1141,7 +1137,7 @@
         state.user = null;
         state.feedback = "";
         stopPolling();
-        setAuthUi("signin", "Welcome to the Stage 15 Playoff", "Sign in with the email address that received this invitation.", "Your invitation has already been detected. After signing in, you will enter the playoff automatically.", { isError: false, showSignOut: false });
+        setAuthUi("signin", "Welcome to the Live Playoff", "Sign in with the email address that received this invitation.", "Your invitation has already been detected. After signing in, you will enter the playoff automatically.", { isError: false, showSignOut: false });
         renderApp();
         return;
       }
@@ -1337,7 +1333,7 @@
       state.user = session?.user || null;
 
       if (!state.user) {
-        setAuthUi("signin", "Welcome to the Stage 15 Playoff", "Sign in with the email address that received this invitation.", "Your invitation has already been detected. After signing in, you will enter the playoff automatically.", { isError: false, showSignOut: false });
+        setAuthUi("signin", "Welcome to the Live Playoff", "Sign in with the email address that received this invitation.", "Your invitation has already been detected. After signing in, you will enter the playoff automatically.", { isError: false, showSignOut: false });
         renderApp();
         return;
       }

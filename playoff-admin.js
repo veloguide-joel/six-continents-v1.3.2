@@ -252,7 +252,7 @@
     }
 
     return {
-      label: "PRODUCTION EVENT — STAGE 15",
+      label: "PRODUCTION EVENT",
       detail: DEFAULT_EVENT_ID
     };
   }
