@@ -1,7 +1,7 @@
 "use strict";
 
 (() => {
-  const EVENT_ID = "591ec441-e182-46b5-82d5-345c7d9c82c0";
+  const DEFAULT_EVENT_ID = "591ec441-e182-46b5-82d5-345c7d9c82c0";
   const REQUIRED_API_METHODS = ["getSession", "getHostState"];
   const ACTIONS_BY_STATUS = {
     draft: ["start_waiting"],
@@ -80,7 +80,11 @@
     lastAutoCompletedStatus: "",
     authSubmitting: false,
     authError: "",
-    authEmail: ""
+    authEmail: "",
+    eventTargetId: DEFAULT_EVENT_ID,
+    eventTargetMode: "production",
+    eventTargetValid: true,
+    eventTargetError: ""
   };
 
   root.addEventListener("click", (event) => {
@@ -176,6 +180,88 @@
   function normalizeStatus(value, fallback = "unknown") {
     const text = String(value || "").trim();
     return text || fallback;
+  }
+
+  function isValidUuid(value) {
+    return typeof value === "string"
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
+  }
+
+  function resolveEventTarget() {
+    const url = new URL(window.location.href);
+    const hasEventParam = url.searchParams.has("event");
+
+    if (!hasEventParam) {
+      return {
+        eventId: DEFAULT_EVENT_ID,
+        mode: "production",
+        valid: true,
+        error: ""
+      };
+    }
+
+    const rawValue = String(url.searchParams.get("event") || "").trim();
+    if (!rawValue) {
+      return {
+        eventId: null,
+        mode: "invalid",
+        valid: false,
+        error: "The supplied event ID is invalid. Provide a valid UUID or omit the event parameter to use the production event."
+      };
+    }
+
+    if (!isValidUuid(rawValue)) {
+      return {
+        eventId: null,
+        mode: "invalid",
+        valid: false,
+        error: "The supplied event ID is invalid. Provide a valid UUID or omit the event parameter to use the production event."
+      };
+    }
+
+    if (rawValue.toLowerCase() === DEFAULT_EVENT_ID.toLowerCase()) {
+      return {
+        eventId: DEFAULT_EVENT_ID,
+        mode: "production",
+        valid: true,
+        error: ""
+      };
+    }
+
+    return {
+      eventId: rawValue,
+      mode: "override",
+      valid: true,
+      error: ""
+    };
+  }
+
+  function getEventTargetSummary() {
+    if (state.eventTargetMode === "override") {
+      return {
+        label: "TEST / OVERRIDE EVENT",
+        detail: state.eventTargetId || ""
+      };
+    }
+
+    if (state.eventTargetMode === "invalid") {
+      return {
+        label: "INVALID EVENT TARGET",
+        detail: state.eventTargetError || "The supplied event ID is invalid."
+      };
+    }
+
+    return {
+      label: "PRODUCTION EVENT — STAGE 15",
+      detail: DEFAULT_EVENT_ID
+    };
+  }
+
+  function getActiveEventId() {
+    if (!state.eventTargetValid || !state.eventTargetId) {
+      throw new Error(state.eventTargetError || "No valid event target is available.");
+    }
+    return state.eventTargetId;
   }
 
   function getQuestionConfig(hostData, questionNumber) {
@@ -434,9 +520,10 @@
       if (!confirmed) return null;
     }
 
+    const eventId = getActiveEventId();
     const supabase = getSupabaseClient();
     const { data, error } = await supabase.rpc("host_set_playoff_state", {
-      input_event_id: EVENT_ID,
+      input_event_id: eventId,
       input_action: action
     });
 
@@ -678,6 +765,7 @@
     const counts = hostData?.counts || {};
     const userEmail = state.session?.user?.email ? String(state.session.user.email) : "";
     const eventStatus = normalizeStatus(event.status);
+    const targetSummary = getEventTargetSummary();
     const showPrePause = String(eventStatus).toLowerCase() === "paused" && event.pre_pause_status;
     const activeRoundText = formatRound(event.active_question_number);
     const availableActions = getActionsForStatus(eventStatus, hostData);
@@ -811,6 +899,13 @@
         ${userEmail ? `<p class="playoff-email">Signed in as: ${escapeHtml(userEmail)}</p>` : ""}
         <p class="${feedbackClass}">${escapeHtml(state.message)}</p>
         ${state.refreshNotice ? `<p class="playoff-status-detail">${escapeHtml(state.refreshNotice)}</p>` : ""}
+        <section class="playoff-dashboard-block" aria-label="Event target">
+          <h2>Active Event Target</h2>
+          <div class="playoff-item-grid playoff-item-grid--summary">
+            <p><strong>Target:</strong> ${escapeHtml(targetSummary.label)}</p>
+            <p><strong>Event ID:</strong> ${escapeHtml(targetSummary.detail || "-")}</p>
+          </div>
+        </section>
 
         <section class="playoff-dashboard-block" aria-label="Event summary">
           <h2>Event Summary</h2>
@@ -866,6 +961,16 @@
   }
 
   function renderCurrentView() {
+    if (state.status === "invalid_event") {
+      renderShell(
+        "playoff-status--error",
+        "Invalid event target.",
+        state.session?.user?.email ? `Signed in as: ${escapeHtml(state.session.user.email)}` : "",
+        state.eventTargetError || "The supplied event ID is invalid."
+      );
+      return;
+    }
+
     if (state.status === "unauthenticated") {
       renderAuthView();
       return;
@@ -911,8 +1016,15 @@
       renderView();
     }
 
+    if (!state.eventTargetValid) {
+      state.status = "invalid_event";
+      state.message = state.eventTargetError || "The supplied event ID is invalid.";
+      renderCurrentView();
+      return;
+    }
+
     try {
-      const payload = await api.getHostState(EVENT_ID);
+      const payload = await api.getHostState(getActiveEventId());
       let changed = updateHostStateFromPayload(payload, { force: force || state.status !== "ready" });
       if (!state.actionNoticeType || state.actionNoticeType === "success") {
         state.actionNotice = "";
@@ -991,6 +1103,20 @@
   }
 
   async function initialize() {
+    const resolvedTarget = resolveEventTarget();
+    state.eventTargetId = resolvedTarget.eventId;
+    state.eventTargetMode = resolvedTarget.mode;
+    state.eventTargetValid = resolvedTarget.valid;
+    state.eventTargetError = resolvedTarget.error;
+
+    if (!state.eventTargetValid) {
+      state.loading = false;
+      state.status = "invalid_event";
+      state.message = resolvedTarget.error;
+      renderCurrentView();
+      return;
+    }
+
     state.loading = true;
     state.status = "loading";
     state.message = "Checking your session...";
