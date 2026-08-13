@@ -130,6 +130,26 @@ async function getPlayerState(eventId) {
   return normalizePlayerStatePayload(data);
 }
 
+async function touchPlayoffPresence(eventId) {
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc("touch_playoff_presence", {
+    input_event_id: eventId
+  });
+
+  if (error) throw rpcError(error);
+  return data;
+}
+
+async function markPlayoffPresenceOffline(eventId) {
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc("mark_playoff_presence_offline", {
+    input_event_id: eventId
+  });
+
+  if (error) throw rpcError(error);
+  return data;
+}
+
 /**
  * Submit a player answer for a specific question.
  * @param {string} questionId Question identifier.
@@ -308,6 +328,8 @@ export const PlayoffAPI = {
   signOut,
   getContest,
   getPlayerState,
+  touchPlayoffPresence,
+  markPlayoffPresenceOffline,
   joinPlayoff,
   submitAnswer,
   getHostState,

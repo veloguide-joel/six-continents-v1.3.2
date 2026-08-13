@@ -140,6 +140,7 @@
     }
 
     if (state.session?.user && !state.actionLoading && state.status === "ready") {
+      state.pollSuspended = false;
       void refreshHostState({ fromPoll: true, force: true });
     }
   });
@@ -470,6 +471,20 @@
         return participant?.is_finalist === true && !isEliminated;
       })
       .length;
+  }
+
+  function getParticipantPresence(participant, serverTime) {
+    const lastSeenAt = participant?.last_seen_at;
+    const serverTimeValue = serverTime ?? null;
+    const lastSeenMs = lastSeenAt ? new Date(lastSeenAt).getTime() : null;
+    const serverMs = serverTimeValue ? new Date(serverTimeValue).getTime() : null;
+
+    if (!lastSeenAt || !Number.isFinite(lastSeenMs) || !Number.isFinite(serverMs)) {
+      return "OFFLINE";
+    }
+
+    const ageMs = serverMs - lastSeenMs;
+    return ageMs <= 90000 ? "ONLINE" : "OFFLINE";
   }
 
   function statusBadgeClass(rawStatus) {
@@ -1039,11 +1054,18 @@
     const participantRows = participants.length
       ? participants.map((participant) => {
         const joined = Boolean(participant.joined);
+        const presence = getParticipantPresence(participant, hostData?.server_time);
+        const presenceBadgeClass = presence === "ONLINE"
+          ? "playoff-pill playoff-pill--presence-online"
+          : "playoff-pill playoff-pill--presence-offline";
         return `
           <article class="playoff-item-card" aria-label="Participant row">
             <div class="playoff-item-head">
               <h3>${escapeHtml(participant.display_name || "Unnamed")}</h3>
-              <span class="${statusBadgeClass(participant.current_status)}">${escapeHtml(normalizeStatus(participant.current_status))}</span>
+              <div class="playoff-item-badges">
+                <span class="${statusBadgeClass(participant.current_status)}">${escapeHtml(normalizeStatus(participant.current_status))}</span>
+                <span class="${presenceBadgeClass}">${escapeHtml(presence)}</span>
+              </div>
             </div>
             <div class="playoff-item-grid">
               <p><strong>Expected email:</strong> ${escapeHtml(participant.expected_email || "-")}</p>

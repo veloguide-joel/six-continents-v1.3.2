@@ -915,6 +915,13 @@ body {
   margin-bottom: 8px;
 }
 
+.playoff-item-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .playoff-item-head h3 {
   margin: 0;
   font-size: 1rem;
@@ -978,6 +985,18 @@ body {
 }
 
 .playoff-pill--muted {
+  border-color: rgba(194, 199, 214, 0.45);
+  background: rgba(194, 199, 214, 0.14);
+  color: #d9deee;
+}
+
+.playoff-pill--presence-online {
+  border-color: rgba(105, 232, 169, 0.55);
+  background: rgba(105, 232, 169, 0.18);
+  color: #bbffd8;
+}
+
+.playoff-pill--presence-offline {
   border-color: rgba(194, 199, 214, 0.45);
   background: rgba(194, 199, 214, 0.14);
   color: #d9deee;

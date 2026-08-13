@@ -25,6 +25,8 @@
     typeof api.getSession !== "function" ||
     typeof api.joinPlayoff !== "function" ||
     typeof api.getPlayerState !== "function" ||
+    typeof api.touchPlayoffPresence !== "function" ||
+    typeof api.markPlayoffPresenceOffline !== "function" ||
     typeof api.submitAnswer !== "function"
   ) {
     root.innerHTML = `
@@ -50,6 +52,9 @@
     pollTimerId: null,
     pollInFlight: false,
     pollSuspended: false,
+    presenceTimerId: null,
+    presenceInFlight: false,
+    presenceActive: false,
     fatalError: false,
     lastPlayerStateKey: "",
     lastCelebratedSignature: "",
@@ -69,6 +74,7 @@
   };
 
   const POLL_INTERVAL_MS = 2500;
+  const PRESENCE_HEARTBEAT_INTERVAL_MS = 10000;
   const prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const parseJoinData = (raw) => {
@@ -737,8 +743,20 @@
 
   const handleJoinFailure = (error) => {
     const rawMessage = String(error?.message || error?.details || error?.hint || "").toLowerCase();
+    const rawSignal = String(error?.detail || error?.details || error?.message || error?.hint || "").trim();
+    const isLateJoinCutoff = /PLAYOFF_JOIN_CUTOFF/i.test(rawSignal)
+      || /the qualifying round has already ended\. new playoff entries are closed\./i.test(rawSignal);
     const isWrongAccount = /different|belongs|expected email|expected.*email|email.*invitation|invitation.*email/i.test(rawMessage);
     const isInvalidInvitation = /invalid invitation|invite token|expired|not found|does not exist|not valid/i.test(rawMessage);
+
+    if (isLateJoinCutoff) {
+      setAuthUi("late_join_cutoff", "You missed the qualifying round.", "Round 1 has already ended, so entries for this playoff are now closed.", "You needed to join before Round 1 was completed to remain eligible for the playoff.", {
+        isError: false,
+        showSignOut: false,
+        error: ""
+      });
+      return true;
+    }
 
     if (isWrongAccount) {
       setAuthUi("wrong_account", "This invitation belongs to a different email address", "Please sign out and sign in with the email address that received this playoff invitation.", "", {
@@ -767,6 +785,19 @@
   };
 
   const handleSignOut = async () => {
+    const eventId = state.currentEventId;
+
+    stopPresenceHeartbeat();
+    stopPolling();
+
+    try {
+      if (eventId) {
+        await api.markPlayoffPresenceOffline(eventId);
+      }
+    } catch (presenceError) {
+      console.warn("Playoff presence offline update failed:", presenceError?.message || presenceError);
+    }
+
     try {
       await api.signOut();
     } catch (signOutError) {
@@ -781,7 +812,6 @@
       state.lastStateScore = 0;
       state.feedback = "";
       state.incorrectFeedback = null;
-      stopPolling();
       const invite = state.inviteToken ? `?invite=${encodeURIComponent(state.inviteToken)}` : "";
       window.location.replace(`/playoff.html${invite}`);
     }
@@ -837,6 +867,7 @@
     const isSubmitting = auth.mode === "submitting";
     const isErrorState = auth.mode === "error" || auth.mode === "wrong_account";
     const showError = Boolean(auth.error || isErrorState);
+    const isLateJoinCutoff = auth.mode === "late_join_cutoff";
 
     root.innerHTML = `
       <main class="playoff-shell playoff-shell--auth" aria-label="Playoff sign-in shell">
@@ -846,57 +877,61 @@
           <h1>Live Playoff</h1>
           <p class="playoff-auth-intro">${escapeHtml(auth.message || "Sign in with the email address that received this invitation.")}</p>
           <p class="playoff-auth-detail">${escapeHtml(auth.detail || "Your invitation has already been detected. After signing in, you will enter the playoff automatically.")}</p>
-          ${showError ? `<div class="playoff-auth-error" role="alert">${escapeHtml(auth.error || auth.title || "We couldn’t sign you in.")}</div>` : ""}
-          <form id="playoff-auth-form" class="playoff-auth-form" novalidate>
-            <label class="playoff-auth-label" for="playoff-auth-email">Email address</label>
-            <input
-              id="playoff-auth-email"
-              name="email"
-              type="email"
-              autocomplete="email"
-              inputmode="email"
-              value="${escapeHtml(auth.email || "")}" 
-              required
-            >
-            <label class="playoff-auth-label" for="playoff-auth-password">Password</label>
-            <div class="playoff-auth-password-row">
+          ${showError && !isLateJoinCutoff ? `<div class="playoff-auth-error" role="alert">${escapeHtml(auth.error || auth.title || "We couldn’t sign you in.")}</div>` : ""}
+          ${isLateJoinCutoff ? "" : `
+            <form id="playoff-auth-form" class="playoff-auth-form" novalidate>
+              <label class="playoff-auth-label" for="playoff-auth-email">Email address</label>
               <input
-                id="playoff-auth-password"
-                name="password"
-                type="password"
-                autocomplete="current-password"
+                id="playoff-auth-email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                inputmode="email"
+                value="${escapeHtml(auth.email || "")}"
                 required
               >
-              <button type="button" id="playoff-auth-toggle" class="playoff-auth-toggle">Show</button>
-            </div>
-            <div class="playoff-auth-actions">
-              <button type="submit" class="playoff-auth-button" ${isSubmitting ? "disabled" : ""}>
-                ${isSubmitting ? "Signing In…" : "Sign In"}
-              </button>
-            </div>
-          </form>
-          ${auth.showSignOut ? `<button type="button" id="playoff-auth-signout" class="playoff-auth-link-button">Sign Out and Try Again</button>` : ""}
-          <p class="playoff-auth-help">Need help signing in? Contact <a href="mailto:hola@theaccidentalretiree.mx">hola@theaccidentalretiree.mx</a></p>
+              <label class="playoff-auth-label" for="playoff-auth-password">Password</label>
+              <div class="playoff-auth-password-row">
+                <input
+                  id="playoff-auth-password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                >
+                <button type="button" id="playoff-auth-toggle" class="playoff-auth-toggle">Show</button>
+              </div>
+              <div class="playoff-auth-actions">
+                <button type="submit" class="playoff-auth-button" ${isSubmitting ? "disabled" : ""}>
+                  ${isSubmitting ? "Signing In…" : "Sign In"}
+                </button>
+              </div>
+            </form>
+          `}
+          ${auth.showSignOut && !isLateJoinCutoff ? `<button type="button" id="playoff-auth-signout" class="playoff-auth-link-button">Sign Out and Try Again</button>` : ""}
+          ${isLateJoinCutoff ? "" : `<p class="playoff-auth-help">Need help signing in? Contact <a href="mailto:hola@theaccidentalretiree.mx">hola@theaccidentalretiree.mx</a></p>`}
         </div>
       </main>
     `;
 
-    const form = document.getElementById("playoff-auth-form");
-    if (form) {
-      form.addEventListener("submit", handleSignInSubmit);
-    }
+    if (!isLateJoinCutoff) {
+      const form = document.getElementById("playoff-auth-form");
+      if (form) {
+        form.addEventListener("submit", handleSignInSubmit);
+      }
 
-    const toggle = document.getElementById("playoff-auth-toggle");
-    if (toggle) {
-      toggle.addEventListener("click", () => {
-        const passwordInput = document.getElementById("playoff-auth-password");
-        if (!passwordInput) {
-          return;
-        }
-        const isPassword = passwordInput.type === "password";
-        passwordInput.type = isPassword ? "text" : "password";
-        toggle.textContent = isPassword ? "Hide" : "Show";
-      });
+      const toggle = document.getElementById("playoff-auth-toggle");
+      if (toggle) {
+        toggle.addEventListener("click", () => {
+          const passwordInput = document.getElementById("playoff-auth-password");
+          if (!passwordInput) {
+            return;
+          }
+          const isPassword = passwordInput.type === "password";
+          passwordInput.type = isPassword ? "text" : "password";
+          toggle.textContent = isPassword ? "Hide" : "Show";
+        });
+      }
     }
 
     const signOutButton = document.getElementById("playoff-auth-signout");
@@ -1015,7 +1050,6 @@
                     </div>
                     <div class="playoff-waiting-room-meta">
                       <span class="playoff-waiting-room-message">${messageText}</span>
-                      <span class="playoff-pill ${hasJoined ? "playoff-pill--ok" : "playoff-pill--muted"}">${hasJoined ? "Ready" : "Waiting"}</span>
                     </div>
                   </div>
                 </div>
@@ -1146,6 +1180,58 @@
     state.pollSuspended = suspend;
   };
 
+  const clearPresenceTimer = () => {
+    if (state.presenceTimerId) {
+      window.clearTimeout(state.presenceTimerId);
+      state.presenceTimerId = null;
+    }
+  };
+
+  const stopPresenceHeartbeat = () => {
+    clearPresenceTimer();
+    state.presenceInFlight = false;
+    state.presenceActive = false;
+  };
+
+  const scheduleNextPresenceHeartbeat = () => {
+    clearPresenceTimer();
+    if (!state.presenceActive || state.fatalError || !state.user || !state.currentEventId) {
+      return;
+    }
+
+    state.presenceTimerId = window.setTimeout(() => {
+      void sendPresenceHeartbeat();
+    }, PRESENCE_HEARTBEAT_INTERVAL_MS);
+  };
+
+  const sendPresenceHeartbeat = async () => {
+    if (state.presenceInFlight || !state.presenceActive || state.fatalError || !state.user || !state.currentEventId) {
+      return;
+    }
+
+    state.presenceInFlight = true;
+    try {
+      await api.touchPlayoffPresence(state.currentEventId);
+    } catch (presenceError) {
+      console.warn("Playoff presence heartbeat failed:", presenceError?.message || presenceError);
+    } finally {
+      state.presenceInFlight = false;
+      if (state.presenceActive && !state.fatalError && state.user && state.currentEventId) {
+        scheduleNextPresenceHeartbeat();
+      }
+    }
+  };
+
+  const startPresenceHeartbeat = () => {
+    if (state.fatalError || !state.user || !state.currentEventId) {
+      return;
+    }
+
+    state.presenceActive = true;
+    scheduleNextPresenceHeartbeat();
+    void sendPresenceHeartbeat();
+  };
+
   const pollPlayerState = async () => {
     if (state.pollInFlight || state.fatalError || state.pollSuspended || !state.user || !state.currentEventId || state.isSubmitting) {
       return;
@@ -1229,6 +1315,7 @@
       setAuthUi("player", "", "", "", { isError: false, showSignOut: false });
       renderApp();
       startPolling();
+      startPresenceHeartbeat();
       return true;
     } catch (error) {
       handleJoinFailure(error);
@@ -1364,6 +1451,7 @@
     } catch (error) {
       state.fatalError = true;
       stopPolling();
+      stopPresenceHeartbeat();
       if (!state.user) {
         renderShell("playoff-status--error", "Playoff authentication could not be initialized.");
       } else {
