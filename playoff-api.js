@@ -211,6 +211,22 @@ async function recoverEvent(eventId, action) {
 }
 
 /**
+ * Reset the playoff runtime back to the waiting room while preserving the event and configuration.
+ * @param {string} eventId Event identifier.
+ * @returns {Promise<any>} Host state payload from the reset RPC.
+ * @who Host
+ */
+async function resetToWaiting(eventId) {
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc("host_reset_playoff_to_waiting", {
+    input_event_id: eventId
+  });
+
+  if (error) throw rpcError(error);
+  return data;
+}
+
+/**
  * Open a question for contest play.
  * @param {string} questionId Question identifier.
  * @returns {Promise<any>} Host action result promise.
@@ -297,6 +313,7 @@ export const PlayoffAPI = {
   getHostState,
   configureQuestions,
   recoverEvent,
+  resetToWaiting,
   openQuestion,
   closeQuestion,
   advanceQuestion,

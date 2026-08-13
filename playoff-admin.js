@@ -2,7 +2,7 @@
 
 (() => {
   const DEFAULT_EVENT_ID = "591ec441-e182-46b5-82d5-345c7d9c82c0";
-  const REQUIRED_API_METHODS = ["getSession", "getHostState", "configureQuestions", "recoverEvent"];
+  const REQUIRED_API_METHODS = ["getSession", "getHostState", "configureQuestions", "recoverEvent", "resetToWaiting"];
   const ACTIONS_BY_STATUS = {
     draft: ["start_waiting"],
     waiting_for_players: ["open_round_1", "pause"],
@@ -117,6 +117,12 @@
     if (target.id === "playoff-recovery-restart-current-round") {
       event.preventDefault();
       void handleRecoveryAction("restart_current_round");
+      return;
+    }
+
+    if (target.id === "playoff-recovery-reset-to-waiting") {
+      event.preventDefault();
+      void handleRecoveryAction("reset_to_waiting");
       return;
     }
 
@@ -571,6 +577,19 @@
     return null;
   }
 
+  function isResetToWaitingAvailable(eventStatus) {
+    const statusKey = normalizeStatus(eventStatus, "").toLowerCase();
+    return [
+      "question_1_open",
+      "question_1_complete",
+      "question_2_open",
+      "question_2_complete",
+      "question_3_open",
+      "paused",
+      "winner_locked"
+    ].includes(statusKey);
+  }
+
   function getActionsForStatus(eventStatus, hostData) {
     const statusKey = normalizeStatus(eventStatus, "").toLowerCase();
     const actions = [...(ACTIONS_BY_STATUS[statusKey] || [])];
@@ -994,6 +1013,7 @@
     const isSetupEditable = eventStatusLower === "draft";
     const canRunFullReset = eventStatusLower === "waiting_for_players";
     const canRestartCurrentRound = getRestartRoundForStatus(eventStatusLower) !== null;
+    const canResetEntireGame = isResetToWaitingAvailable(eventStatusLower);
     const recoveryFeedbackMarkup = state.recoveryFeedback
       ? `<p class="playoff-recovery-feedback ${state.recoveryFeedbackType === "error" ? "playoff-recovery-feedback--error" : state.recoveryFeedbackType === "success" ? "playoff-recovery-feedback--success" : ""}">${escapeHtml(state.recoveryFeedback)}</p>`
       : "";
@@ -1263,8 +1283,13 @@
                 <button id="playoff-recovery-restart-current-round" class="playoff-action-btn playoff-action-btn--primary" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "restart_current_round" ? "Restarting..." : "Restart Current Round"}</button>
               </div>`
             : ""}
-          ${!canRunFullReset && !canRestartCurrentRound
-            ? '<p class="playoff-status-detail">Full Reset Event is currently available only while the event is waiting for players. Restart Current Round is currently available only while Round 1, Round 2, or the Final Round is open, or when the event is winner locked.</p>'
+          ${canResetEntireGame
+            ? `<div class="playoff-recovery-actions">
+                <button id="playoff-recovery-reset-to-waiting" class="playoff-action-btn playoff-recovery-btn" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "reset_to_waiting" ? "Resetting Game..." : "Reset Entire Game to Waiting Room"}</button>
+              </div>`
+            : ""}
+          ${!canRunFullReset && !canRestartCurrentRound && !canResetEntireGame
+            ? '<p class="playoff-status-detail">Full Reset Event is currently available only while the event is waiting for players. Restart Current Round is currently available only while Round 1, Round 2, or the Final Round is open, or when the event is winner locked. Reset Entire Game to Waiting Room is available during active playoff runtime states.</p>'
             : ""}
         </section>
       </main>
@@ -1424,7 +1449,7 @@
 
   async function handleRecoveryAction(action) {
     if (!action || state.recoveryLoading || state.actionLoading || state.loading || !state.hostData) return;
-    if (action !== "full_reset" && action !== "restart_current_round") return;
+    if (action !== "full_reset" && action !== "restart_current_round" && action !== "reset_to_waiting") return;
 
     if (action === "full_reset") {
       const confirmationText = [
@@ -1448,6 +1473,29 @@
 
       const entered = window.prompt(confirmationText);
       if (entered === null || String(entered).trim().toUpperCase() !== "RESET") return;
+    } else if (action === "reset_to_waiting") {
+      const confirmationText = [
+        "RESET ENTIRE GAME TO WAITING ROOM",
+        "",
+        "This will erase ALL playoff submissions, advancement results,",
+        "eliminations, finalist results and winner results for this event.",
+        "",
+        "It will preserve:",
+        "- the event",
+        "- questions",
+        "- advancement settings",
+        "- invitations",
+        "- joined player account bindings",
+        "",
+        "All joined players will return to the Waiting Room and the playoff can be started again.",
+        "",
+        "This does NOT affect Six Continents game solves or stage progress.",
+        "",
+        "Type RESET GAME to continue."
+      ].join("\n");
+
+      const entered = window.prompt(confirmationText);
+      if (entered === null || String(entered).trim().toUpperCase() !== "RESET GAME") return;
     } else {
       const currentStatus = normalizeStatus(state.hostData?.event?.status || "").toLowerCase();
       const restartRound = getRestartRoundForStatus(currentStatus);
@@ -1499,12 +1547,18 @@
 
     state.recoveryLoading = true;
     state.recoveryAction = action;
-    state.recoveryFeedback = action === "restart_current_round" ? "Restarting Round..." : "Resetting event...";
+    state.recoveryFeedback = action === "restart_current_round"
+      ? "Restarting Round..."
+      : action === "reset_to_waiting"
+        ? "Resetting game..."
+        : "Resetting event...";
     state.recoveryFeedbackType = "info";
     renderView();
 
     try {
-      const payload = await api.recoverEvent(getActiveEventId(), action);
+      const payload = action === "reset_to_waiting"
+        ? await api.resetToWaiting(getActiveEventId())
+        : await api.recoverEvent(getActiveEventId(), action);
       if (!payload || payload.ok !== true) {
         throw new Error("Recovery RPC did not return a successful state payload.");
       }
@@ -1521,6 +1575,10 @@
           : nextRestartRound === 2
             ? "Round 2 restarted. Round 1 qualifiers can answer again."
             : "Round 1 restarted. All joined players can answer again.";
+      } else if (action === "reset_to_waiting") {
+        state.recoveryFeedback = nextStatus === "waiting_for_players"
+          ? "Entire playoff reset. All joined players are back in the Waiting Room."
+          : "Entire playoff reset completed.";
       } else {
         state.recoveryFeedback = nextStatus === "draft"
           ? "Full reset completed. Event returned to draft."
