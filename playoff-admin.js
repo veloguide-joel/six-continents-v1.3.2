@@ -342,7 +342,8 @@
   }
 
   function isEventSetupEditable() {
-    return normalizeStatus(state.hostData?.event?.status, "").toLowerCase() === "draft";
+    const statusKey = normalizeStatus(state.hostData?.event?.status, "").toLowerCase();
+    return statusKey === "draft" || statusKey === "waiting_for_players";
   }
 
   function updateSetupLimitControl(roundNumber, limitValue) {
@@ -1010,7 +1011,7 @@
       : "";
     const readyBanner = getReadyBanner(hostData);
     const eventStatusLower = normalizeStatus(eventStatus).toLowerCase();
-    const isSetupEditable = eventStatusLower === "draft";
+    const isSetupEditable = isEventSetupEditable();
     const canRunFullReset = eventStatusLower === "waiting_for_players";
     const canRestartCurrentRound = getRestartRoundForStatus(eventStatusLower) !== null;
     const canResetEntireGame = isResetToWaitingAvailable(eventStatusLower);
@@ -1027,7 +1028,7 @@
     const q2Config = getQuestionConfig(hostData, 2);
     const setupLockedMessage = isSetupEditable
       ? ""
-      : `<p class="playoff-setup-locked">Event setup is locked after the event begins.</p>`;
+      : `<p class="playoff-setup-locked">Event setup is locked once Round 1 begins.</p>`;
 
     const refreshDisabled = (state.loading || state.actionLoading) ? "disabled" : "";
     const refreshText = state.loading ? "Refreshing..." : "Refresh State";
