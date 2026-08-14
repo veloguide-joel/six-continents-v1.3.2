@@ -21,6 +21,7 @@
     complete_round_1: "Complete Round 1",
     complete_round_2: "Complete Round 2",
     confirm_winner: "Confirm Winner",
+    rollback_one_round: "Roll Back One Round",
     pause: "Pause Event",
     resume: "Resume Event"
   };
@@ -119,6 +120,12 @@
     if (target.id === "playoff-recovery-restart-current-round") {
       event.preventDefault();
       void handleRecoveryAction("restart_current_round");
+      return;
+    }
+
+    if (target.id === "playoff-recovery-rollback-one-round") {
+      event.preventDefault();
+      void handleRecoveryAction("rollback_one_round");
       return;
     }
 
@@ -630,6 +637,16 @@
     ].includes(statusKey);
   }
 
+  function isRollbackOneRoundAvailable(eventStatus) {
+    const statusKey = normalizeStatus(eventStatus, "").toLowerCase();
+    return [
+      "question_2_open",
+      "question_2_complete",
+      "question_3_open",
+      "winner_locked"
+    ].includes(statusKey);
+  }
+
   function getActionsForStatus(eventStatus, hostData) {
     const statusKey = normalizeStatus(eventStatus, "").toLowerCase();
     const actions = [...(ACTIONS_BY_STATUS[statusKey] || [])];
@@ -1074,6 +1091,7 @@
     const isSetupEditable = isEventSetupEditable();
     const canRunFullReset = eventStatusLower === "waiting_for_players";
     const canRestartCurrentRound = getRestartRoundForStatus(eventStatusLower) !== null;
+    const canRollbackOneRound = isRollbackOneRoundAvailable(eventStatusLower);
     const canResetEntireGame = isResetToWaitingAvailable(eventStatusLower);
     const recoveryFeedbackMarkup = state.recoveryFeedback
       ? `<p class="playoff-recovery-feedback ${state.recoveryFeedbackType === "error" ? "playoff-recovery-feedback--error" : state.recoveryFeedbackType === "success" ? "playoff-recovery-feedback--success" : ""}">${escapeHtml(state.recoveryFeedback)}</p>`
@@ -1269,7 +1287,7 @@
 
         <section class="playoff-dashboard-block" aria-label="Round submissions list">
           <h2>Round Submissions</h2>
-          <div class="playoff-item-list">${submissionRows}</div>
+          <div class="playoff-item-list playoff-submissions-list">${submissionRows}</div>
         </section>
 
         <section class="playoff-dashboard-block" aria-label="Event setup">
@@ -1351,13 +1369,18 @@
                 <button id="playoff-recovery-restart-current-round" class="playoff-action-btn playoff-action-btn--primary" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "restart_current_round" ? "Restarting..." : "Restart Current Round"}</button>
               </div>`
             : ""}
+          ${canRollbackOneRound
+            ? `<div class="playoff-recovery-actions">
+                <button id="playoff-recovery-rollback-one-round" class="playoff-action-btn playoff-action-btn--primary" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "rollback_one_round" ? "Rolling Back..." : "Roll Back One Round"}</button>
+              </div>`
+            : ""}
           ${canResetEntireGame
             ? `<div class="playoff-recovery-actions">
                 <button id="playoff-recovery-reset-to-waiting" class="playoff-action-btn playoff-recovery-btn" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "reset_to_waiting" ? "Resetting Game..." : "Reset Entire Game to Waiting Room"}</button>
               </div>`
             : ""}
-          ${!canRunFullReset && !canRestartCurrentRound && !canResetEntireGame
-            ? '<p class="playoff-status-detail">Full Reset Event is currently available only while the event is waiting for players. Restart Current Round is currently available only while Round 1, Round 2, or the Final Round is open, or when the event is winner locked. Reset Entire Game to Waiting Room is available during active playoff runtime states.</p>'
+          ${!canRunFullReset && !canRestartCurrentRound && !canRollbackOneRound && !canResetEntireGame
+            ? '<p class="playoff-status-detail">Full Reset Event is currently available only while the event is waiting for players. Restart Current Round is currently available only while Round 1, Round 2, or the Final Round is open, or when the event is winner locked. Roll Back One Round is available while Round 2 or the Final Round is active, or when the event is winner locked. Reset Entire Game to Waiting Room is available during active playoff runtime states.</p>'
             : ""}
         </section>
       </main>
@@ -1517,7 +1540,7 @@
 
   async function handleRecoveryAction(action) {
     if (!action || state.recoveryLoading || state.actionLoading || state.loading || !state.hostData) return;
-    if (action !== "full_reset" && action !== "restart_current_round" && action !== "reset_to_waiting") return;
+    if (action !== "full_reset" && action !== "restart_current_round" && action !== "rollback_one_round" && action !== "reset_to_waiting") return;
 
     if (action === "full_reset") {
       const confirmationText = [
@@ -1564,6 +1587,38 @@
 
       const entered = window.prompt(confirmationText);
       if (entered === null || String(entered).trim().toUpperCase() !== "RESET GAME") return;
+    } else if (action === "rollback_one_round") {
+      const currentStatus = normalizeStatus(state.hostData?.event?.status || "").toLowerCase();
+      const confirmationText = currentStatus === "question_2_open" || currentStatus === "question_2_complete"
+        ? [
+          "ROLL BACK ONE ROUND",
+          "",
+          "This will reopen Round 1 and replay it from the beginning.",
+          "",
+          "All Round 1, Round 2 and Round 3 submissions will be erased.",
+          "",
+          "Joined players will return to Round 1 and can answer again.",
+          "",
+          "Never-joined invitees will remain invited.",
+          "",
+          "This does NOT affect Six Continents game solves or stage progress."
+        ].join("\n")
+        : [
+          "ROLL BACK ONE ROUND",
+          "",
+          "This will reopen Round 2 and replay it from the beginning.",
+          "",
+          "Round 2 and Round 3 submissions will be erased.",
+          "",
+          "Round 1 results and qualifiers will be preserved.",
+          "",
+          "Round 1 qualifiers will return to Round 2 and can answer again.",
+          "",
+          "This does NOT affect Six Continents game solves or stage progress."
+        ].join("\n");
+
+      const confirmed = window.confirm(confirmationText);
+      if (!confirmed) return;
     } else {
       const currentStatus = normalizeStatus(state.hostData?.event?.status || "").toLowerCase();
       const restartRound = getRestartRoundForStatus(currentStatus);
@@ -1617,9 +1672,11 @@
     state.recoveryAction = action;
     state.recoveryFeedback = action === "restart_current_round"
       ? "Restarting Round..."
-      : action === "reset_to_waiting"
-        ? "Resetting game..."
-        : "Resetting event...";
+      : action === "rollback_one_round"
+        ? "Rolling back one round..."
+        : action === "reset_to_waiting"
+          ? "Resetting game..."
+          : "Resetting event...";
     state.recoveryFeedbackType = "info";
     renderView();
 
@@ -1643,6 +1700,8 @@
           : nextRestartRound === 2
             ? "Round 2 restarted. Round 1 qualifiers can answer again."
             : "Round 1 restarted. All joined players can answer again.";
+      } else if (action === "rollback_one_round") {
+        state.recoveryFeedback = "Rolled back one round.";
       } else if (action === "reset_to_waiting") {
         state.recoveryFeedback = nextStatus === "waiting_for_players"
           ? "Entire playoff reset. All joined players are back in the Waiting Room."

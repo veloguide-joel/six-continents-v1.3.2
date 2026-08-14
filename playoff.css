@@ -900,6 +900,13 @@ body {
   gap: 10px;
 }
 
+.playoff-submissions-list {
+  max-height: 42rem;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+}
+
 .playoff-item-card {
   padding: 12px;
   border-radius: 10px;

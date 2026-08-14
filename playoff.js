@@ -729,6 +729,36 @@
     };
   };
 
+  const isKnownRollbackTargetState = (currentState, incomingState) => {
+    if (!currentState || !incomingState) {
+      return false;
+    }
+
+    const currentEventStatus = normalize(currentState?.event_status || "");
+    const incomingEventStatus = normalize(incomingState?.event_status || "");
+    const incomingHasQuestion = Boolean(incomingState?.question?.id);
+    const incomingQuestionNumber = Number(
+      incomingState?.active_question_number ??
+      incomingState?.question?.question_number ??
+      incomingState?.question_number ??
+      0
+    );
+
+    if (incomingEventStatus === "question_2_open") {
+      return incomingHasQuestion
+        && incomingQuestionNumber === 2
+        && (currentEventStatus === "question_3_open" || currentEventStatus === "winner_locked");
+    }
+
+    if (incomingEventStatus === "question_1_open") {
+      return incomingHasQuestion
+        && incomingQuestionNumber === 1
+        && (currentEventStatus === "question_2_open" || currentEventStatus === "question_2_complete");
+    }
+
+    return false;
+  };
+
   const shouldIgnorePollUpdate = (currentState, incomingState) => {
     if (!incomingState) {
       return true;
@@ -758,12 +788,14 @@
       return false;
     }
 
+    const rollbackTransitionAllowed = isKnownRollbackTargetState(currentState, incomingState);
+
     if (currentPresentation.mode === "winner") {
-      return incomingPresentation.mode !== "winner";
+      return incomingPresentation.mode === "winner" || !rollbackTransitionAllowed;
     }
 
     if (currentPresentation.mode === "eliminated") {
-      return incomingPresentation.mode !== "eliminated";
+      return incomingPresentation.mode === "eliminated" || !rollbackTransitionAllowed;
     }
 
     if ((currentPresentation.mode === "waiting_for_next" || currentPresentation.mode === "finalist") && incomingHasQuestion && incomingQuestionNumber <= currentQuestionNumber) {
