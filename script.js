@@ -1,4 +1,4 @@
-﻿// === BUILD ID FOR VERIFICATION ===
+// === BUILD ID FOR VERIFICATION ===
 window.BUILD_ID = "dev-23da9c4-2026-01-20";
 console.log("[BUILD]", window.BUILD_ID);
 
@@ -32,7 +32,7 @@ function isFastTrackActive() {
   return isFastTrack;
 }
 
-// ✅ Import createMarketingTracker from window (loaded as non-blocking defer script)
+// ? Import createMarketingTracker from window (loaded as non-blocking defer script)
 // If marketing.js fails to load, function won't exist but app will still work
 const createMarketingTracker = window.createMarketingTracker || (() => {
   console.warn("[MARKETING] createMarketingTracker not available (script load failed or deferred)");
@@ -198,7 +198,7 @@ const app = {
 };
 
 // ===============================
-// FAST TRACK (Stages 1–4 assist)
+// FAST TRACK (Stages 1�4 assist)
 // ===============================
 const FAST_TRACK = {
   active: true,  // Internal flag; set to false to hard-disable
@@ -282,10 +282,10 @@ function injectFastTrackSaveGate() {
   `;
 
   gateScreen.innerHTML = `
-    <div style="font-size: 2.5rem; margin-bottom: 16px;">🎉</div>
+    <div style="font-size: 2.5rem; margin-bottom: 16px;">??</div>
     <h3 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 12px;">You're officially in the game</h3>
     <p style="font-size: 1rem; opacity: 0.95; line-height: 1.5; margin-bottom: 24px;">
-      You just completed Stages 1–4. Create a free account to save your progress and unlock Stage 5.
+      You just completed Stages 1�4. Create a free account to save your progress and unlock Stage 5.
     </p>
     <button id="fastTrackGateContinueBtn" style="
       background: white;
@@ -413,7 +413,7 @@ function fastTrackInjectUI(stageNum) {
   banner.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
       <div>
-        <div style="font-size: 1.1rem; margin-bottom: 4px;">🚀 Fast Track Bonus</div>
+        <div style="font-size: 1.1rem; margin-bottom: 4px;">?? Fast Track Bonus</div>
         <div style="font-size: 0.9rem; opacity: 0.95;">Reveal the answer to Stage ${stage} and skip ahead instantly.</div>
       </div>
       <button id="fastTrackRevealBtn" style="
@@ -539,7 +539,7 @@ function renderFastTrackBadge(stageNum) {
     cursor: default;
     pointer-events: none;
   `;
-  badge.textContent = 'FAST TRACK 🚀';
+  badge.textContent = 'FAST TRACK ??';
   stageHeaderTitle.appendChild(badge);
 }
 
@@ -665,7 +665,7 @@ function isProfileDisplayNameLockActive() {
 }
 
 function generatePlayerName() {
-  // 7-digit random number (1000000–9999999)
+  // 7-digit random number (1000000�9999999)
   const n = Math.floor(1000000 + Math.random() * 9000000);
   return `${DEFAULT_PLAYER_PREFIX}${n}`;
 }
@@ -1278,7 +1278,7 @@ async function computeNextUnsolvedFromSolves(userId) {
       }
     });
 
-    // ✅ STORE step data globally for isSolved() to use
+    // ? STORE step data globally for isSolved() to use
     window.__dbStepByStage = stageMaxStep;
 
     // Build set of solved stages (accounting for canonical per-stage requirements)
@@ -1291,11 +1291,11 @@ async function computeNextUnsolvedFromSolves(userId) {
       }
     }
 
-    // ✅ STORE GLOBALLY for Journey Progress UI to use
+    // ? STORE GLOBALLY for Journey Progress UI to use
     window.__dbSolvedSet = solvedSet;
     window.__dbSolvedArray = Array.from(solvedSet).sort((a, b) => a - b);
     
-    // ✅ Set canonical global solved state (for journey progress rendering)
+    // ? Set canonical global solved state (for journey progress rendering)
     window.__SOLVED_STAGES = window.__dbSolvedArray;
     window.__MAX_SOLVED_STAGE = Math.max(...window.__dbSolvedArray, 0);
     console.log("[JOURNEY] Global solved stages set:", window.__SOLVED_STAGES, "max:", window.__MAX_SOLVED_STAGE);
@@ -1306,7 +1306,7 @@ async function computeNextUnsolvedFromSolves(userId) {
     for (let i = 1; i <= MAX_STAGE; i++) {
       if (!solvedSet.has(i)) {
         console.log("[NAV] next unsolved computed:", i);
-        // ✅ SIGNAL that solves have loaded (gate open)
+        // ? SIGNAL that solves have loaded (gate open)
         if (typeof solvesLoadedResolve === 'function') {
           solvesLoadedResolve();
         }
@@ -1316,14 +1316,14 @@ async function computeNextUnsolvedFromSolves(userId) {
 
     // All stages solved, return MAX_STAGE
     console.log("[NAV] All stages solved, returning:", MAX_STAGE);
-    // ✅ SIGNAL that solves have loaded (gate open)
+    // ? SIGNAL that solves have loaded (gate open)
     if (typeof solvesLoadedResolve === 'function') {
       solvesLoadedResolve();
     }
     return MAX_STAGE;
   } catch (e) {
     console.warn("[NAV] computeNextUnsolvedFromSolves failed:", e);
-    // ✅ SIGNAL that solves have loaded even on error (gate open)
+    // ? SIGNAL that solves have loaded even on error (gate open)
     if (typeof solvesLoadedResolve === 'function') {
       solvesLoadedResolve();
     }
@@ -1673,7 +1673,7 @@ async function openProfileModal() {
         // Change upload text
         uploadLabel.textContent = 'Change profile pic';
       } else {
-        // No uploaded photo → show avatars
+        // No uploaded photo ? show avatars
         avatarGrid.style.display = 'flex';
 
         if (avatarPreview) {
@@ -1722,7 +1722,7 @@ function maybePromptForProfile(user, profile) {
   try {
     if (!user || !profile) return;
     if (hasCompleteProfile(profile)) return;
-    console.log('[PROFILE] Prompting user to complete profile…');
+    console.log('[PROFILE] Prompting user to complete profile�');
     openProfileModal();
   } catch (err) {
     console.warn('[PROFILE] Failed to prompt for profile:', err);
@@ -1931,7 +1931,7 @@ function initProfilePasswordChange() {
   const feedbackEl = document.getElementById('passwordChangeFeedback');
 
   if (!toggleBtn || !section || !formContainer || !saveBtn || !cancelBtn || !feedbackEl) {
-    console.warn('[PROFILE] Password change elements not found – skipping init.');
+    console.warn('[PROFILE] Password change elements not found � skipping init.');
     return;
   }
 
@@ -1984,7 +1984,7 @@ function initProfilePasswordChange() {
     }
 
     try {
-      setFeedback('Updating password…', 'info');
+      setFeedback('Updating password�', 'info');
 
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData?.user) {
@@ -2221,7 +2221,7 @@ async function hardSignOut(e) {
       progressManager.localProgress = {};
     }
 
-    // Step 3: Clear app-specific localStorage keys (be explicit—don't nuke everything)
+    // Step 3: Clear app-specific localStorage keys (be explicit�don't nuke everything)
     console.log('[AUTH] clearing storage');
     const keysToClear = [
       "SC_AUTO_ENTER_GAME",
@@ -2387,12 +2387,12 @@ function showSolveCelebrationModal(stageNumber, { isMasterStage = false, isStage
 
     // Set content based on stage and winner status
     if (stageNumber === 16) {
-        title.textContent = '🏆 You’re In the Grand Finale!';
+        title.textContent = '?? You�re In the Grand Finale!';
         body.innerHTML = [
             '<p>Congratulations! You completed Stage 16 and earned your place in the Grand Finale Playoff.</p>',
-            '<p>Live from Istanbul, Turkey — Sunday, September 6</p>',
+            '<p>Live from Istanbul, Turkey � Sunday, September 6</p>',
             '<p>Start time to be announced.</p>',
-            '<p>We’ll see you in the Final!</p>'
+            '<p>We�ll see you in the Final!</p>'
         ].join('');
         if (primaryBtn) {
             primaryBtn.textContent = 'Continue to Finale Details';
@@ -2401,13 +2401,13 @@ function showSolveCelebrationModal(stageNumber, { isMasterStage = false, isStage
         title.textContent = 'You cracked the Master Stage!';
         body.textContent = "You've completed the journey. If you're the grand prize winner, we'll contact you with next steps.";
     } else if (stageNumber === 15 && isStageWinner) {
-      title.textContent = '🏆 You won Stage 15!';
+      title.textContent = '?? You won Stage 15!';
       body.textContent = "You solved all three Stage 15 riddles first and claimed the main Stage 15 prize. You're also entered into the draw for any applicable Stage 15 bonus prizes.";
       if (primaryBtn && stage16Unlocked) {
         primaryBtn.textContent = 'Continue to Stage 16';
       }
     } else if (stageNumber === 15) {
-      title.textContent = '🎉 Congratulations — Stage 15 Complete!';
+      title.textContent = '?? Congratulations � Stage 15 Complete!';
       body.innerHTML = '<p>You solved all three Stage 15 riddles! The Stage 15 prize has already been claimed, but you are now one step closer to winning the 100,000 Turkish Airlines Miles Grand Prize.</p>' +
         '<p>You have also been entered into the draw for any applicable Stage 15 bonus prizes.</p>';
       if (primaryBtn && stage16Unlocked) {
@@ -2508,7 +2508,7 @@ class ContestApp {
     }
 
     loadInitialProgress() {
-        // ✅ If stage was restored from DB (or set by login flow), DO NOT override it
+        // ? If stage was restored from DB (or set by login flow), DO NOT override it
         const preset = Number(window.currentStage) || Number(this.currentStage) || 1;
         if (preset > 1) {
             this.currentStage = preset;
@@ -2684,7 +2684,7 @@ try {
 }
         // Step 1: Update local solved stages FIRST
         if (!this.isSolved(stage)) {
-            // ✅ MERGE with existing solved stages instead of replacing
+            // ? MERGE with existing solved stages instead of replacing
             const merged = mergeSolvedStages(window.__SOLVED_STAGES || this.solvedStages, [stage]);
             this.setSolvedStagesLocal(merged);
             console.log(`[ADVANCE] Stage ${stage} marked as solved locally. New progress:`, merged);
@@ -2955,7 +2955,7 @@ try {
         }
     }
 
-    showFirstRiddleFeedback(message = "That's not it. Watch & listen again 👀") {
+    showFirstRiddleFeedback(message = "That's not it. Watch & listen again ??") {
         const errorMessage = document.getElementById('errorMessage');
         if (errorMessage) {
             errorMessage.textContent = message;
@@ -2987,9 +2987,9 @@ try {
           if (this.currentStage === 16) {
             stageInstructions.classList.add('stage16-finale-instructions');
             stageInstructions.innerHTML = [
-              '<div class="stage16-finale-headline">🎉 Congratulations — You Made It to Stage 16!</div>',
+              '<div class="stage16-finale-headline">?? Congratulations � You Made It to Stage 16!</div>',
               '<div class="stage16-finale-subhead">One final clue stands between you and the Grand Finale.</div>',
-              '<div class="stage16-finale-body">Watch the video and answer the clue below to be entered into the <strong>Grand Finale Playoff</strong>, held live from <strong>Istanbul, Turkey</strong> — <strong>Sunday, September 6</strong>.</div>',
+              '<div class="stage16-finale-body">Watch the video and answer the clue below to be entered into the <strong>Grand Finale Playoff</strong>, held live from <strong>Istanbul, Turkey</strong> � <strong>Sunday, September 6</strong>.</div>',
               '<div class="stage16-finale-footnote">Start time to be announced.</div>'
             ].join('');
           } else {
@@ -3101,10 +3101,10 @@ try {
                 successTitle.style.display = 'none';
             }
             successText.innerHTML = [
-              '<div class="stage16-success-headline">🏆 You’re In!</div>',
+              '<div class="stage16-success-headline">?? You�re In!</div>',
               '<div class="stage16-success-body">Congratulations! You completed Stage 16 and earned your place in the <strong>Grand Finale Playoff</strong>.</div>',
-              '<div class="stage16-success-body">Live from <strong>Istanbul, Turkey</strong> — <strong>Sunday, September 6</strong>.</div>',
-              '<div class="stage16-success-footnote">Start time to be announced. Stay tuned! We’ll share the official start time and Grand Finale details soon.</div>'
+              '<div class="stage16-success-body">Live from <strong>Istanbul, Turkey</strong> � <strong>Sunday, September 6</strong>.</div>',
+              '<div class="stage16-success-footnote">Start time to be announced. Stay tuned! We�ll share the official start time and Grand Finale details soon.</div>'
             ].join('');
             if (continueBtn) {
                 continueBtn.style.display = 'none';
@@ -3154,8 +3154,8 @@ try {
       const titleEl = document.querySelector('#secondRiddlePanel .second-riddle-title');
       if (titleEl) {
         titleEl.textContent = stage === 15
-          ? "🎉 Congratulations! You're almost there. Just two more riddles to solve 😊"
-          : "🎉 Congratulations! You're almost there. Just one last riddle to solve 😊";
+          ? "?? Congratulations! You're almost there. Just two more riddles to solve ??"
+          : "?? Congratulations! You're almost there. Just one last riddle to solve ??";
       }
         document.getElementById('secondRiddleClue').textContent = clue;
         document.getElementById('secondRiddlePanel').style.display = 'block';
@@ -3173,7 +3173,7 @@ try {
       if (!clueEl || !panelEl) return;
       const titleEl = panelEl.querySelector('.second-riddle-title');
       if (titleEl && stage === 15) {
-        titleEl.textContent = '🎉 Great work! Final riddle for Stage 15.';
+        titleEl.textContent = '?? Great work! Final riddle for Stage 15.';
       }
       clueEl.textContent = clue;
       panelEl.style.display = 'block';
@@ -3193,7 +3193,7 @@ try {
             grid.appendChild(tile);
         }
         
-        // ✅ Apply canonical solved state to cards after render
+        // ? Apply canonical solved state to cards after render
         this.applySolvedStatesToCards();
         
         // Update Stage 16 separately
@@ -3202,14 +3202,14 @@ try {
 
     // Create individual stage tile
     createStageTile(stage) {
-        // ✅ Use canonical global solved state
+        // ? Use canonical global solved state
         const solvedStages = window.__SOLVED_STAGES || [];
         const solvedSet = new Set(solvedStages);
         const currentStage = window.contestApp?.currentStage || this.currentStage || 1;
         
         const tile = document.createElement('div');
         tile.className = 'stage-tile';
-        tile.setAttribute('data-stage', stage);  // ✅ Stable selector
+        tile.setAttribute('data-stage', stage);  // ? Stable selector
         
         // Canonical unlock/solve logic
         const isSolved = solvedSet.has(stage);
@@ -3233,12 +3233,12 @@ try {
         let iconClass, iconText, statusText, statusClass;
         if (isSolved) {
             iconClass = 'solved';
-            iconText = '✓';
+            iconText = '?';
             statusText = 'Solved';
             statusClass = 'is-solved';
         } else if (isAdminDisabled) {
             iconClass = 'stage-status-locked';
-            iconText = '⏸️';
+            iconText = '??';
             statusText = 'Opens as your journey unfolds';
             statusClass = 'is-locked';
         } else if (isUnlocked) {
@@ -3248,7 +3248,7 @@ try {
             statusClass = 'is-open';
         } else {
             iconClass = 'stage-status-locked';
-            iconText = '🔒';
+            iconText = '??';
             statusText = 'Opens as your journey unfolds';
             statusClass = 'is-locked';
         }
@@ -3286,7 +3286,7 @@ try {
         return tile;
     }
 
-    // ✅ Apply canonical solved state to all rendered cards
+    // ? Apply canonical solved state to all rendered cards
     applySolvedStatesToCards() {
         const solvedStages = window.__SOLVED_STAGES || [];
         if (DEBUG) console.log("[JOURNEY] Applying solved states to cards using:", solvedStages);
@@ -3304,7 +3304,7 @@ try {
                 // Update badge with checkmark
                 const iconEl = card.querySelector('.stage-icon');
                 if (iconEl) {
-                    iconEl.textContent = '✓';
+                    iconEl.textContent = '?';
                     iconEl.className = 'stage-icon solved';
                 }
                 
@@ -3334,7 +3334,7 @@ try {
 
     // Update progress bar
     updateProgress() {
-        // ✅ Use canonical global solved state
+        // ? Use canonical global solved state
         const solvedCount = window.__SOLVED_STAGES.length;
         const percentage = (solvedCount / CONFIG.total) * 100;
         
@@ -3351,7 +3351,7 @@ try {
 
     // Update stage progress UI (horizontal bar with dots)
     updateStageProgressUI() {
-        // ✅ Use canonical global solved state
+        // ? Use canonical global solved state
         const solvedStages = window.__SOLVED_STAGES;
         console.log("[JOURNEY] renderJourneyProgress using:", solvedStages);
         
@@ -3453,7 +3453,7 @@ try {
     renderGrandPrize() {
         this.hideAllPanels();
         
-        document.querySelector('.stage-title').textContent = '🎉 Congratulations! Journey Complete!';
+        document.querySelector('.stage-title').textContent = '?? Congratulations! Journey Complete!';
         document.querySelector('.stage-subtitle').textContent = 'You have successfully completed all 16 stages of the Six Continents Challenge!';
         
         // Hide video container
@@ -3464,7 +3464,7 @@ try {
         celebrationPanel.className = 'success-panel';
         celebrationPanel.style.display = 'block';
         celebrationPanel.innerHTML = `
-            <div class="success-title">🏆 Amazing Achievement!</div>
+            <div class="success-title">?? Amazing Achievement!</div>
             <div class="success-text">
                 You've completed the ultimate travel challenge! Your journey across six continents is now complete.
                 Check the leaderboard to see if you've won any prizes!
@@ -3663,7 +3663,7 @@ try {
                 // Reset wrong-attempt counter on success
                 try { resetWrongAttempts(); } catch (e) { /* noop if not available */ }
                 
-                // ✅ PERSIST Step 2 to database BEFORE advancing
+                // ? PERSIST Step 2 to database BEFORE advancing
                 let persistSuccess = false;
                 try {
                   let user = supabaseAuth?.user;
@@ -4192,9 +4192,9 @@ async function updateStageStatusBanner(currentStage) {
     const isNewPlayer = solvedCount === 0 && currentStage === 1;
 
     if (isNewPlayer) {
-        textEl.textContent = `Welcome to the game — you're on Stage ${currentStage} of 16`;
+        textEl.textContent = `Welcome to the game � you're on Stage ${currentStage} of 16`;
     } else {
-        textEl.textContent = `Welcome back, ${displayName} — you're on Stage ${currentStage} of 16`;
+        textEl.textContent = `Welcome back, ${displayName} � you're on Stage ${currentStage} of 16`;
     }
     
     banner.classList.remove('hidden');
@@ -4259,8 +4259,8 @@ const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5c
  * Current Flow:
  * 1. User clicks "Play Game" button (line 3340-3350)
  * 2. Check: supabaseAuth.user.email === ADMIN_EMAIL
- * 3. If true: calls showAdmin() → displays adminContainer
- * 4. If false: calls startContestForSignedInUser() → shows game
+ * 3. If true: calls showAdmin() ? displays adminContainer
+ * 4. If false: calls startContestForSignedInUser() ? shows game
  * 
  * ISSUES WITH CURRENT IMPLEMENTATION:
  * - No database lookup (hardcoded email only)
@@ -4297,7 +4297,7 @@ const FIRST_RIDDLE_CLUES = {
 
 // Stage-specific second riddle clues
 const SECOND_RIDDLE_CLUES = {
-    5: "We slept where Ra's first light awoke, In walls that held the desert's smoke. Seek not the tombs of kings long gone, But the humble door our fate shone on— Three numbers guard the path once more, The code that wakes the chamber door.\n\n---\n\n**Extra Hint:**\n\nSkip to around **9:45** in the video and watch closely.\n\n---",
+    5: "We slept where Ra's first light awoke, In walls that held the desert's smoke. Seek not the tombs of kings long gone, But the humble door our fate shone on� Three numbers guard the path once more, The code that wakes the chamber door.\n\n---\n\n**Extra Hint:**\n\nSkip to around **9:45** in the video and watch closely.\n\n---",
     6: "Go to the Stage 6 video and fast forward to about 2:50. We're previewing a breakfast menu. I mention that nothing is better than the countryside butter from a particular town. What is the name of that town?",
     7: "Go to the Stage 7 video. Listen carefully during the first few seconds, then jump ahead to around the 13-minute mark. What was the name of the compression socks and what was the flight number to Helsinki? Put the two together in that order: socks + flight number.",
     8: "Go to around 9 minutes in the Stage 8 video. Look carefully at the barber shop menu. How much would it cost for a hot towel shave and a haircut? Add the two prices together. Format your answer like this: $20. No decimals.",
@@ -4307,12 +4307,12 @@ const SECOND_RIDDLE_CLUES = {
     12: "Go to around 7:30 in the video. Watch carefully as we ride in the Uber. Find the Mexican restaurant sign. The name is: El ______ de Mexico. What is the missing Spanish word?",
     13: "Right off the bat, a lot of ________",
     14: "The clue is in the 100-year-old home video in Ome, Japan. Watch carefully after solving the first riddle. The answer comes from the guardian of the house and the _________.",
-    15: 'Watch the video and listen to the song. Find the name, and it will not be long.'
+    15: 'Red Red Wine made me feel so fine what was the name of this amazing red wine?'
 };
 
   // Stage-specific third riddle clues (currently only Stage 15)
   const THIRD_RIDDLE_CLUES = {
-    15: 'Congratulations! You are one step away from solving Stage 15 and getting in the running to win 100,000 Turkish Airlines Miles! Watch the recorded livestream. Good morning, Jillian!'
+    15: 'Good morning Jillian! Geez what time is it anyway?'
   };
 
 // === SAFE SUPABASE SINGLETON (prevents redeclare crash) ===
@@ -4407,7 +4407,7 @@ class AdminManager {
                     <div class="admin-stage-info">
                         <div class="admin-info-item">
                             <span class="admin-info-label">Status</span>
-                            <span class="admin-info-value">${isEnabled ? '🟢 Live' : '🔴 Disabled'}</span>
+                            <span class="admin-info-value">${isEnabled ? '?? Live' : '?? Disabled'}</span>
                         </div>
                         <div class="admin-info-item">
                             <span class="admin-info-label">Solvers</span>
@@ -4428,7 +4428,7 @@ class AdminManager {
                                   placeholder="Add notes about this stage..."
                                   id="admin-notes-${stage.stage}">${stage.notes || ''}</textarea>
                         <button class="admin-update-btn" onclick="adminManager.updateStageNotes(${stage.stage})">
-                            💾 Update Notes
+                            ?? Update Notes
                         </button>
                     </div>
                 </div>
@@ -5207,7 +5207,7 @@ function initializeSupabase() {
       }
 
       // Show success toast
-      showToast('✅ Progress saved. Stage 5 unlocked.', { type: 'success', durationMs: 2000 });
+      showToast('? Progress saved. Stage 5 unlocked.', { type: 'success', durationMs: 2000 });
 
       // Continue to Stage 5
       const nextStage = 5;
@@ -5427,7 +5427,7 @@ async function onUserSignedIn(user) {
     try {
         // --- LP variant redirect: if user signs in on landing page, go to index.html ---
         if (IS_LP_VARIANT) {
-            console.log("[LP] Auth success on LP variant — redirecting to index.html");
+            console.log("[LP] Auth success on LP variant � redirecting to index.html");
             window.location.href = "./index.html";
             return;
         }
@@ -5550,7 +5550,7 @@ async function onUserSignedIn(user) {
             
             if (!isNewPlayer) {
                 // Returning player - show welcome back message
-                showAnchoredToast('👋 Welcome back, continuing your journey...', { delay: 1000, duration: 3000, offsetPx: 64 });
+                showAnchoredToast('?? Welcome back, continuing your journey...', { delay: 1000, duration: 3000, offsetPx: 64 });
             }
         } catch (err) { /* noop */ }
 
@@ -5619,7 +5619,7 @@ function localLogSolveFallback(payload) {
 
                     // Defensive fallback: if no rows for this env, use prod
                     if (!rows || !rows.length) {
-                      console.warn('[STAGE_CONTROL] No rows for env', STAGE_ENV, '— falling back to prod');
+                      console.warn('[STAGE_CONTROL] No rows for env', STAGE_ENV, '� falling back to prod');
                       const { data: fallback } = await supabase
                         .from('stage_control')
                         .select('stage, is_enabled')
@@ -5721,7 +5721,7 @@ function renderLbCard(stage, winner, winnerProfile = null) {
             <div class="lb-left">
                 <div class="lb-winner-pill">Winner: ${winnerDisplayName}</div>
                 <div class="lb-congrats">&#127881; Congratulations!</div>
-                <div class="lb-stage-label">Stage ${stage}${stage === 16 ? ' · Master' : ''}</div>
+                <div class="lb-stage-label">Stage ${stage}${stage === 16 ? ' � Master' : ''}</div>
                 <div class="lb-prize">${prizeText}</div>
                 <div class="lb-date">Won ${formattedDate}</div>
             </div>
@@ -5730,7 +5730,7 @@ function renderLbCard(stage, winner, winnerProfile = null) {
         card.innerHTML = `
             <div class="lb-left">
                 <div class="lb-winner-pill" style="background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.6);">No Winner Yet</div>
-            <div class="lb-stage-label">Stage ${stage}${stage === 16 ? ' · Master' : ''}</div>
+            <div class="lb-stage-label">Stage ${stage}${stage === 16 ? ' � Master' : ''}</div>
                 <div class="lb-prize">${prizeText}</div>
                 <div class="lb-date">Prize Still Available</div>
             </div>
@@ -6250,7 +6250,7 @@ async function startContestForSignedInUser() {
     try {
         // --- LP variant guard: prevent game UI init on landing pages ---
         if (IS_LP_VARIANT) {
-            console.log("[LP] startContestForSignedInUser called on LP — redirecting");
+            console.log("[LP] startContestForSignedInUser called on LP � redirecting");
             window.location.href = "./index.html";
             return;
         }
@@ -6324,7 +6324,7 @@ async function startContestForSignedInUser() {
                 await window.contestApp.ensureAtNextUnsolved('start');
             }
             
-            // ✅ GATE: Wait for DB solves to fully load before rendering
+            // ? GATE: Wait for DB solves to fully load before rendering
             console.log('[UI] Waiting for DB solves to load...');
             await Promise.race([
               solvesLoadedPromise,
@@ -6335,7 +6335,7 @@ async function startContestForSignedInUser() {
             console.warn('[UI] ensureAtNextUnsolved error (non-fatal):', err);
         }
 
-        // ✅ Ensure Journey Progress uses DB solves (not localStorage)
+        // ? Ensure Journey Progress uses DB solves (not localStorage)
         try {
             const solvedArr = window.__dbSolvedArray || [];
             window.solvedStages = solvedArr;
@@ -6357,13 +6357,13 @@ async function startContestForSignedInUser() {
             if (window.contestApp && typeof window.contestApp.renderJourneyCards === "function") {
                 window.contestApp.renderJourneyCards();
             }
-            // ✅ CRITICAL: Force journey cards re-render with DB data
+            // ? CRITICAL: Force journey cards re-render with DB data
             if (window.contestApp && typeof window.contestApp.renderStagesGrid === "function") {
                 console.log("[JOURNEY] Re-rendering journey stages grid with DB data");
                 window.contestApp.renderStagesGrid();
             }
             
-            // ✅ DEFENSIVE RE-RENDER: Force all journey UI to refresh after DB load
+            // ? DEFENSIVE RE-RENDER: Force all journey UI to refresh after DB load
             console.log("[JOURNEY] Running defensive re-render of all journey components");
             setTimeout(() => {
               try {
@@ -6481,10 +6481,10 @@ function updateStage16() {
         stage16Card.classList.remove('locked');
         stage16Card.classList.add('stage-status-locked');
         stage16Card.innerHTML = `
-            <div class="stage16-master-icon stage-status-locked">⏸️</div>
+            <div class="stage16-master-icon stage-status-locked">??</div>
             <div class="stage16-master-header">
-                <div class="master-stage-title">Stage 16 — Master Stage</div>
-                <div class="master-stage-subtitle">Grand Finale — 100K Miles</div>
+                <div class="master-stage-title">Stage 16 � Master Stage</div>
+                <div class="master-stage-subtitle">Grand Finale � 100K Miles</div>
             </div>
             <div class="stage16-master-description">
                 Complete all 15 stages to unlock the Grand Finale.<br>
@@ -6499,17 +6499,17 @@ function updateStage16() {
         // Fully unlocked and enabled
         stage16Card.classList.remove('locked', 'stage-status-locked');
         stage16Card.innerHTML = `
-            <div class="stage16-master-icon open">✔</div>
+            <div class="stage16-master-icon open">?</div>
             <div class="stage16-master-header">
-                <div class="master-stage-title">Stage 16 — Master Stage</div>
-                <div class="master-stage-subtitle">Grand Finale — 100K Miles</div>
+                <div class="master-stage-title">Stage 16 � Master Stage</div>
+                <div class="master-stage-subtitle">Grand Finale � 100K Miles</div>
             </div>
             <div class="stage16-master-description">
                 Complete all 15 stages to unlock the Grand Finale.<br>
                 The first correct solver wins 100,000 Turkish Airlines Miles.<br>
                 Once claimed, Stage 16 closes for everyone else.
             </div>
-            <div class="stage16-master-status">Open — Click to Play</div>
+            <div class="stage16-master-status">Open � Click to Play</div>
         `;
         
         // Add click handler for open Stage 16
@@ -6528,10 +6528,10 @@ function updateStage16() {
         stage16Card.classList.add('stage-status-locked');
         stage16Card.classList.remove('locked');
         stage16Card.innerHTML = `
-            <div class="stage16-master-icon stage-status-locked">🔒</div>
+            <div class="stage16-master-icon stage-status-locked">??</div>
             <div class="stage16-master-header">
-                <div class="master-stage-title">Stage 16 — Master Stage</div>
-                <div class="master-stage-subtitle">Grand Finale — 100K Miles</div>
+                <div class="master-stage-title">Stage 16 � Master Stage</div>
+                <div class="master-stage-subtitle">Grand Finale � 100K Miles</div>
             </div>
             <div class="stage16-master-description">
                 Complete all 15 stages to unlock the Grand Finale.<br>
@@ -6793,7 +6793,7 @@ window.addEventListener('load', async function () {
 
     if (session?.user || autoEnter) {
       localStorage.removeItem(SC_AUTO_ENTER_GAME_KEY);
-      console.log('[LOAD] Session/autoEnter found — skipping landing, entering game');
+      console.log('[LOAD] Session/autoEnter found � skipping landing, entering game');
       if (session?.user) {
         supabaseAuth.user = session.user;
       }
