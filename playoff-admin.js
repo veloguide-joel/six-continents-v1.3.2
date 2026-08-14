@@ -588,6 +588,54 @@
     }
   }
 
+  function captureSubmissionScrollState() {
+    const submissionsList = document.querySelector(".playoff-submissions-list");
+    if (!submissionsList) {
+      return { anchorId: "", nearTop: true, previousScrollTop: 0 };
+    }
+
+    const cards = Array.from(submissionsList.querySelectorAll("article.playoff-item-card[data-submission-id]"));
+    const topBoundary = submissionsList.scrollTop + 8;
+    let anchorId = "";
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const card of cards) {
+      const distance = Math.abs((card.offsetTop || 0) - topBoundary);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        anchorId = card.getAttribute("data-submission-id") || "";
+      }
+    }
+
+    return {
+      anchorId,
+      nearTop: submissionsList.scrollTop <= 8,
+      previousScrollTop: submissionsList.scrollTop
+    };
+  }
+
+  function restoreSubmissionScrollState(scrollState) {
+    const submissionsList = document.querySelector(".playoff-submissions-list");
+    if (!submissionsList) return;
+
+    const maxScrollTop = Math.max(0, submissionsList.scrollHeight - submissionsList.clientHeight);
+    if (!scrollState || scrollState.nearTop) {
+      submissionsList.scrollTop = 0;
+      return;
+    }
+
+    if (scrollState.anchorId) {
+      const anchorCard = Array.from(submissionsList.querySelectorAll("article.playoff-item-card[data-submission-id]"))
+        .find((card) => card.getAttribute("data-submission-id") === scrollState.anchorId);
+      if (anchorCard) {
+        submissionsList.scrollTop = Math.min(Math.max(0, (anchorCard.offsetTop || 0) - 8), maxScrollTop);
+        return;
+      }
+    }
+
+    submissionsList.scrollTop = Math.min(Math.max(0, scrollState.previousScrollTop), maxScrollTop);
+  }
+
   function controlButtonClass(action) {
     if (action === "pause") return "playoff-action-btn playoff-action-btn--pause";
     if (action === "resume") return "playoff-action-btn playoff-action-btn--resume";
@@ -1113,6 +1161,7 @@
     const feedbackClass = state.status === "ready"
       ? "playoff-status playoff-status--host-verified"
       : "playoff-status playoff-status--error";
+    const submissionScrollState = captureSubmissionScrollState();
 
     const participantRows = participants.length
       ? participants.map((participant) => {
@@ -1168,25 +1217,23 @@
       : "<p class=\"playoff-empty\">No questions found for this event.</p>";
 
     const sortedSubmissions = submissions.slice().sort((left, right) => {
-      const leftQuestion = Number(left?.question_number || 0);
-      const rightQuestion = Number(right?.question_number || 0);
-      if (leftQuestion !== rightQuestion) return leftQuestion - rightQuestion;
-
       const leftTime = Date.parse(left?.submitted_at || "") || 0;
       const rightTime = Date.parse(right?.submitted_at || "") || 0;
-      return leftTime - rightTime;
+      if (leftTime !== rightTime) return rightTime - leftTime;
+      return String(left?.id || "").localeCompare(String(right?.id || ""));
     });
 
     const submissionRows = sortedSubmissions.length
-      ? sortedSubmissions.map((submission) => {
+      ? sortedSubmissions.map((submission, index) => {
         const resultText = submission?.is_correct ? "Correct" : "Incorrect";
         const resultClass = submission?.is_correct ? "playoff-pill playoff-pill--ok" : "playoff-pill playoff-pill--danger";
         const questionLabel = Number.isFinite(Number(submission?.question_number)) && Number(submission?.question_number) > 0
           ? `Round ${Number(submission.question_number)}`
           : "Round -";
+        const submissionKey = submission?.id || `${submission?.question_number || "q"}:${submission?.submitted_at || ""}:${submission?.display_name || ""}:${index}`;
 
         return `
-          <article class="playoff-item-card" aria-label="Submission row">
+          <article class="playoff-item-card" aria-label="Submission row" data-submission-id="${escapeHtml(submissionKey)}">
             <div class="playoff-item-head">
               <h3>${escapeHtml(submission?.display_name || "Unnamed")}</h3>
               <span class="${resultClass}">${resultText}</span>
@@ -1391,6 +1438,7 @@
     if (setupForm) {
       setupForm.addEventListener("submit", handleSetupSubmit);
     }
+    restoreSubmissionScrollState(submissionScrollState);
   }
 
   function renderCurrentView() {
