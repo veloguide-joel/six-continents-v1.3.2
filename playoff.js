@@ -122,6 +122,60 @@
     return !containsAny(status, ["eliminated", "winner", "completed", "locked"]);
   };
 
+  const getWinnerParticipantId = (playerState) => {
+    const candidates = [
+      playerState?.winner_participant_id,
+      playerState?.winnerParticipantId,
+      playerState?.event?.winner_participant_id,
+      playerState?.event?.winnerParticipantId,
+      playerState?.event_winner_participant_id,
+      playerState?.event_winner_participant
+    ];
+
+    for (const candidate of candidates) {
+      const value = String(candidate || "").trim();
+      if (value) {
+        return value;
+      }
+    }
+
+    return "";
+  };
+
+  const getParticipantId = (playerState) => String(playerState?.participant_id || playerState?.id || "").trim();
+
+  const isProvisionalWinnerCandidate = (playerState, { isWinner = false, eliminated = false, eventStatus = "", participantStatus = "" } = {}) => {
+    const normalizedEventStatus = normalize(eventStatus || playerState?.event_status || "");
+    const normalizedPlayerStatus = normalize(participantStatus || playerState?.participant_status || "");
+    const winnerParticipantId = getWinnerParticipantId(playerState);
+    const participantId = getParticipantId(playerState);
+    const officialWinner = Boolean(isWinner) || containsAny(normalizedPlayerStatus, ["winner"]);
+    return normalizedEventStatus === "winner_locked"
+      && winnerParticipantId
+      && participantId
+      && participantId === winnerParticipantId
+      && !officialWinner
+      && !eliminated;
+  };
+
+  const isProvisionalWinnerWaitingState = (playerState, { isWinner = false, isFinalist = false, eliminated = false, eventStatus = "", participantStatus = "" } = {}) => {
+    const normalizedEventStatus = normalize(eventStatus || playerState?.event_status || "");
+    const normalizedPlayerStatus = normalize(participantStatus || playerState?.participant_status || "");
+    const winnerParticipantId = getWinnerParticipantId(playerState);
+    const participantId = getParticipantId(playerState);
+    const officialWinner = Boolean(isWinner) || containsAny(normalizedPlayerStatus, ["winner"]);
+    const finalistState = Boolean(isFinalist) || containsAny(normalizedPlayerStatus, ["finalist"]);
+    return normalizedEventStatus === "winner_locked"
+      && winnerParticipantId
+      && participantId
+      && participantId !== winnerParticipantId
+      && !officialWinner
+      && !eliminated
+      && finalistState;
+  };
+
+  const isOfficialWinner = (playerState) => Boolean(playerState?.is_winner) || containsAny(playerState?.participant_status || "", ["winner"]);
+
   const getIncorrectFeedbackSignature = (playerState, questionId) => {
     return [
       playerState?.participant_status || "",
@@ -254,6 +308,8 @@
     const isFinalist = Boolean(playerState?.is_finalist);
     const hasQuestion = Boolean(playerState?.question);
     const eliminated = Boolean(playerState?.eliminated_at) || containsAny(playerStatus, ["eliminated", "out"]);
+    const provisionalWinnerCandidate = isProvisionalWinnerCandidate(playerState, { isWinner, eliminated, eventStatus, participantStatus: playerStatus });
+    const provisionalWinnerWaiting = isProvisionalWinnerWaitingState(playerState, { isWinner, isFinalist, eliminated, eventStatus, participantStatus: playerStatus });
 
     if (containsAny(eventStatus, ["completed", "finished", "closed"])) {
       return "event_completed";
@@ -263,6 +319,12 @@
     }
     if (isWinner || containsAny(playerStatus, ["winner"])) {
       return "winner";
+    }
+    if (provisionalWinnerCandidate) {
+      return "provisional_winner_candidate";
+    }
+    if (provisionalWinnerWaiting) {
+      return "provisional_winner_waiting";
     }
     if (eliminated) {
       return "eliminated";
@@ -364,6 +426,18 @@
       detailText: "Final round is live.",
       canSubmit: true
     },
+    provisional_winner_candidate: {
+      statusClass: "playoff-status--authenticated",
+      statusText: "Answer locked in",
+      detailText: "You submitted the first correct Final answer. The host is confirming the result.",
+      canSubmit: false
+    },
+    provisional_winner_waiting: {
+      statusClass: "playoff-status--authenticated",
+      statusText: "Final answer submitted",
+      detailText: "A correct Final answer has been submitted. The host is confirming the result.",
+      canSubmit: false
+    },
     winner: {
       statusClass: "playoff-status--host-verified",
       statusText: "Winner",
@@ -393,6 +467,8 @@
     const isWinner = Boolean(playerState?.is_winner) || containsAny(playerStatus, ["winner"]);
     const eliminated = Boolean(playerState?.eliminated_at) || containsAny(playerStatus, ["eliminated", "out"]);
     const isFinalist = Boolean(playerState?.is_finalist) || containsAny(playerStatus, ["finalist"]);
+    const provisionalWinnerCandidate = isProvisionalWinnerCandidate(playerState, { isWinner, eliminated, eventStatus, participantStatus: playerStatus });
+    const provisionalWinnerWaiting = isProvisionalWinnerWaitingState(playerState, { isWinner, isFinalist, eliminated, eventStatus, participantStatus: playerStatus });
     const waitingForNext = !hasQuestion && containsAny(playerStatus, ["waiting_for_next", "completed_q1", "round_1_complete", "advanced"]);
     const paused = containsAny(eventStatus, ["paused"]);
     const waitingRoomPlayers = Array.isArray(playerState?.waiting_room_players)
@@ -443,6 +519,37 @@
       };
     }
 
+    if (provisionalWinnerCandidate) {
+      return {
+        mode: "provisional_winner_candidate",
+        cardClass: "playoff-player-state-card--winner",
+        title: "Answer Locked In",
+        body: [
+          "You submitted the first correct Final answer.",
+          "The host is confirming the result.",
+          "Please stay on this screen."
+        ],
+        canSubmit: false,
+        showQuestion: false,
+        showForm: false
+      };
+    }
+
+    if (provisionalWinnerWaiting) {
+      return {
+        mode: "provisional_winner_waiting",
+        cardClass: "playoff-player-state-card--finalist",
+        title: "Another Final Answer Was Submitted",
+        body: [
+          "Another finalist submitted the first correct Final answer.",
+          "The host is confirming the result. This screen will update automatically."
+        ],
+        canSubmit: false,
+        showQuestion: false,
+        showForm: false
+      };
+    }
+
     if (isWinner) {
       return {
         mode: "winner",
@@ -471,7 +578,7 @@
           cardClass: "playoff-player-state-card--eliminated",
           title: "😔 So Close!",
           body: [
-            "Another finalist submitted the correct answer first.",
+            "The host has confirmed another finalist’s winning answer.",
             "Making it all the way to the final was an outstanding achievement, and we sincerely appreciate you being part of this special playoff.",
             "Thank you for playing the Six Continents Challenge!"
           ],
@@ -576,6 +683,9 @@
     switch (presentation.mode) {
       case "winner":
         return 9000;
+      case "provisional_winner_candidate":
+      case "provisional_winner_waiting":
+        return 8800;
       case "eliminated":
         return 8900;
       case "finalist":
@@ -1263,11 +1373,19 @@
         return;
       }
 
+      const previousPlayerState = state.playerState;
       state.playerState = nextPlayerState;
       state.lastPlayerStateKey = nextKey;
       state.lastStateScore = nextScore;
 
       if (changed) {
+        if (!isOfficialWinner(previousPlayerState) && isOfficialWinner(state.playerState)) {
+          const celebrationSignature = `winner:${Number(state.playerState?.active_question_number || 0)}:${getWinnerParticipantId(state.playerState) || getParticipantId(state.playerState) || "winner"}`;
+          if (celebrationSignature !== state.lastCelebratedSignature) {
+            state.lastCelebratedSignature = celebrationSignature;
+            launchCelebration("winner");
+          }
+        }
         state.feedback = "";
         if (hasProgressedBeyondIncorrectFeedback(nextPlayerState, state.incorrectFeedback)) {
           state.incorrectFeedback = null;
@@ -1396,11 +1514,13 @@
 
       renderApp();
 
-      if (correct && (roundNumber === 1 || roundNumber === 2 || winner || roundNumber === 3)) {
-        const celebrationSignature = `${roundNumber}:${winner ? "winner" : roundNumber === 2 ? "finalist" : "round1"}`;
+      if (correct && (roundNumber === 1 || roundNumber === 2 || isOfficialWinner(mergedPlayerState))) {
+        const celebrationSignature = isOfficialWinner(mergedPlayerState)
+          ? `winner:${roundNumber}:${getWinnerParticipantId(mergedPlayerState) || getParticipantId(mergedPlayerState) || "winner"}`
+          : `round:${roundNumber}`;
         if (celebrationSignature !== state.lastCelebratedSignature) {
           state.lastCelebratedSignature = celebrationSignature;
-          launchCelebration(winner || roundNumber === 3 ? "winner" : "round");
+          launchCelebration(isOfficialWinner(mergedPlayerState) ? "winner" : "round");
         }
       }
     } catch (submitError) {

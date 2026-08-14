@@ -20,6 +20,7 @@
     open_round_3: "Begin Final Round",
     complete_round_1: "Complete Round 1",
     complete_round_2: "Complete Round 2",
+    confirm_winner: "Confirm Winner",
     pause: "Pause Event",
     resume: "Resume Event"
   };
@@ -30,6 +31,7 @@
     open_round_3: "Begin Final Round?",
     complete_round_1: "Complete Round 1 early?",
     complete_round_2: "Complete Round 2 early?",
+    confirm_winner: "Confirm this provisional winner?",
     pause: "Pause the live event?",
     resume: "Resume the live event?"
   };
@@ -593,6 +595,28 @@
     return null;
   }
 
+  function getProvisionalWinnerDetails(hostData) {
+    const event = hostData?.event || {};
+    const participants = Array.isArray(hostData?.participants) ? hostData.participants : [];
+    const eventStatus = normalizeStatus(event.status, "").toLowerCase();
+    if (eventStatus !== "winner_locked") {
+      return null;
+    }
+
+    const winnerParticipantId = String(event?.winner_participant_id || "").trim();
+    if (!winnerParticipantId) {
+      return null;
+    }
+
+    const hasOfficialWinner = participants.some((participant) => Boolean(participant?.is_winner));
+    if (hasOfficialWinner) {
+      return null;
+    }
+
+    const winnerParticipant = participants.find((participant) => String(participant.id || "").trim() === winnerParticipantId) || null;
+    return { winnerParticipantId, winnerParticipant };
+  }
+
   function isResetToWaitingAvailable(eventStatus) {
     const statusKey = normalizeStatus(eventStatus, "").toLowerCase();
     return [
@@ -629,6 +653,15 @@
     if (statusKey === "question_2_complete" && getFinalistParticipantCount(participants) >= 1) {
       if (!actions.includes("open_round_3")) {
         actions.push("open_round_3");
+      }
+    }
+
+    if (statusKey === "winner_locked") {
+      const provisionalWinner = getProvisionalWinnerDetails(hostData);
+      if (provisionalWinner) {
+        if (!actions.includes("confirm_winner")) {
+          actions.push("confirm_winner");
+        }
       }
     }
 
@@ -837,6 +870,18 @@
     }
 
     if (eventStatus === "winner_locked") {
+      const provisionalWinner = getProvisionalWinnerDetails(hostData);
+      if (provisionalWinner) {
+        const winnerName = provisionalWinner.winnerParticipant?.display_name || "A participant";
+        const winnerEmail = provisionalWinner.winnerParticipant?.expected_email || provisionalWinner.winnerParticipant?.email || "";
+        const winnerLabel = winnerEmail ? `${winnerName} (${winnerEmail})` : winnerName;
+        return {
+          className: "playoff-admin-banner--ready",
+          title: "PROVISIONAL WINNER",
+          body: `${winnerLabel} submitted the first correct Final answer. Confirm this winner to make the result official.`
+        };
+      }
+
       const winnerParticipantId = String(event?.winner_participant_id || "").trim();
       const winnerParticipant = winnerParticipantId
         ? participants.find((participant) => String(participant.id || "").trim() === winnerParticipantId)
