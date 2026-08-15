@@ -115,6 +115,22 @@ async function joinPlayoff(invitationToken) {
   return data;
 }
 
+async function joinPlayoffByAccount(eventId) {
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc("join_playoff_by_account", {
+    input_event_id: eventId
+  });
+  if (error) throw error;
+  return data;
+}
+
+async function ensureStage16PlayoffEnrollment() {
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc("ensure_stage16_playoff_enrollment");
+  if (error) throw error;
+  return data;
+}
+
 /**
  * Shared player state access for the current authenticated player and event.
  * @param {string} eventId Event identifier.
@@ -331,6 +347,8 @@ export const PlayoffAPI = {
   touchPlayoffPresence,
   markPlayoffPresenceOffline,
   joinPlayoff,
+  joinPlayoffByAccount,
+  ensureStage16PlayoffEnrollment,
   submitAnswer,
   getHostState,
   configureQuestions,

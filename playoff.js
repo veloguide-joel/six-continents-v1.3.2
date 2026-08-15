@@ -41,6 +41,7 @@
 
   const state = {
     inviteToken: "",
+    accountEventId: "",
     session: null,
     user: null,
     joinData: null,
@@ -954,8 +955,15 @@
       state.lastStateScore = 0;
       state.feedback = "";
       state.incorrectFeedback = null;
-      const invite = state.inviteToken ? `?invite=${encodeURIComponent(state.inviteToken)}` : "";
-      window.location.replace(`/playoff.html${invite}`);
+      const query = new URLSearchParams();
+      if (state.inviteToken) {
+        query.set("invite", state.inviteToken);
+      }
+      if (state.accountEventId) {
+        query.set("event", state.accountEventId);
+      }
+      const redirectSuffix = query.toString() ? `?${query.toString()}` : "";
+      window.location.replace(`/playoff.html${redirectSuffix}`);
     }
   };
 
@@ -1456,7 +1464,15 @@
 
   const joinAndRefreshState = async () => {
     try {
-      const joinRaw = await api.joinPlayoff(state.inviteToken);
+      let joinRaw;
+      if (state.inviteToken) {
+        joinRaw = await api.joinPlayoff(state.inviteToken);
+      } else if (state.accountEventId) {
+        joinRaw = await api.joinPlayoffByAccount(state.accountEventId);
+      } else {
+        throw new Error("No join method available.");
+      }
+
       state.joinData = parseJoinData(joinRaw);
       state.currentEventId = state.joinData.eventId;
       await refreshPlayerState();
@@ -1576,25 +1592,34 @@
     try {
       const url = new URL(window.location.href);
       const inviteFromUrl = String(url.searchParams.get("invite") || "").trim();
+      const eventFromUrl = String(url.searchParams.get("event") || "").trim();
 
-      if (!inviteFromUrl) {
+      if (inviteFromUrl) {
+        state.inviteToken = inviteFromUrl;
+      } else if (eventFromUrl) {
+        state.accountEventId = eventFromUrl;
+      } else {
         renderShell(
           "playoff-status--error",
           "Invalid invitation link.",
           "",
-          "An invite token is required to join this playoff event."
+          "An invite token or event parameter is required to join this playoff event."
         );
         return;
       }
-
-      state.inviteToken = inviteFromUrl;
 
       const session = await api.getSession();
       state.session = session;
       state.user = session?.user || null;
 
       if (!state.user) {
-        setAuthUi("signin", "Welcome to the Live Playoff", "Sign in with the email address that received this invitation.", "Your invitation has already been detected. After signing in, you will enter the playoff automatically.", { isError: false, showSignOut: false });
+        const authMessage = state.inviteToken
+          ? "Sign in with the email address that received this invitation."
+          : "Sign in to continue to your playoff entry.";
+        const authDetail = state.inviteToken
+          ? "Your invitation has already been detected. After signing in, you will enter the playoff automatically."
+          : "Your authenticated account will be used to access the designated playoff.";
+        setAuthUi("signin", "Welcome to the Live Playoff", authMessage, authDetail, { isError: false, showSignOut: false });
         renderApp();
         return;
       }

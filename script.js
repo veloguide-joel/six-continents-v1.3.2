@@ -1,3 +1,5 @@
+import { PlayoffAPI } from './playoff-api.js';
+
 // === BUILD ID FOR VERIFICATION ===
 window.BUILD_ID = "dev-23da9c4-2026-01-20";
 console.log("[BUILD]", window.BUILD_ID);
@@ -2487,6 +2489,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+  async function enrollStage16QualifyingUser() {
+    try {
+      const result = await PlayoffAPI.ensureStage16PlayoffEnrollment();
+      if (!result?.event_id) {
+        console.warn('[STAGE16-ENROLL] enrollment skipped or failed');
+        return;
+      }
+
+      window.__stage16EnrollmentEventId = result.event_id;
+      console.log('[STAGE16-ENROLL] enrolled');
+    } catch (error) {
+      console.warn('[STAGE16-ENROLL] enrollment skipped or failed');
+    }
+  }
+
 // Complete the ContestApp class
 class ContestApp {
     constructor() {
@@ -2494,6 +2511,7 @@ class ContestApp {
         this.solvedStages = [];
         this.firstRiddleSolved = [];
         this.modalCurrentStage = null;
+      this.stage16EnrollmentAttempted = false;
         // NOTE: init() is called manually after DB restore in startContestForSignedInUser()
     }
 
@@ -2506,6 +2524,17 @@ class ContestApp {
         this.bindEvents();
         if (DEBUG) console.log('[ContestApp] Initialized');
     }
+
+      maybeAttemptStage16Enrollment() {
+        if (this.stage16EnrollmentAttempted) return;
+
+        const hasPersistedStage16Solve = window.__dbSolvedSet instanceof Set
+          && window.__dbSolvedSet.has(16);
+        if (this.currentStage !== 16 || !this.isSolved(16) || !hasPersistedStage16Solve) return;
+
+        this.stage16EnrollmentAttempted = true;
+        void enrollStage16QualifyingUser();
+      }
 
     loadInitialProgress() {
         // ? If stage was restored from DB (or set by login flow), DO NOT override it
@@ -3037,6 +3066,9 @@ try {
             // Stage already solved, show success
             this.clearFirstRiddleFeedback();
             this.showSuccess(this.currentStage);
+          if (this.currentStage === 16) {
+            this.maybeAttemptStage16Enrollment();
+          }
         } else if (this.hasMultipleRiddles(this.currentStage)) {
           // Check if step progress was already solved (from DB solves rows)
             const maxStepSolved = await this.getMaxStepSolved(this.currentStage);
