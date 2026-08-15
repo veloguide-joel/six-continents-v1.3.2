@@ -3101,10 +3101,10 @@ try {
                 successTitle.style.display = 'none';
             }
             successText.innerHTML = [
-              '<div class="stage16-success-headline">?? You’re In!</div>',
+              '<div class="stage16-success-headline">?? Youï¿½re In!</div>',
               '<div class="stage16-success-body">Congratulations! You completed Stage 16 and earned your place in the <strong>Grand Finale Playoff</strong>.</div>',
-              '<div class="stage16-success-body">Live from <strong>Istanbul, Turkey</strong> — <strong>Sunday, September 6</strong>.</div>',
-              '<div class="stage16-success-footnote">Start time to be announced. Stay tuned! We’ll share the official start time and Grand Finale details soon.</div>'
+              '<div class="stage16-success-body">Live from <strong>Istanbul, Turkey</strong> ï¿½ <strong>Sunday, September 6</strong>.</div>',
+              '<div class="stage16-success-footnote">Start time to be announced. Stay tuned! Weï¿½ll share the official start time and Grand Finale details soon.</div>'
             ].join('');
             if (continueBtn) {
                 continueBtn.style.display = 'none';
@@ -3154,8 +3154,8 @@ try {
       const titleEl = document.querySelector('#secondRiddlePanel .second-riddle-title');
       if (titleEl) {
         titleEl.textContent = stage === 15
-          ? "?? Congratulations! You're almost there. Just two more riddles to solve ??"
-          : "?? Congratulations! You're almost there. Just one last riddle to solve ??";
+          ? "Congratulations! You're almost there. Just two more riddles to solve."
+          : "Congratulations! You're almost there. Just one last riddle to solve.";
       }
         document.getElementById('secondRiddleClue').textContent = clue;
         document.getElementById('secondRiddlePanel').style.display = 'block';
@@ -4280,7 +4280,7 @@ const FIRST_RIDDLE_CLUES = {
   1:  'The answer is the capital city of Romania. Enter it as one lowercase word.',
   2:  'The answer is the famous Romanian poet mentioned in the video. Enter his full name as one lowercase word with no spaces.',
   3:  'The answer is the desert in Jordan featured in the video. Enter it as one lowercase word with no spaces.',
-  4:  'The answer is the full name of the person mentioned in the video. Remove the space between the first and last name and enter it all in lowercase.',
+  4:  'She spent much of her life exploring and mapping the Middle East, and became influential in British imperial policy-making. Enter her first and last name all lower case no spaces',
   5:  'Think about ancient Egypt. The answer is the name of an ancient book mentioned in the video. It begins with: thebook... Enter it as one lowercase word with no spaces.',
     6:  'Think about the longest river in Africa. The answer starts with "theriver____".',
     7:  'This famous bay near Sydney is where Captain Cook first landed in Australia.',
