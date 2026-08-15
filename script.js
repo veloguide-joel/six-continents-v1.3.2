@@ -6250,7 +6250,7 @@ async function startContestForSignedInUser() {
     try {
         // --- LP variant guard: prevent game UI init on landing pages ---
         if (IS_LP_VARIANT) {
-            console.log("[LP] startContestForSignedInUser called on LP — redirecting");
+            console.log("[LP] startContestForSignedInUser called on LP ï¿½ redirecting");
             window.location.href = "./index.html";
             return;
         }
@@ -6481,10 +6481,10 @@ function updateStage16() {
         stage16Card.classList.remove('locked');
         stage16Card.classList.add('stage-status-locked');
         stage16Card.innerHTML = `
-            <div class="stage16-master-icon stage-status-locked">??</div>
+            <div class="stage16-master-icon stage-status-locked">16</div>
             <div class="stage16-master-header">
-                <div class="master-stage-title">Stage 16 — Master Stage</div>
-                <div class="master-stage-subtitle">Grand Finale — 100K Miles</div>
+                <div class="master-stage-title">Stage 16 - Master Stage</div>
+                <div class="master-stage-subtitle">Grand Finale - 100K Miles</div>
             </div>
             <div class="stage16-master-description">
                 Complete all 15 stages to unlock the Grand Finale.<br>
@@ -6499,17 +6499,17 @@ function updateStage16() {
         // Fully unlocked and enabled
         stage16Card.classList.remove('locked', 'stage-status-locked');
         stage16Card.innerHTML = `
-            <div class="stage16-master-icon open">?</div>
+            <div class="stage16-master-icon open">16</div>
             <div class="stage16-master-header">
-                <div class="master-stage-title">Stage 16 — Master Stage</div>
-                <div class="master-stage-subtitle">Grand Finale — 100K Miles</div>
+                <div class="master-stage-title">Stage 16 - Master Stage</div>
+                <div class="master-stage-subtitle">Grand Finale - 100K Miles</div>
             </div>
             <div class="stage16-master-description">
                 Complete all 15 stages to unlock the Grand Finale.<br>
                 The first correct solver wins 100,000 Turkish Airlines Miles.<br>
                 Once claimed, Stage 16 closes for everyone else.
             </div>
-            <div class="stage16-master-status">Open — Click to Play</div>
+            <div class="stage16-master-status">Open - Click to Play</div>
         `;
         
         // Add click handler for open Stage 16
