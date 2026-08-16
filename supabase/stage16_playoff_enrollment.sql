@@ -219,6 +219,7 @@ begin
     'event_id', v_event_id,
     'participant_id', v_existing_participant.id,
     'enrolled', true,
+    'has_joined', v_existing_participant.joined_at is not null,
     'already_exists', v_existing_participant.user_id = v_user_id and v_existing_participant.event_id = v_event_id
   );
 

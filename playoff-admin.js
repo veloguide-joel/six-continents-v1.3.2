@@ -36,6 +36,9 @@
     pause: "Pause the live event?",
     resume: "Resume the live event?"
   };
+  // Destructive recovery confirmation phrases must always be shown verbatim to the operator in the prompt. Never require a hidden or memorized safety word.
+  const FULL_RESET_CONFIRMATION = "RESET PLAYOFF";
+  const GAME_RESET_CONFIRMATION = "RESET GAME";
   const root = document.getElementById("playoff-admin-app");
 
   if (!root) {
@@ -672,6 +675,23 @@
     return { winnerParticipantId, winnerParticipant };
   }
 
+  function getConfirmedWinnerDetails(hostData) {
+    const event = hostData?.event || {};
+    const participants = Array.isArray(hostData?.participants) ? hostData.participants : [];
+    const winnerParticipantId = String(event.winner_participant_id || "").trim();
+    const confirmedWinners = participants.filter((participant) => participant?.is_winner === true);
+    const winnerParticipant = confirmedWinners.find((participant) => String(participant.id || "").trim() === winnerParticipantId)
+      || confirmedWinners[0]
+      || null;
+
+    if (!winnerParticipant) return null;
+
+    return {
+      participant: winnerParticipant,
+      confirmedAt: event.completed_at || winnerParticipant.confirmed_at || winnerParticipant.won_at || null
+    };
+  }
+
   function isResetToWaitingAvailable(eventStatus) {
     const statusKey = normalizeStatus(eventStatus, "").toLowerCase();
     return [
@@ -1135,6 +1155,8 @@
       ? `<div class="playoff-live-indicator" aria-label="Live updates on"><span class="playoff-live-dot" aria-hidden="true"></span><span>Live updates on</span><span class="playoff-live-timestamp">Last updated: ${escapeHtml(state.lastUpdatedLabel || formatLiveTimestamp())}</span></div>`
       : "";
     const readyBanner = getReadyBanner(hostData);
+    const provisionalWinner = getProvisionalWinnerDetails(hostData);
+    const confirmedWinner = getConfirmedWinnerDetails(hostData);
     const eventStatusLower = normalizeStatus(eventStatus).toLowerCase();
     const isSetupEditable = isEventSetupEditable();
     const canRunFullReset = eventStatusLower === "waiting_for_players";
@@ -1267,6 +1289,29 @@
     const actionFeedbackMarkup = state.actionNotice
       ? `<p class="playoff-host-action-feedback ${state.actionNoticeType === "error" ? "playoff-host-action-feedback--error" : state.actionNoticeType === "success" ? "playoff-host-action-feedback--success" : ""}">${escapeHtml(state.actionNotice)}</p>`
       : "";
+    const winnerParticipant = confirmedWinner?.participant || null;
+    const winnerEmail = winnerParticipant?.expected_email || winnerParticipant?.email || "";
+    const winnerDisplayName = winnerParticipant?.display_name || winnerEmail || "Confirmed winner";
+    const confirmedWinnerMarkup = confirmedWinner
+      ? `<section class="playoff-winner-confirmed" aria-label="Confirmed playoff winner">
+          <p class="playoff-winner-confirmed__kicker">🏆 WINNER CONFIRMED</p>
+          <h2>${escapeHtml(winnerDisplayName)}</h2>
+          ${winnerEmail ? `<p class="playoff-winner-confirmed__email">${escapeHtml(winnerEmail)}</p>` : ""}
+          <p class="playoff-winner-confirmed__message">Grand Finale winner has been officially confirmed.</p>
+          ${confirmedWinner.confirmedAt ? `<p class="playoff-winner-confirmed__time">Confirmed: ${escapeHtml(formatDateTime(confirmedWinner.confirmedAt))}</p>` : ""}
+        </section>`
+      : "";
+    const pendingWinnerParticipant = provisionalWinner?.winnerParticipant || null;
+    const pendingWinnerEmail = pendingWinnerParticipant?.expected_email || pendingWinnerParticipant?.email || "";
+    const pendingWinnerDisplayName = pendingWinnerParticipant?.display_name || pendingWinnerEmail || "Selected finalist";
+    const pendingWinnerMarkup = provisionalWinner
+      ? `<section class="playoff-winner-pending" aria-label="Pending playoff winner">
+          <p class="playoff-winner-pending__kicker">🏆 PENDING WINNER</p>
+          <h3>${escapeHtml(pendingWinnerDisplayName)}</h3>
+          ${pendingWinnerEmail ? `<p class="playoff-winner-pending__email">${escapeHtml(pendingWinnerEmail)}</p>` : ""}
+          <p class="playoff-winner-pending__message">First correct finalist.<br>Awaiting host confirmation.</p>
+        </section>`
+      : "";
 
     root.innerHTML = `
       <main class="playoff-shell playoff-shell--admin" aria-label="Live Playoff host dashboard">
@@ -1287,6 +1332,7 @@
         ${userEmail ? `<p class="playoff-email">Signed in as: ${escapeHtml(userEmail)}</p>` : ""}
         <p class="${feedbackClass}">${escapeHtml(state.message)}</p>
         ${state.refreshNotice ? `<p class="playoff-status-detail">${escapeHtml(state.refreshNotice)}</p>` : ""}
+        ${confirmedWinnerMarkup}
         <section class="playoff-dashboard-block" aria-label="Event target">
           <h2>Active Event Target</h2>
           <div class="playoff-item-grid playoff-item-grid--summary">
@@ -1399,6 +1445,7 @@
           <p class="playoff-status-detail">Controls are shown for operator UX only. Backend authorization and transition validation remain authoritative.</p>
           ${state.actionLoading ? '<p class="playoff-host-action-feedback">Updating event...</p>' : ""}
           ${actionFeedbackMarkup}
+          ${pendingWinnerMarkup}
           ${controlsMarkup}
         </section>
 
@@ -1574,6 +1621,11 @@
       state.actionNotice = `${ACTION_LABELS[action] || action} succeeded.`;
       state.actionNoticeType = "success";
       renderView();
+      if (action === "confirm_winner") {
+        window.requestAnimationFrame(() => {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+      }
     } catch (error) {
       state.actionNotice = sanitizeErrorMessage(error);
       state.actionNoticeType = "error";
@@ -1584,6 +1636,17 @@
       scheduleNextPoll();
       renderCurrentView();
     }
+  }
+
+  function requestTypedRecoveryConfirmation(confirmationText, requiredPhrase) {
+    const entered = window.prompt(confirmationText);
+    if (entered === null) return false;
+    if (String(entered).trim().toUpperCase() === requiredPhrase) return true;
+
+    state.recoveryFeedback = `Reset cancelled. Type ${requiredPhrase} exactly to confirm.`;
+    state.recoveryFeedbackType = "error";
+    renderCurrentView();
+    return false;
   }
 
   async function handleRecoveryAction(action) {
@@ -1607,11 +1670,10 @@
         "",
         "This does NOT affect Six Continents game solves or stage progress.",
         "",
-        "Type RESET to continue."
+        `Type ${FULL_RESET_CONFIRMATION} to reset this playoff event.`
       ].join("\n");
 
-      const entered = window.prompt(confirmationText);
-      if (entered === null || String(entered).trim().toUpperCase() !== "RESET") return;
+      if (!requestTypedRecoveryConfirmation(confirmationText, FULL_RESET_CONFIRMATION)) return;
     } else if (action === "reset_to_waiting") {
       const confirmationText = [
         "RESET ENTIRE GAME TO WAITING ROOM",
@@ -1630,11 +1692,10 @@
         "",
         "This does NOT affect Six Continents game solves or stage progress.",
         "",
-        "Type RESET GAME to continue."
+        `Type ${GAME_RESET_CONFIRMATION} to reset the entire game to the waiting room.`
       ].join("\n");
 
-      const entered = window.prompt(confirmationText);
-      if (entered === null || String(entered).trim().toUpperCase() !== "RESET GAME") return;
+      if (!requestTypedRecoveryConfirmation(confirmationText, GAME_RESET_CONFIRMATION)) return;
     } else if (action === "rollback_one_round") {
       const currentStatus = normalizeStatus(state.hostData?.event?.status || "").toLowerCase();
       const confirmationText = currentStatus === "question_2_open" || currentStatus === "question_2_complete"

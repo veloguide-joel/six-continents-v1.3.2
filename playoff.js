@@ -893,6 +893,14 @@
     const isInvalidInvitation = /invalid invitation|invite token|expired|not found|does not exist|not valid/i.test(rawMessage);
 
     if (isLateJoinCutoff) {
+      if (state.accountEventId && !state.inviteToken) {
+        setAuthUi("account_late_join_cutoff", "GRAND FINALE ENTRY HAS CLOSED", "Round 1 has already ended, so new players can no longer enter this playoff.", "Thanks for making it to the Grand Finale.", {
+          isError: false,
+          showSignOut: true,
+          error: ""
+        });
+        return true;
+      }
       setAuthUi("late_join_cutoff", "You missed the qualifying round.", "Round 1 has already ended, so entries for this playoff are now closed.", "You needed to join before Round 1 was completed to remain eligible for the playoff.", {
         isError: false,
         showSignOut: false,
@@ -955,6 +963,10 @@
       state.lastStateScore = 0;
       state.feedback = "";
       state.incorrectFeedback = null;
+      if (state.accountEventId && !state.inviteToken) {
+        window.location.replace("/index.html");
+        return;
+      }
       const query = new URLSearchParams();
       if (state.inviteToken) {
         query.set("invite", state.inviteToken);
@@ -1018,17 +1030,19 @@
     const isErrorState = auth.mode === "error" || auth.mode === "wrong_account";
     const showError = Boolean(auth.error || isErrorState);
     const isLateJoinCutoff = auth.mode === "late_join_cutoff";
+    const isAccountLateJoinCutoff = auth.mode === "account_late_join_cutoff";
+    const isTerminalCutoff = isLateJoinCutoff || isAccountLateJoinCutoff;
 
     root.innerHTML = `
       <main class="playoff-shell playoff-shell--auth" aria-label="Playoff sign-in shell">
         <div class="playoff-brand">The Accidental Retiree</div>
         <div class="playoff-auth-card">
-          <div class="playoff-auth-badge">Private Invitation</div>
-          <h1>Live Playoff</h1>
+          <div class="playoff-auth-badge">${isAccountLateJoinCutoff ? "Grand Finale" : "Private Invitation"}</div>
+          <h1>${isAccountLateJoinCutoff ? escapeHtml(auth.title) : "Live Playoff"}</h1>
           <p class="playoff-auth-intro">${escapeHtml(auth.message || "Sign in with the email address that received this invitation.")}</p>
           <p class="playoff-auth-detail">${escapeHtml(auth.detail || "Your invitation has already been detected. After signing in, you will enter the playoff automatically.")}</p>
-          ${showError && !isLateJoinCutoff ? `<div class="playoff-auth-error" role="alert">${escapeHtml(auth.error || auth.title || "We couldn’t sign you in.")}</div>` : ""}
-          ${isLateJoinCutoff ? "" : `
+          ${showError && !isTerminalCutoff ? `<div class="playoff-auth-error" role="alert">${escapeHtml(auth.error || auth.title || "We couldn’t sign you in.")}</div>` : ""}
+          ${isTerminalCutoff ? "" : `
             <form id="playoff-auth-form" class="playoff-auth-form" novalidate>
               <label class="playoff-auth-label" for="playoff-auth-email">Email address</label>
               <input
@@ -1058,13 +1072,13 @@
               </div>
             </form>
           `}
-          ${auth.showSignOut && !isLateJoinCutoff ? `<button type="button" id="playoff-auth-signout" class="playoff-auth-link-button">Sign Out and Try Again</button>` : ""}
-          ${isLateJoinCutoff ? "" : `<p class="playoff-auth-help">Need help signing in? Contact <a href="mailto:hola@theaccidentalretiree.mx">hola@theaccidentalretiree.mx</a></p>`}
+          ${auth.showSignOut && !isLateJoinCutoff ? `<button type="button" id="playoff-auth-signout" class="playoff-auth-link-button">${isAccountLateJoinCutoff ? "Logout" : "Sign Out and Try Again"}</button>` : ""}
+          ${isTerminalCutoff ? "" : `<p class="playoff-auth-help">Need help signing in? Contact <a href="mailto:hola@theaccidentalretiree.mx">hola@theaccidentalretiree.mx</a></p>`}
         </div>
       </main>
     `;
 
-    if (!isLateJoinCutoff) {
+    if (!isTerminalCutoff) {
       const form = document.getElementById("playoff-auth-form");
       if (form) {
         form.addEventListener("submit", handleSignInSubmit);
@@ -1091,6 +1105,10 @@
   };
 
   const renderApp = () => {
+    if (state.accountEventId && !state.inviteToken && state.authUi.mode === "account_late_join_cutoff") {
+      renderAuthView();
+      return;
+    }
     if (state.inviteToken && (!state.user || state.authUi.mode !== "player")) {
       renderAuthView();
       return;
@@ -1613,6 +1631,10 @@
       state.user = session?.user || null;
 
       if (!state.user) {
+        if (state.accountEventId && !state.inviteToken) {
+          window.location.replace("/index.html");
+          return;
+        }
         const authMessage = state.inviteToken
           ? "Sign in with the email address that received this invitation."
           : "Sign in to continue to your playoff entry.";

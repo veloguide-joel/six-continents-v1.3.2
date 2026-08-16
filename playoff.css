@@ -793,6 +793,92 @@ body {
   line-height: 1.5;
 }
 
+.playoff-winner-confirmed {
+  margin-top: 16px;
+  padding: 22px 20px;
+  border: 1px solid rgba(244, 199, 112, 0.72);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(244, 199, 112, 0.2), rgba(255, 255, 255, 0.035));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28), 0 0 24px rgba(244, 199, 112, 0.12);
+  text-align: center;
+}
+
+.playoff-winner-confirmed__kicker {
+  margin: 0 0 8px;
+  color: var(--ar-gold);
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.playoff-winner-confirmed h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.65rem, 5vw, 2.35rem);
+  line-height: 1.15;
+}
+
+.playoff-winner-confirmed__email,
+.playoff-winner-confirmed__message,
+.playoff-winner-confirmed__time {
+  margin: 8px 0 0;
+  line-height: 1.45;
+}
+
+.playoff-winner-confirmed__email {
+  color: var(--ar-gold);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.playoff-winner-confirmed__message {
+  color: var(--ar-text-main);
+}
+
+.playoff-winner-confirmed__time {
+  color: var(--ar-text-muted);
+  font-size: 0.86rem;
+}
+
+.playoff-winner-pending {
+  margin: 14px 0 12px;
+  padding: 18px 16px;
+  border: 1px solid rgba(244, 199, 112, 0.55);
+  border-radius: 12px;
+  background: rgba(244, 199, 112, 0.09);
+  text-align: center;
+}
+
+.playoff-winner-pending__kicker {
+  margin: 0 0 7px;
+  color: var(--ar-gold);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.playoff-winner-pending h3 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.3rem, 4vw, 1.7rem);
+}
+
+.playoff-winner-pending__email,
+.playoff-winner-pending__message {
+  margin: 7px 0 0;
+  line-height: 1.45;
+}
+
+.playoff-winner-pending__email {
+  color: var(--ar-gold);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.playoff-winner-pending__message {
+  color: var(--ar-text-muted);
+}
+
 .playoff-title-wrap {
   display: grid;
   gap: 8px;
