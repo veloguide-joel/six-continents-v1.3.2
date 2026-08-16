@@ -360,6 +360,15 @@ body {
 
 .playoff-waiting-room-panel {
   margin-top: 14px;
+  padding: 14px;
+}
+
+.playoff-waiting-room-panel .playoff-player-state-label {
+  display: block;
+  margin: 0 0 8px;
+  text-align: center;
+  font-size: 1rem;
+  line-height: 1.2;
 }
 
 .playoff-panel-title {
@@ -374,6 +383,11 @@ body {
 .playoff-waiting-room-list {
   display: grid;
   gap: 8px;
+  max-height: 13rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
 }
 
 .playoff-waiting-room-item {
@@ -448,16 +462,37 @@ body {
   font-size: 0.92rem;
 }
 
-.playoff-waiting-room-counter {
-  margin: 0 0 10px;
+.playoff-waiting-room-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: 5px;
   color: var(--ar-gold);
   font-weight: 700;
+  text-align: center;
 }
 
-.playoff-waiting-room-footer {
-  margin: 10px 0 0;
-  color: var(--ar-text-muted);
+.playoff-waiting-room-panel .playoff-waiting-room-counter,
+.playoff-waiting-room-panel .playoff-waiting-room-footer {
+  color: inherit;
   font-size: 0.95rem;
+}
+
+.playoff-waiting-room-separator {
+  color: rgba(244, 199, 112, 0.65);
+}
+
+.playoff-waiting-room-panel .playoff-waiting-room-support {
+  margin: 0;
+  color: var(--ar-text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.playoff-waiting-room-panel .playoff-host-feed {
+  margin: 10px 0 12px;
 }
 
 .playoff-pill--gold {
@@ -498,6 +533,43 @@ body {
 .playoff-shell--player {
   width: min(720px, 100%);
   text-align: left;
+}
+
+.playoff-shell--player > .playoff-brand {
+  margin-bottom: 6px;
+}
+
+.playoff-player-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.playoff-shell--player .playoff-player-header-main > h1 {
+  flex: 0 0 auto;
+  font-size: clamp(1.55rem, 3vw, 2rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.playoff-shell--player .playoff-header-row--player {
+  min-width: 0;
+  justify-content: flex-end;
+  margin-top: 0;
+}
+
+.playoff-shell--player .playoff-header-row--player .playoff-email {
+  margin: 0;
+  color: var(--ar-text-muted);
+  font-size: 0.82rem;
+}
+
+.playoff-shell--player .playoff-header-row--player .playoff-auth-link-button {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding: 6px 0;
+  font-size: 0.85rem;
 }
 
 .playoff-host-feed {
@@ -610,6 +682,35 @@ body {
   border-color: rgba(255, 255, 255, 0.12);
 }
 
+.playoff-round-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(244, 199, 112, 0.28);
+  border-radius: 10px;
+  background: rgba(244, 199, 112, 0.07);
+}
+
+.playoff-round-status__label {
+  color: var(--ar-gold);
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.playoff-round-status__separator {
+  color: rgba(244, 199, 112, 0.62);
+}
+
+.playoff-round-status__instruction {
+  color: var(--ar-text-main);
+  font-size: 0.92rem;
+}
+
 .playoff-player-state-card--success {
   border-color: rgba(105, 232, 169, 0.4);
   background: linear-gradient(180deg, rgba(105, 232, 169, 0.12), rgba(255, 255, 255, 0.03));
@@ -642,7 +743,12 @@ body {
 }
 
 .playoff-question-panel {
-  margin-top: 14px;
+  margin-top: 10px;
+  padding: 12px 14px;
+}
+
+.playoff-question-panel .playoff-prompt {
+  margin: 0;
 }
 
 .playoff-feedback-card {
@@ -753,13 +859,16 @@ body {
 }
 
 .playoff-answer-form {
-  margin-top: 16px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  margin-top: 12px;
   display: grid;
-  gap: 10px;
+  gap: 8px 10px;
   text-align: left;
 }
 
 .playoff-answer-form label {
+  grid-column: 1 / -1;
   color: var(--ar-text-muted);
   font-size: 0.9rem;
   font-weight: 600;
@@ -780,7 +889,8 @@ body {
 }
 
 .playoff-answer-form button {
-  width: fit-content;
+  width: auto;
+  min-height: 41px;
   padding: 10px 14px;
   border: 0;
   border-radius: 10px;
@@ -793,6 +903,20 @@ body {
 .playoff-answer-form button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.playoff-round-status ~ .playoff-host-feed {
+  margin-top: 14px;
+}
+
+@media (max-width: 560px) {
+  .playoff-answer-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .playoff-answer-form button {
+    width: 100%;
+  }
 }
 
 .playoff-feedback {
@@ -1928,6 +2052,20 @@ body {
   .playoff-header-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .playoff-player-header-main {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .playoff-shell--player .playoff-header-row--player {
+    width: 100%;
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
+    flex-wrap: wrap;
   }
 
   .playoff-admin-meta {

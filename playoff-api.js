@@ -90,14 +90,24 @@ function normalizePlayerStatePayload(payload) {
           return Boolean(player?.has_joined || player?.joined || joinedAt);
         })
         : [];
+  const explicitOnlinePlayers = Array.isArray(state.onlinePlayers)
+    ? state.onlinePlayers
+    : Array.isArray(state.online_players)
+      ? state.online_players
+      : null;
+  const onlinePlayers = explicitOnlinePlayers ?? joinedPlayers;
+  const joinedCount = normalizeCount(state.joinedCount ?? state.joined_count ?? state.joinedParticipantsCount ?? state.joined_participants_count ?? joinedPlayers.length);
+  const onlineCount = normalizeCount(state.onlineCount ?? state.online_count);
 
   return {
     ...state,
     totalInvited: normalizeCount(state.totalInvited ?? state.total_invited ?? state.totalParticipants ?? state.participant_count ?? state.invited_count),
-    joinedCount: normalizeCount(state.joinedCount ?? state.joined_count ?? state.joinedParticipantsCount ?? state.joined_participants_count ?? joinedPlayers.length),
+    joinedCount,
     joinedPlayers,
-    waitingRoomPlayers: joinedPlayers,
-    waiting_room_players: joinedPlayers
+    onlineCount: onlineCount ?? explicitOnlinePlayers?.length ?? joinedCount ?? joinedPlayers.length,
+    onlinePlayers,
+    waitingRoomPlayers: onlinePlayers,
+    waiting_room_players: onlinePlayers
   };
 }
 

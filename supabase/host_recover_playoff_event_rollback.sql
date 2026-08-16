@@ -192,7 +192,6 @@ begin
     --   invitation hashes
     --   expected emails
     --   user_id bindings
-    --   joined_at
     --
     -- Clear all runtime competition state.
     -- ========================================================
@@ -220,6 +219,8 @@ begin
         update public.playoff_participants
         set
             current_status = 'invited',
+            joined_at = null,
+            last_seen_at = null,
             question_2_slot = null,
             is_finalist = false,
             is_winner = false,

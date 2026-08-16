@@ -1471,6 +1471,10 @@
     const submissionScrollState = captureSubmissionScrollState();
     const participantScrollState = captureParticipantScrollState();
     const hostFeedScrollState = captureHostFeedScrollState();
+    const onlineParticipantCount = participants.filter(
+      (participant) => getParticipantPresence(participant, hostData?.server_time) === "ONLINE"
+    ).length;
+    const offlineParticipantCount = Math.max(0, participants.length - onlineParticipantCount);
 
     const participantRows = participants.length
       ? participants.map((participant, index) => {
@@ -1614,15 +1618,15 @@
               <p>${escapeHtml(counts.participants ?? 0)}</p>
               <span>${escapeHtml(counts.participants ?? 0)} total</span>
             </article>
-            <article class="playoff-instrument-metric ${Number(counts.joined || 0) > 0 ? "playoff-instrument-metric--green" : "playoff-instrument-metric--neutral"}">
-              <h3>Joined</h3>
-              <p>${escapeHtml(counts.joined ?? 0)}</p>
-              <span>${escapeHtml(counts.joined ?? 0)} ready</span>
+            <article class="playoff-instrument-metric ${onlineParticipantCount > 0 ? "playoff-instrument-metric--green" : "playoff-instrument-metric--neutral"}">
+              <h3>Online</h3>
+              <p>${escapeHtml(onlineParticipantCount)}</p>
+              <span>${onlineParticipantCount > 0 ? "Active now" : "None online"}</span>
             </article>
-            <article class="playoff-instrument-metric ${Number(counts.not_joined || 0) > 0 ? "playoff-instrument-metric--amber" : "playoff-instrument-metric--green"}">
-              <h3>Not Joined</h3>
-              <p>${escapeHtml(counts.not_joined ?? 0)}</p>
-              <span>${Number(counts.not_joined || 0) > 0 ? "Waiting" : "All joined"}</span>
+            <article class="playoff-instrument-metric ${offlineParticipantCount > 0 ? "playoff-instrument-metric--amber" : "playoff-instrument-metric--green"}">
+              <h3>Offline</h3>
+              <p>${escapeHtml(offlineParticipantCount)}</p>
+              <span>${offlineParticipantCount > 0 ? "Not active" : "All online"}</span>
             </article>
             <article class="playoff-instrument-metric ${Number(counts.finalists || 0) > 0 ? "playoff-instrument-metric--blue" : "playoff-instrument-metric--neutral"}">
               <h3>Finalists</h3>

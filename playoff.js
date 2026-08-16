@@ -40,6 +40,24 @@
     return;
   }
 
+  root.addEventListener("error", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLImageElement) || !target.classList.contains("playoff-avatar")) return;
+
+    const avatarKeyUrl = target.dataset.avatarKeyUrl || "";
+    if (avatarKeyUrl) {
+      delete target.dataset.avatarKeyUrl;
+      target.src = avatarKeyUrl;
+      return;
+    }
+
+    const fallback = document.createElement("span");
+    fallback.className = "playoff-avatar playoff-avatar--fallback";
+    fallback.setAttribute("aria-hidden", "true");
+    fallback.textContent = target.dataset.avatarFallback || "P";
+    target.replaceWith(fallback);
+  }, true);
+
   const state = {
     inviteToken: "",
     accountEventId: "",
@@ -221,21 +239,36 @@
     return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
   };
 
+  const getAvatarUrlFromKey = (avatarKey) => {
+    const baseUrl = "https://vlcjilzgntxweomnyfgd.supabase.co/storage/v1/object/public/avatars/";
+    const fileNameByKey = {
+      "beach-umbrella": "beach-umbrella.png",
+      cocktail: "cocktail.png",
+      suitcase: "suitcase.png",
+      "travel-diary": "travel-diary.png"
+    };
+    const fileName = fileNameByKey[String(avatarKey || "").trim()];
+    return fileName ? `${baseUrl}${fileName}` : "";
+  };
+
   const getPlayerAvatarMarkup = (player) => {
     const displayName = getPlayerDisplayName(player);
     const avatarUrl = String(player?.avatar_url || player?.avatarUrl || "").trim();
     const avatarKey = String(player?.avatar_key || player?.avatarKey || "").trim();
+    const avatarKeyUrl = getAvatarUrlFromKey(avatarKey);
+    const resolvedAvatarUrl = avatarUrl || avatarKeyUrl;
+    const fallbackInitial = avatarKey
+      ? avatarKey.slice(0, 1).toUpperCase()
+      : (displayName || "P").trim().charAt(0).toUpperCase();
 
-    if (avatarUrl) {
-      return `<img class="playoff-avatar" src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(displayName || "Player avatar")}">`;
+    if (resolvedAvatarUrl) {
+      const keyFallbackAttribute = avatarUrl && avatarKeyUrl
+        ? ` data-avatar-key-url="${escapeHtml(avatarKeyUrl)}"`
+        : "";
+      return `<img class="playoff-avatar" src="${escapeHtml(resolvedAvatarUrl)}" alt="${escapeHtml(displayName || "Player avatar")}" data-avatar-fallback="${escapeHtml(fallbackInitial)}"${keyFallbackAttribute}>`;
     }
 
-    if (avatarKey) {
-      return `<span class="playoff-avatar playoff-avatar--fallback" aria-hidden="true">${escapeHtml(avatarKey.slice(0, 1).toUpperCase())}</span>`;
-    }
-
-    const initial = (displayName || "P").trim().charAt(0).toUpperCase();
-    return `<span class="playoff-avatar playoff-avatar--fallback" aria-hidden="true">${escapeHtml(initial)}</span>`;
+    return `<span class="playoff-avatar playoff-avatar--fallback" aria-hidden="true">${escapeHtml(fallbackInitial)}</span>`;
   };
 
   const escapeHtml = (value) => {
@@ -329,6 +362,37 @@
       state.hostFeed.loading = false;
       updateHostFeedDom();
     }
+  };
+
+  const captureWaitingRoomScrollState = () => {
+    const list = document.querySelector(".playoff-waiting-room-list");
+    if (!list) return { nearTop: true, anchorId: "", anchorOffset: 0, previousScrollTop: 0 };
+
+    const rows = Array.from(list.querySelectorAll("[data-waiting-player-id]"));
+    const anchor = rows.find((row) => row.offsetTop + row.offsetHeight > list.scrollTop) || null;
+    return {
+      nearTop: list.scrollTop <= 8,
+      anchorId: anchor?.getAttribute("data-waiting-player-id") || "",
+      anchorOffset: anchor ? anchor.offsetTop - list.scrollTop : 0,
+      previousScrollTop: list.scrollTop
+    };
+  };
+
+  const restoreWaitingRoomScrollState = (scrollState) => {
+    const list = document.querySelector(".playoff-waiting-room-list");
+    if (!list) return;
+    if (!scrollState || scrollState.nearTop) {
+      list.scrollTop = 0;
+      return;
+    }
+
+    const anchor = Array.from(list.querySelectorAll("[data-waiting-player-id]"))
+      .find((row) => row.getAttribute("data-waiting-player-id") === scrollState.anchorId);
+    const targetScrollTop = anchor
+      ? anchor.offsetTop - scrollState.anchorOffset
+      : scrollState.previousScrollTop;
+    const maxScrollTop = Math.max(0, list.scrollHeight - list.clientHeight);
+    list.scrollTop = Math.min(Math.max(0, targetScrollTop), maxScrollTop);
   };
 
   const clearCelebration = () => {
@@ -598,11 +662,9 @@
       return {
         mode: "waiting_for_players",
         cardClass: "playoff-player-state-card--waiting-room",
-        title: "You’re in the Live Waiting Room",
-        label: "Waiting for the host to begin",
+        label: "Waiting Room",
         body: [
-          "Your place is confirmed and the host is getting everything ready.",
-          "Keep this page open. Round 1 will appear here automatically when the playoff begins."
+          "Stay on this page. Round 1 will appear automatically."
         ],
         checklist: [],
         waitingRoomPlayers,
@@ -743,15 +805,14 @@
 
     if (hasQuestion && isParticipantEligible(playerStatus)) {
       const roundLabel = questionNumber > 0 ? `Round ${questionNumber}` : "This round";
+      const finalRound = questionNumber === 3;
       return {
         mode: "answering",
         cardClass: `playoff-player-state-card--answering playoff-player-state-card--round-${questionNumber || 0}`,
-        title: `${roundLabel} is live`,
-        body: [
-          "Submit your answer when you’re ready."
-        ],
+        label: finalRound ? "Final Round" : roundLabel,
+        body: ["Submit your answer below"],
         canSubmit: true,
-        showQuestion: true,
+        showQuestion: false,
         showForm: true
       };
     }
@@ -1211,19 +1272,24 @@
     const stateKey = classifyState(playerState);
     const presentation = getPlayerPresentation(playerState, joinInfo);
     const emailText = state.user?.email ? `Signed in as: ${state.user.email}` : "Signed in user";
-    const eventName = playerState.event_name || joinInfo.eventName || "Live Playoff";
     const canShowAnswerForm = presentation.canSubmit
       && Boolean(playerState.question)
       && Boolean(playerState.question?.id)
       && !state.isSubmitting;
 
-    const joinedPlayers = Array.isArray(playerState?.joinedPlayers)
+    const explicitOnlinePlayers = Array.isArray(playerState?.onlinePlayers)
+      ? playerState.onlinePlayers
+      : Array.isArray(playerState?.online_players)
+        ? playerState.online_players
+        : null;
+    const legacyJoinedPlayers = Array.isArray(playerState?.joinedPlayers)
       ? playerState.joinedPlayers
       : Array.isArray(playerState?.joined_players)
         ? playerState.joined_players
         : Array.isArray(presentation.waitingRoomPlayers)
           ? presentation.waitingRoomPlayers
           : [];
+    const joinedPlayers = explicitOnlinePlayers ?? legacyJoinedPlayers;
 
     const totalInvited = normalizeCountValue(
       playerState?.totalInvited
@@ -1234,11 +1300,14 @@
     );
 
     const joinedCount = normalizeCountValue(
-      playerState?.joinedCount
+      playerState?.onlineCount
+      ?? playerState?.online_count
+      ?? explicitOnlinePlayers?.length
+      ?? playerState?.joinedCount
       ?? playerState?.joined_count
       ?? playerState?.joinedParticipantsCount
       ?? playerState?.joined_participants_count
-      ?? joinedPlayers.length
+      ?? legacyJoinedPlayers.length
     );
 
     presentation.totalInvited = totalInvited ?? 1;
@@ -1264,19 +1333,26 @@
       && Number(playerState.active_question_number || 0) === Number(state.incorrectFeedback.questionNumber || 0)
     );
 
-    const renderQuestionPanel = presentation.showQuestion && playerState.question && !showIncorrectFeedback;
     const renderAnswerForm = canShowAnswerForm && !showIncorrectFeedback;
+    const waitingRoomScrollState = captureWaitingRoomScrollState();
+    const hostFeedMarkup = `
+      <aside id="playoff-host-feed" class="playoff-host-feed" aria-label="Live Host Feed">
+        ${renderHostFeedMarkup()}
+      </aside>
+    `;
 
     root.innerHTML = `
       <main class="playoff-shell playoff-shell--player" aria-label="Live Playoff player shell">
         <div class="playoff-brand">The Accidental Retiree</div>
-        <h1>Live Playoff</h1>
-        <div class="playoff-header-row playoff-header-row--player">
-          <p class="playoff-email">${emailText}</p>
-          <button type="button" id="playoff-logout-btn" class="playoff-auth-link-button">Logout</button>
+        <div class="playoff-player-header-main">
+          <h1>LIVE PLAYOFF</h1>
+          <div class="playoff-header-row playoff-header-row--player">
+            <p class="playoff-email">${emailText}</p>
+            <button type="button" id="playoff-logout-btn" class="playoff-auth-link-button">Logout</button>
+          </div>
         </div>
+        ${presentation.mode === "waiting_for_players" || presentation.mode === "answering" ? "" : `
         <section class="playoff-player-state-card ${presentation.cardClass}" aria-label="Player status">
-          <p class="playoff-player-state-kicker">${eventName}</p>
           ${presentation.label ? `<p class="playoff-player-state-label">${presentation.label}</p>` : ""}
           <h2>${presentation.title}</h2>
           ${presentation.body.map((line) => `<p>${line}</p>`).join("")}
@@ -1286,13 +1362,20 @@
           </ul>
           ` : ""}
         </section>
+        `}
 
         ${presentation.mode === "waiting_for_players" ? `
         <section class="playoff-panel playoff-waiting-room-panel" aria-label="Waiting room roster">
-          <p class="playoff-panel-title">Live Waiting Room</p>
-          <p class="playoff-waiting-room-counter">${presentation.joinedCount ?? 0} of ${presentation.totalInvited ?? 1} players ready</p>
+          <p class="playoff-player-state-label">${presentation.label}</p>
+          <div class="playoff-waiting-room-status">
+            <span class="playoff-waiting-room-counter">${presentation.joinedCount ?? 0} of ${presentation.totalInvited ?? 1} players online</span>
+            <span class="playoff-waiting-room-separator" aria-hidden="true">|</span>
+            <span class="playoff-waiting-room-footer">Waiting for Host to Begin Game</span>
+          </div>
+          ${presentation.body.map((line) => `<p class="playoff-waiting-room-support">${line}</p>`).join("")}
+          ${hostFeedMarkup}
           <div class="playoff-waiting-room-list">
-            ${waitingRoomPlayers.map((player) => {
+            ${waitingRoomPlayers.map((player, index) => {
               const displayName = getPlayerDisplayName(player) || "A player";
               const hasJoined = Boolean(player?.has_joined || player?.joined || player?.joined_at || player?.joinedAt);
               const rosterName = displayName.trim().toLowerCase();
@@ -1300,8 +1383,9 @@
               const joinedAt = player?.joined_at || player?.joinedAt || null;
               const joinedLabel = hasJoined ? `${displayName} has entered the room` : `${displayName} is waiting to join`;
               const messageText = displayName ? joinedLabel : "A player has entered the room";
+              const playerKey = player?.id || player?.participant_id || player?.user_id || player?.expected_email || `${displayName}:${index}`;
               return `
-                <div class="playoff-waiting-room-item">
+                <div class="playoff-waiting-room-item" data-waiting-player-id="${escapeHtml(playerKey)}">
                   <div class="playoff-waiting-room-avatar">${getPlayerAvatarMarkup(player)}</div>
                   <div class="playoff-waiting-room-main">
                     <div class="playoff-waiting-room-name-row">
@@ -1316,13 +1400,14 @@
               `;
             }).join("")}
           </div>
-          <p class="playoff-waiting-room-footer">Waiting for Host to Begin Game</p>
         </section>
         ` : ""}
 
-        ${renderQuestionPanel ? `
-        <section class="playoff-panel playoff-question-panel" aria-label="Active question">
-          <p class="playoff-prompt">${playerState.question.prompt || ""}</p>
+        ${presentation.mode === "answering" ? `
+        <section class="playoff-round-status" aria-label="${presentation.label}">
+          <span class="playoff-round-status__label">${presentation.label}</span>
+          <span class="playoff-round-status__separator" aria-hidden="true">|</span>
+          <span class="playoff-round-status__instruction">${presentation.body[0]}</span>
         </section>
         ` : ""}
 
@@ -1351,12 +1436,11 @@
         ` : ""}
 
         ${state.feedback && presentation.mode === "answering" ? `<p class="playoff-feedback">${state.feedback}</p>` : ""}
-        <aside id="playoff-host-feed" class="playoff-host-feed" aria-label="Live Host Feed">
-          ${renderHostFeedMarkup()}
-        </aside>
+        ${presentation.mode === "waiting_for_players" ? "" : hostFeedMarkup}
       </main>
     `;
 
+    restoreWaitingRoomScrollState(waitingRoomScrollState);
     const hostFeedHistory = document.querySelector("#playoff-host-feed .playoff-host-feed-history");
     if (hostFeedHistory) hostFeedHistory.scrollTop = 0;
 
