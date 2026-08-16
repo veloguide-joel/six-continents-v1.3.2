@@ -25,6 +25,7 @@
     typeof api.getSession !== "function" ||
     typeof api.joinPlayoff !== "function" ||
     typeof api.getPlayerState !== "function" ||
+    typeof api.getHostMessages !== "function" ||
     typeof api.touchPlayoffPresence !== "function" ||
     typeof api.markPlayoffPresenceOffline !== "function" ||
     typeof api.submitAnswer !== "function"
@@ -53,6 +54,13 @@
     pollTimerId: null,
     pollInFlight: false,
     pollSuspended: false,
+    hostFeedPollCount: 0,
+    hostFeed: {
+      pinned: null,
+      messages: [],
+      loading: false,
+      error: null
+    },
     presenceTimerId: null,
     presenceInFlight: false,
     presenceActive: false,
@@ -237,6 +245,90 @@
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  };
+
+  const formatHostMessageTime = (value) => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" }).format(parsed);
+  };
+
+  const renderHostFeedMessage = (message, { pinned = false } = {}) => {
+    const time = formatHostMessageTime(message?.created_at);
+    const importantClass = message?.is_important ? " playoff-host-feed-message--important" : "";
+    return `
+      <article class="playoff-host-feed-message${importantClass}${pinned ? " playoff-host-feed-message--pinned" : ""}">
+        ${pinned ? '<p class="playoff-host-feed-pin-label">📌 IMPORTANT</p>' : `<p class="playoff-host-feed-meta">${time ? `${escapeHtml(time)} — ` : ""}HOST${message?.is_important ? " · IMPORTANT" : ""}</p>`}
+        <p class="playoff-host-feed-text">${escapeHtml(message?.message || "")}</p>
+      </article>
+    `;
+  };
+
+  const renderHostFeedMarkup = () => {
+    const pinned = state.hostFeed.pinned;
+    const messages = state.hostFeed.messages
+      .filter((message) => !pinned || message?.id !== pinned.id)
+      .reverse();
+    const statusMarkup = state.hostFeed.error
+      ? '<p class="playoff-host-feed-status">Feed temporarily unavailable. Retrying...</p>'
+      : state.hostFeed.loading && !pinned && messages.length === 0
+        ? '<p class="playoff-host-feed-status">Loading host messages...</p>'
+        : !pinned && messages.length === 0
+          ? '<p class="playoff-host-feed-status">No host messages yet.</p>'
+          : "";
+
+    return `
+      <div class="playoff-host-feed-heading">📣 LIVE HOST FEED</div>
+      ${pinned ? renderHostFeedMessage(pinned, { pinned: true }) : ""}
+      <div class="playoff-host-feed-history">
+        ${messages.map((message) => renderHostFeedMessage(message)).join("")}
+      </div>
+      ${statusMarkup}
+    `;
+  };
+
+  const updateHostFeedDom = ({ newMessage = false } = {}) => {
+    const feed = document.getElementById("playoff-host-feed");
+    if (!feed) return;
+
+    const currentHistory = feed.querySelector(".playoff-host-feed-history");
+    const hadHistory = Boolean(currentHistory);
+    const previousScrollTop = currentHistory?.scrollTop || 0;
+
+    feed.innerHTML = renderHostFeedMarkup();
+
+    const nextHistory = feed.querySelector(".playoff-host-feed-history");
+    if (!nextHistory) return;
+    if (!hadHistory || newMessage) {
+      nextHistory.scrollTop = 0;
+    } else {
+      nextHistory.scrollTop = previousScrollTop;
+    }
+  };
+
+  const refreshHostFeed = async () => {
+    if (state.hostFeed.loading || !state.user || !state.currentEventId || !state.playerState || state.authUi.mode !== "player") {
+      return;
+    }
+
+    state.hostFeed.loading = true;
+    updateHostFeedDom();
+    try {
+      const payload = await api.getHostMessages(state.currentEventId, 20);
+      const previousMessageIds = new Set(state.hostFeed.messages.map((message) => message?.id).filter(Boolean));
+      const nextMessages = Array.isArray(payload?.messages) ? payload.messages : [];
+      const hasNewMessage = nextMessages.some((message) => message?.id && !previousMessageIds.has(message.id));
+      state.hostFeed.pinned = payload?.pinned || null;
+      state.hostFeed.messages = nextMessages;
+      state.hostFeed.error = null;
+      updateHostFeedDom({ newMessage: hasNewMessage });
+    } catch (error) {
+      state.hostFeed.error = error?.message || "Host feed refresh failed.";
+      console.warn("Host feed refresh failed:", error?.message || error);
+    } finally {
+      state.hostFeed.loading = false;
+      updateHostFeedDom();
+    }
   };
 
   const clearCelebration = () => {
@@ -1259,8 +1351,14 @@
         ` : ""}
 
         ${state.feedback && presentation.mode === "answering" ? `<p class="playoff-feedback">${state.feedback}</p>` : ""}
+        <aside id="playoff-host-feed" class="playoff-host-feed" aria-label="Live Host Feed">
+          ${renderHostFeedMarkup()}
+        </aside>
       </main>
     `;
+
+    const hostFeedHistory = document.querySelector("#playoff-host-feed .playoff-host-feed-history");
+    if (hostFeedHistory) hostFeedHistory.scrollTop = 0;
 
     const form = document.getElementById("playoff-answer-form");
     if (form) {
@@ -1423,6 +1521,11 @@
 
       const playerStateRaw = await api.getPlayerState(state.currentEventId);
       const nextPlayerState = Array.isArray(playerStateRaw) ? playerStateRaw[0] : playerStateRaw;
+      state.hostFeedPollCount += 1;
+      if (state.hostFeedPollCount >= 2) {
+        state.hostFeedPollCount = 0;
+        void refreshHostFeed();
+      }
       const nextKey = buildPlayerStateKey(nextPlayerState);
       const nextScore = getPlayerStateScore(nextPlayerState);
       const changed = nextKey !== state.lastPlayerStateKey;
@@ -1498,6 +1601,7 @@
       state.lastStateScore = getPlayerStateScore(state.playerState);
       setAuthUi("player", "", "", "", { isError: false, showSignOut: false });
       renderApp();
+      void refreshHostFeed();
       startPolling();
       startPresenceHeartbeat();
       return true;

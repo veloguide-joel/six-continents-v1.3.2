@@ -2,7 +2,7 @@
 
 (() => {
   const DEFAULT_EVENT_ID = "591ec441-e182-46b5-82d5-345c7d9c82c0";
-  const REQUIRED_API_METHODS = ["getSession", "getHostState", "configureQuestions", "recoverEvent", "resetToWaiting"];
+  const REQUIRED_API_METHODS = ["getSession", "getHostState", "sendHostMessage", "getHostMessages", "clearHostMessages", "configureQuestions", "recoverEvent", "resetToWaiting"];
   const ACTIONS_BY_STATUS = {
     draft: ["start_waiting"],
     waiting_for_players: ["open_round_1", "pause"],
@@ -72,6 +72,19 @@
     pollInFlight: false,
     pollTimerId: null,
     pollSuspended: false,
+    hostFeedPollCount: 0,
+    hostFeed: {
+      pinned: null,
+      messages: [],
+      loading: false,
+      loaded: false,
+      error: null,
+      sending: false,
+      clearing: false,
+      draft: "",
+      feedback: "",
+      feedbackType: ""
+    },
     status: "loading",
     message: "Checking your session...",
     session: null,
@@ -115,6 +128,18 @@
       return;
     }
 
+    if (target.id === "playoff-host-message-send" || target.id === "playoff-host-message-send-important") {
+      event.preventDefault();
+      void handleHostMessageSend(target.id === "playoff-host-message-send-important");
+      return;
+    }
+
+    if (target.id === "playoff-host-message-clear") {
+      event.preventDefault();
+      void handleHostMessagesClear();
+      return;
+    }
+
     if (target.id === "playoff-recovery-full-reset") {
       event.preventDefault();
       void handleRecoveryAction("full_reset");
@@ -144,6 +169,14 @@
     if (target.dataset.hostAction) {
       void executeHostAction(target.dataset.hostAction);
     }
+  });
+
+  root.addEventListener("input", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLTextAreaElement) || target.id !== "playoff-host-message-draft") return;
+    state.hostFeed.draft = target.value;
+    const counter = document.getElementById("playoff-host-message-counter");
+    if (counter) counter.textContent = `${target.value.length} / 500`;
   });
 
   document.addEventListener("visibilitychange", () => {
@@ -537,6 +570,188 @@
     }
   }
 
+  function formatHostMessageTime(value) {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" }).format(parsed);
+  }
+
+  function renderHostFeedMessage(message, { pinned = false } = {}) {
+    const time = formatHostMessageTime(message?.created_at);
+    const importantClass = message?.is_important ? " playoff-host-feed-message--important" : "";
+    return `
+      <article class="playoff-host-feed-message${importantClass}${pinned ? " playoff-host-feed-message--pinned" : ""}" data-host-message-id="${escapeHtml(message?.id || "")}">
+        ${pinned ? '<p class="playoff-host-feed-pin-label">📌 IMPORTANT</p>' : `<p class="playoff-host-feed-meta">${time ? `${escapeHtml(time)} — ` : ""}HOST${message?.is_important ? " · IMPORTANT" : ""}</p>`}
+        <p class="playoff-host-feed-text">${escapeHtml(message?.message || "")}</p>
+      </article>
+    `;
+  }
+
+  function renderHostFeedHistoryMarkup() {
+    const pinned = state.hostFeed.pinned;
+    const messages = state.hostFeed.messages
+      .filter((message) => !pinned || message?.id !== pinned.id)
+      .reverse();
+    const statusMarkup = state.hostFeed.error
+      ? '<p class="playoff-host-feed-status">Feed temporarily unavailable. Retrying...</p>'
+      : state.hostFeed.loading && !pinned && messages.length === 0
+        ? '<p class="playoff-host-feed-status">Loading host messages...</p>'
+        : !pinned && messages.length === 0
+          ? '<p class="playoff-host-feed-status">No host messages yet.</p>'
+          : "";
+
+    return `
+      ${pinned ? renderHostFeedMessage(pinned, { pinned: true }) : ""}
+      <div class="playoff-host-feed-history">
+        ${messages.map((message) => renderHostFeedMessage(message)).join("")}
+      </div>
+      ${statusMarkup}
+    `;
+  }
+
+  function updateHostFeedHistoryDom() {
+    const history = document.getElementById("playoff-admin-host-feed-history");
+    if (!history) return;
+    const scrollState = captureHostFeedScrollState();
+    history.innerHTML = renderHostFeedHistoryMarkup();
+    restoreHostFeedScrollState(scrollState);
+  }
+
+  function captureHostFeedScrollState() {
+    const history = document.querySelector("#playoff-admin-host-feed-history .playoff-host-feed-history");
+    if (!history) return { nearTop: true, anchorId: "", anchorOffset: 0, previousScrollTop: 0 };
+
+    const rows = Array.from(history.querySelectorAll("[data-host-message-id]"));
+    const anchor = rows.find((row) => row.offsetTop + row.offsetHeight > history.scrollTop) || null;
+    return {
+      nearTop: history.scrollTop <= 8,
+      anchorId: anchor?.getAttribute("data-host-message-id") || "",
+      anchorOffset: anchor ? anchor.offsetTop - history.scrollTop : 0,
+      previousScrollTop: history.scrollTop
+    };
+  }
+
+  function restoreHostFeedScrollState(scrollState) {
+    const history = document.querySelector("#playoff-admin-host-feed-history .playoff-host-feed-history");
+    if (!history) return;
+    if (!scrollState || scrollState.nearTop) {
+      history.scrollTop = 0;
+      return;
+    }
+
+    const anchor = Array.from(history.querySelectorAll("[data-host-message-id]"))
+      .find((row) => row.getAttribute("data-host-message-id") === scrollState.anchorId);
+    const targetScrollTop = anchor
+      ? anchor.offsetTop - scrollState.anchorOffset
+      : scrollState.previousScrollTop;
+    const maxScrollTop = Math.max(0, history.scrollHeight - history.clientHeight);
+    history.scrollTop = Math.min(Math.max(0, targetScrollTop), maxScrollTop);
+  }
+
+  function updateHostMessageComposerDom() {
+    const textarea = document.getElementById("playoff-host-message-draft");
+    const counter = document.getElementById("playoff-host-message-counter");
+    const feedback = document.getElementById("playoff-host-message-feedback");
+    const clearButton = document.getElementById("playoff-host-message-clear");
+    const sendButton = document.getElementById("playoff-host-message-send");
+    const importantButton = document.getElementById("playoff-host-message-send-important");
+
+    if (textarea instanceof HTMLTextAreaElement && textarea.value !== state.hostFeed.draft) textarea.value = state.hostFeed.draft;
+    if (counter) counter.textContent = `${state.hostFeed.draft.length} / 500`;
+    if (feedback) {
+      feedback.textContent = state.hostFeed.feedback;
+      feedback.className = `playoff-host-message-feedback${state.hostFeed.feedbackType ? ` playoff-host-message-feedback--${state.hostFeed.feedbackType}` : ""}`;
+    }
+    const feedActionBusy = state.hostFeed.sending || state.hostFeed.clearing;
+    if (clearButton instanceof HTMLButtonElement) clearButton.disabled = feedActionBusy;
+    if (sendButton instanceof HTMLButtonElement) sendButton.disabled = feedActionBusy;
+    if (importantButton instanceof HTMLButtonElement) importantButton.disabled = feedActionBusy;
+  }
+
+  async function refreshHostFeed() {
+    if (state.hostFeed.loading || !state.session?.user || !state.eventTargetValid) return;
+
+    state.hostFeed.loading = true;
+    updateHostFeedHistoryDom();
+    try {
+      const payload = await api.getHostMessages(getActiveEventId(), 20);
+      state.hostFeed.pinned = payload?.pinned || null;
+      state.hostFeed.messages = Array.isArray(payload?.messages) ? payload.messages : [];
+      state.hostFeed.error = null;
+      state.hostFeed.loaded = true;
+    } catch (error) {
+      state.hostFeed.error = sanitizeErrorMessage(error);
+      console.warn("Host feed refresh failed:", error?.message || error);
+    } finally {
+      state.hostFeed.loading = false;
+      updateHostFeedHistoryDom();
+    }
+  }
+
+  async function handleHostMessageSend(isImportant) {
+    if (state.hostFeed.sending || state.hostFeed.clearing || !state.hostData) return;
+
+    const message = state.hostFeed.draft.trim();
+    if (!message || message.length > 500) {
+      state.hostFeed.feedback = !message ? "Enter a message before sending." : "Message must be 500 characters or fewer.";
+      state.hostFeed.feedbackType = "error";
+      updateHostMessageComposerDom();
+      return;
+    }
+
+    state.hostFeed.sending = true;
+    state.hostFeed.feedback = isImportant ? "Sending Important message..." : "Sending message...";
+    state.hostFeed.feedbackType = "";
+    updateHostMessageComposerDom();
+
+    try {
+      await api.sendHostMessage(getActiveEventId(), message, isImportant);
+      state.hostFeed.draft = "";
+      state.hostFeed.feedback = isImportant ? "Important message sent and pinned." : "Message sent.";
+      state.hostFeed.feedbackType = "success";
+      await refreshHostFeed();
+    } catch (error) {
+      state.hostFeed.feedback = sanitizeErrorMessage(error);
+      state.hostFeed.feedbackType = "error";
+      console.warn("Host message send failed:", error?.message || error);
+    } finally {
+      state.hostFeed.sending = false;
+      updateHostMessageComposerDom();
+    }
+  }
+
+  async function handleHostMessagesClear() {
+    if (state.hostFeed.clearing || state.hostFeed.sending || !state.hostData) return;
+
+    const confirmed = window.confirm([
+      "Clear the entire host message feed for this event?",
+      "",
+      "This will permanently remove all normal and Important messages, including the pinned Important message.",
+      "",
+      "This cannot be undone."
+    ].join("\n"));
+    if (!confirmed) return;
+
+    state.hostFeed.clearing = true;
+    state.hostFeed.feedback = "Clearing host message feed...";
+    state.hostFeed.feedbackType = "";
+    updateHostMessageComposerDom();
+
+    try {
+      await api.clearHostMessages(getActiveEventId());
+      state.hostFeed.feedback = "Host message feed cleared.";
+      state.hostFeed.feedbackType = "success";
+      await refreshHostFeed();
+    } catch (error) {
+      state.hostFeed.feedback = sanitizeErrorMessage(error);
+      state.hostFeed.feedbackType = "error";
+      console.warn("Host message feed clear failed:", error?.message || error);
+    } finally {
+      state.hostFeed.clearing = false;
+      updateHostMessageComposerDom();
+    }
+  }
+
   function scheduleNextPoll() {
     clearPollTimer();
     if (state.pollSuspended || state.actionLoading || state.loading || !state.session?.user || state.status !== "ready") {
@@ -592,52 +807,74 @@
     }
   }
 
-  function captureSubmissionScrollState() {
-    const submissionsList = document.querySelector(".playoff-submissions-list");
-    if (!submissionsList) {
-      return { anchorId: "", nearTop: true, previousScrollTop: 0 };
-    }
+  function captureAdminListScrollState(listSelector, cardSelector, keyAttribute) {
+    const list = document.querySelector(listSelector);
+    if (!list) return { anchorId: "", anchorOffset: 0, nearTop: true, previousScrollTop: 0 };
 
-    const cards = Array.from(submissionsList.querySelectorAll("article.playoff-item-card[data-submission-id]"));
-    const topBoundary = submissionsList.scrollTop + 8;
-    let anchorId = "";
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (const card of cards) {
-      const distance = Math.abs((card.offsetTop || 0) - topBoundary);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        anchorId = card.getAttribute("data-submission-id") || "";
-      }
-    }
-
+    const cards = Array.from(list.querySelectorAll(cardSelector));
+    const anchor = cards.find((card) => card.offsetTop + card.offsetHeight > list.scrollTop) || null;
     return {
-      anchorId,
-      nearTop: submissionsList.scrollTop <= 8,
-      previousScrollTop: submissionsList.scrollTop
+      anchorId: anchor?.getAttribute(keyAttribute) || "",
+      anchorOffset: anchor ? anchor.offsetTop - list.scrollTop : 0,
+      nearTop: list.scrollTop <= 8,
+      previousScrollTop: list.scrollTop
     };
   }
 
-  function restoreSubmissionScrollState(scrollState) {
-    const submissionsList = document.querySelector(".playoff-submissions-list");
-    if (!submissionsList) return;
+  function restoreAdminListScrollState(scrollState, listSelector, cardSelector, keyAttribute) {
+    const list = document.querySelector(listSelector);
+    if (!list) return;
 
-    const maxScrollTop = Math.max(0, submissionsList.scrollHeight - submissionsList.clientHeight);
+    const maxScrollTop = Math.max(0, list.scrollHeight - list.clientHeight);
     if (!scrollState || scrollState.nearTop) {
-      submissionsList.scrollTop = 0;
+      list.scrollTop = 0;
       return;
     }
 
     if (scrollState.anchorId) {
-      const anchorCard = Array.from(submissionsList.querySelectorAll("article.playoff-item-card[data-submission-id]"))
-        .find((card) => card.getAttribute("data-submission-id") === scrollState.anchorId);
+      const anchorCard = Array.from(list.querySelectorAll(cardSelector))
+        .find((card) => card.getAttribute(keyAttribute) === scrollState.anchorId);
       if (anchorCard) {
-        submissionsList.scrollTop = Math.min(Math.max(0, (anchorCard.offsetTop || 0) - 8), maxScrollTop);
+        list.scrollTop = Math.min(Math.max(0, anchorCard.offsetTop - scrollState.anchorOffset), maxScrollTop);
         return;
       }
     }
 
-    submissionsList.scrollTop = Math.min(Math.max(0, scrollState.previousScrollTop), maxScrollTop);
+    list.scrollTop = Math.min(Math.max(0, scrollState.previousScrollTop), maxScrollTop);
+  }
+
+  function captureSubmissionScrollState() {
+    return captureAdminListScrollState(
+      ".playoff-submissions-list",
+      "[data-submission-id]",
+      "data-submission-id"
+    );
+  }
+
+  function restoreSubmissionScrollState(scrollState) {
+    restoreAdminListScrollState(
+      scrollState,
+      ".playoff-submissions-list",
+      "[data-submission-id]",
+      "data-submission-id"
+    );
+  }
+
+  function captureParticipantScrollState() {
+    return captureAdminListScrollState(
+      ".playoff-participants-list",
+      "[data-participant-id]",
+      "data-participant-id"
+    );
+  }
+
+  function restoreParticipantScrollState(scrollState) {
+    restoreAdminListScrollState(
+      scrollState,
+      ".playoff-participants-list",
+      "[data-participant-id]",
+      "data-participant-id"
+    );
   }
 
   function controlButtonClass(action) {
@@ -912,13 +1149,24 @@
           };
         }
       } else if (q1Config.advancement_mode === "first_n") {
-        const acceptedCount = getUniqueAcceptedCorrectParticipantIds(submissions, 1).size;
         const limit = Number(q1Config.advance_limit || 0);
         if (limit > 0) {
+          const acceptedCount = Math.min(
+            limit,
+            getUniqueAcceptedCorrectParticipantIds(submissions, 1).size
+          );
+          const targetReached = acceptedCount >= limit;
           return {
             className: "playoff-admin-banner--ready",
             title: "ROUND 1 PROGRESS",
-            body: `${acceptedCount} of ${limit} qualifying positions filled.`
+            body: `${acceptedCount} of ${limit} correct-answer positions filled.`,
+            progress: {
+              current: acceptedCount,
+              target: limit,
+              remainingText: targetReached
+                ? "Round target reached — ready to complete Round 1."
+                : `Need ${limit - acceptedCount} more correct answer(s) to advance.`
+            }
           };
         }
       }
@@ -943,13 +1191,24 @@
           };
         }
       } else if (q2Config.advancement_mode === "first_n") {
-        const acceptedCount = getUniqueAcceptedCorrectParticipantIds(submissions, 2).size;
         const limit = Number(q2Config.advance_limit || 0);
         if (limit > 0) {
+          const acceptedCount = Math.min(
+            limit,
+            getUniqueAcceptedCorrectParticipantIds(submissions, 2).size
+          );
+          const targetReached = acceptedCount >= limit;
           return {
             className: "playoff-admin-banner--ready",
             title: "ROUND 2 PROGRESS",
-            body: `${acceptedCount} of ${limit} finalist positions filled.`
+            body: `${acceptedCount} of ${limit} correct-answer positions filled.`,
+            progress: {
+              current: acceptedCount,
+              target: limit,
+              remainingText: targetReached
+                ? "Round target reached — ready to complete Round 2."
+                : `Need ${limit - acceptedCount} more correct answer(s) to advance.`
+            }
           };
         }
       }
@@ -957,14 +1216,13 @@
 
     if (eventStatus === "question_3_open") {
       const correctRound3Ids = getUniqueCorrectParticipantIds(submissions, 3);
-
-      if (correctRound3Ids.size >= 1) {
-        return {
-          className: "playoff-admin-banner--ready",
-          title: "FINAL ROUND WILL COMPLETE AUTOMATICALLY",
-          body: "First correct finalist wins."
-        };
-      }
+      return {
+        className: "playoff-admin-banner--ready",
+        title: "FINAL ROUND PROGRESS",
+        body: correctRound3Ids.size >= 1
+          ? "Winner found."
+          : "Waiting for first correct finalist."
+      };
     }
 
     if (eventStatus === "question_2_complete") {
@@ -1166,17 +1424,15 @@
     const hostData = state.hostData;
     const event = hostData?.event || {};
     const participants = Array.isArray(hostData?.participants) ? hostData.participants : [];
-    const questions = Array.isArray(hostData?.questions) ? hostData.questions : [];
     const submissions = Array.isArray(hostData?.submissions) ? hostData.submissions : [];
     const counts = hostData?.counts || {};
     const userEmail = state.session?.user?.email ? String(state.session.user.email) : "";
     const eventStatus = normalizeStatus(event.status);
-    const targetSummary = getEventTargetSummary();
     const showPrePause = String(eventStatus).toLowerCase() === "paused" && event.pre_pause_status;
     const activeRoundText = formatRound(event.active_question_number);
     const availableActions = getActionsForStatus(eventStatus, hostData);
     const liveIndicator = state.status === "ready"
-      ? `<div class="playoff-live-indicator" aria-label="Live updates on"><span class="playoff-live-dot" aria-hidden="true"></span><span>Live updates on</span><span class="playoff-live-timestamp">Last updated: ${escapeHtml(state.lastUpdatedLabel || formatLiveTimestamp())}</span></div>`
+      ? `<span class="playoff-live-indicator" aria-label="Live updates on"><span class="playoff-live-dot" aria-hidden="true"></span><span>Live updates on</span></span>`
       : "";
     const readyBanner = getReadyBanner(hostData);
     const provisionalWinner = getProvisionalWinnerDetails(hostData);
@@ -1201,28 +1457,31 @@
     const setupWarningMarkup = getSetupWarningMessage(hostData)
       ? `<p class="playoff-setup-warning">${escapeHtml(getSetupWarningMessage(hostData))}</p>`
       : "";
-    const q1Config = getQuestionConfig(hostData, 1);
-    const q2Config = getQuestionConfig(hostData, 2);
-    const setupLockedMessage = isSetupEditable
-      ? ""
-      : `<p class="playoff-setup-locked">Event setup is locked once Round 1 begins.</p>`;
+    const setupLockedMessage = `<p class="playoff-setup-locked">Locked once Round 1 begins.</p>`;
+    const hostMessageFeedbackClass = state.hostFeed.feedbackType
+      ? ` playoff-host-message-feedback--${state.hostFeed.feedbackType}`
+      : "";
+    const instrumentProgress = readyBanner?.progress || null;
+    const instrumentProgressPercent = instrumentProgress
+      ? Math.min(100, Math.max(0, (instrumentProgress.current / instrumentProgress.target) * 100))
+      : 0;
 
     const refreshDisabled = (state.loading || state.actionLoading) ? "disabled" : "";
     const refreshText = state.loading ? "Refreshing..." : "Refresh State";
-    const feedbackClass = state.status === "ready"
-      ? "playoff-status playoff-status--host-verified"
-      : "playoff-status playoff-status--error";
     const submissionScrollState = captureSubmissionScrollState();
+    const participantScrollState = captureParticipantScrollState();
+    const hostFeedScrollState = captureHostFeedScrollState();
 
     const participantRows = participants.length
-      ? participants.map((participant) => {
+      ? participants.map((participant, index) => {
         const joined = Boolean(participant.joined);
         const presence = getParticipantPresence(participant, hostData?.server_time);
         const presenceBadgeClass = presence === "ONLINE"
           ? "playoff-pill playoff-pill--presence-online"
           : "playoff-pill playoff-pill--presence-offline";
+        const participantKey = participant?.id || participant?.expected_email || `${participant?.display_name || "participant"}:${index}`;
         return `
-          <article class="playoff-item-card" aria-label="Participant row">
+          <article class="playoff-item-card" aria-label="Participant row" data-participant-id="${escapeHtml(participantKey)}">
             <div class="playoff-item-head">
               <h3>${escapeHtml(participant.display_name || "Unnamed")}</h3>
               <div class="playoff-item-badges">
@@ -1243,29 +1502,6 @@
         `;
       }).join("")
       : "<p class=\"playoff-empty\">No participants found for this event.</p>";
-
-    const questionRows = questions.length
-      ? questions.map((question) => {
-        let openState = "Not opened";
-        if (question.is_open === true) openState = "Open";
-        else if (question.opened_at) openState = "Closed";
-
-        return `
-          <article class="playoff-item-card" aria-label="Question row">
-            <div class="playoff-item-head">
-              <h3>Round ${escapeHtml(question.question_number)}</h3>
-              <span class="${statusBadgeClass(openState)}">${escapeHtml(openState)}</span>
-            </div>
-            <p class="playoff-question-prompt">${escapeHtml(question.prompt || "-")}</p>
-            <div class="playoff-item-grid">
-              <p><strong>Active:</strong> ${question.is_active ? "Yes" : "No"}</p>
-              <p><strong>Opened:</strong> ${escapeHtml(formatDateTime(question.opened_at))}</p>
-              <p><strong>Closed:</strong> ${escapeHtml(formatDateTime(question.closed_at))}</p>
-            </div>
-          </article>
-        `;
-      }).join("")
-      : "<p class=\"playoff-empty\">No questions found for this event.</p>";
 
     const sortedSubmissions = submissions.slice().sort((left, right) => {
       const leftTime = Date.parse(left?.submitted_at || "") || 0;
@@ -1355,66 +1591,112 @@
     root.innerHTML = `
       <main class="playoff-shell playoff-shell--admin" aria-label="Live Playoff host dashboard">
         <div class="playoff-brand">The Accidental Retiree</div>
-        ${readyBanner ? `
-        <section class="playoff-admin-banner ${readyBanner.className}" aria-label="Round readiness alert">
-          <h2>${escapeHtml(readyBanner.title)}</h2>
-          <p>${escapeHtml(readyBanner.body)}</p>
-        </section>
-        ` : ""}
         <div class="playoff-header-row">
           <div class="playoff-title-wrap">
             <h1>Live Playoff Host Console</h1>
-            ${liveIndicator}
           </div>
           <button id="playoff-admin-refresh" class="playoff-refresh-btn" ${refreshDisabled}>${refreshText}</button>
         </div>
-        ${userEmail ? `<p class="playoff-email">Signed in as: ${escapeHtml(userEmail)}</p>` : ""}
-        <p class="${feedbackClass}">${escapeHtml(state.message)}</p>
-        ${state.refreshNotice ? `<p class="playoff-status-detail">${escapeHtml(state.refreshNotice)}</p>` : ""}
+        <div class="playoff-admin-meta" aria-label="Host console status">
+          ${liveIndicator}
+          <span><strong>Event:</strong> ${escapeHtml(event.name || "-")}</span>
+          ${userEmail ? `<span><strong>Host:</strong> ${escapeHtml(userEmail)}</span>` : ""}
+          <span class="playoff-live-timestamp"><strong>Updated:</strong> ${escapeHtml(state.lastUpdatedLabel || formatLiveTimestamp())}</span>
+        </div>
+        <section class="playoff-instrument-panel" aria-label="Live playoff instrument panel">
+          <div class="playoff-instrument-panel__heading">
+            <span class="playoff-instrument-panel__signal" aria-hidden="true"></span>
+            <h2>Instrument Panel</h2>
+          </div>
+          <div class="playoff-instrument-metrics">
+            <article class="playoff-instrument-metric playoff-instrument-metric--blue">
+              <h3>Invited</h3>
+              <p>${escapeHtml(counts.participants ?? 0)}</p>
+              <span>${escapeHtml(counts.participants ?? 0)} total</span>
+            </article>
+            <article class="playoff-instrument-metric ${Number(counts.joined || 0) > 0 ? "playoff-instrument-metric--green" : "playoff-instrument-metric--neutral"}">
+              <h3>Joined</h3>
+              <p>${escapeHtml(counts.joined ?? 0)}</p>
+              <span>${escapeHtml(counts.joined ?? 0)} ready</span>
+            </article>
+            <article class="playoff-instrument-metric ${Number(counts.not_joined || 0) > 0 ? "playoff-instrument-metric--amber" : "playoff-instrument-metric--green"}">
+              <h3>Not Joined</h3>
+              <p>${escapeHtml(counts.not_joined ?? 0)}</p>
+              <span>${Number(counts.not_joined || 0) > 0 ? "Waiting" : "All joined"}</span>
+            </article>
+            <article class="playoff-instrument-metric ${Number(counts.finalists || 0) > 0 ? "playoff-instrument-metric--blue" : "playoff-instrument-metric--neutral"}">
+              <h3>Finalists</h3>
+              <p>${escapeHtml(counts.finalists ?? 0)}</p>
+              <span>${Number(counts.finalists || 0) > 0 ? "Qualified" : "None yet"}</span>
+            </article>
+            <article class="playoff-instrument-metric ${Number(counts.eliminated || 0) > 0 ? "playoff-instrument-metric--red" : "playoff-instrument-metric--neutral"}">
+              <h3>Eliminated</h3>
+              <p>${escapeHtml(counts.eliminated ?? 0)}</p>
+              <span>${escapeHtml(counts.eliminated ?? 0)} players</span>
+            </article>
+            <article class="playoff-instrument-metric ${Number(counts.winners || 0) > 0 ? "playoff-instrument-metric--amber" : "playoff-instrument-metric--neutral"}">
+              <h3>Winners</h3>
+              <p>${escapeHtml(counts.winners ?? 0)}</p>
+              <span>${Number(counts.winners || 0) > 0 ? "Confirmed" : "None yet"}</span>
+            </article>
+            <article class="playoff-instrument-metric playoff-instrument-metric--blue">
+              <h3>Total Submissions</h3>
+              <p>${escapeHtml(counts.submissions ?? 0)}</p>
+              <span>All rounds</span>
+            </article>
+          </div>
+          <div class="playoff-instrument-status">
+            <div class="playoff-instrument-strip-item playoff-instrument-progress">
+              <div>
+                <span class="playoff-instrument-label">${escapeHtml(readyBanner?.title || "ROUND PROGRESS")}</span>
+                <strong>${instrumentProgress ? `${escapeHtml(instrumentProgress.current)} of ${escapeHtml(instrumentProgress.target)}` : escapeHtml(activeRoundText)}</strong>
+                <p>${escapeHtml(instrumentProgress?.remainingText || readyBanner?.body || "No active advancement alert.")}</p>
+              </div>
+              <div class="playoff-instrument-progress__track" aria-hidden="true">
+                <span style="width: ${instrumentProgressPercent}%"></span>
+              </div>
+            </div>
+            <div class="playoff-instrument-strip-item playoff-instrument-readout">
+              <span class="playoff-instrument-label">ACTIVE ROUND</span>
+              <strong>${escapeHtml(activeRoundText)}</strong>
+            </div>
+            <div class="playoff-instrument-strip-item playoff-instrument-readout">
+              <span class="playoff-instrument-label">STATUS</span>
+              <strong><span class="${statusBadgeClass(eventStatus)}">${escapeHtml(eventStatus)}</span></strong>
+              ${showPrePause ? `<small>Pre-pause: ${escapeHtml(event.pre_pause_status)}</small>` : ""}
+            </div>
+            <div class="playoff-instrument-strip-item playoff-instrument-readout playoff-instrument-readout--time">
+              <span class="playoff-instrument-label">SERVER TIME</span>
+              <strong>${escapeHtml(formatDateTime(hostData?.server_time))}</strong>
+            </div>
+            <div class="playoff-instrument-strip-item playoff-instrument-controls" aria-label="Host controls">
+              <span class="playoff-instrument-label">HOST CONTROLS</span>
+              ${state.actionLoading ? '<p class="playoff-host-action-feedback">Updating event...</p>' : ""}
+              ${actionFeedbackMarkup}
+              ${controlsMarkup}
+            </div>
+          </div>
+          ${pendingWinnerMarkup}
+          ${roundCompleteAlertMarkup}
+        </section>
         ${confirmedWinnerMarkup}
-        <section class="playoff-dashboard-block" aria-label="Event target">
-          <h2>Active Event Target</h2>
-          <div class="playoff-item-grid playoff-item-grid--summary">
-            <p><strong>Target:</strong> ${escapeHtml(targetSummary.label)}</p>
-            <p><strong>Event ID:</strong> ${escapeHtml(targetSummary.detail || "-")}</p>
+        <section class="playoff-dashboard-block playoff-host-message-composer" aria-label="Message players">
+          <h2>MESSAGE PLAYERS</h2>
+          <label for="playoff-host-message-draft">Host message</label>
+          <textarea id="playoff-host-message-draft" maxlength="500" rows="4" placeholder="Write a live update for joined players...">${escapeHtml(state.hostFeed.draft)}</textarea>
+          <div class="playoff-host-message-composer__footer">
+            <span id="playoff-host-message-counter">${state.hostFeed.draft.length} / 500</span>
+            <div class="playoff-host-message-actions">
+              <button id="playoff-host-message-clear" class="playoff-action-btn playoff-host-message-clear-btn" type="button" ${state.hostFeed.sending || state.hostFeed.clearing ? "disabled" : ""}>CLEAR CHAT</button>
+              <button id="playoff-host-message-send" class="playoff-action-btn playoff-action-btn--primary" type="button" ${state.hostFeed.sending || state.hostFeed.clearing ? "disabled" : ""}>SEND</button>
+              <button id="playoff-host-message-send-important" class="playoff-action-btn playoff-action-btn--important" type="button" ${state.hostFeed.sending || state.hostFeed.clearing ? "disabled" : ""}>SEND AS IMPORTANT</button>
+            </div>
           </div>
-        </section>
-
-        <section class="playoff-dashboard-block" aria-label="Event summary">
-          <h2>Event Summary</h2>
-          <div class="playoff-item-grid playoff-item-grid--summary">
-            <p><strong>Event:</strong> ${escapeHtml(event.name || "-")}</p>
-            <p><strong>Status:</strong> <span class="${statusBadgeClass(eventStatus)}">${escapeHtml(eventStatus)}</span></p>
-            <p><strong>Active round:</strong> ${escapeHtml(activeRoundText)}</p>
-            <p><strong>Pre-pause status:</strong> ${showPrePause ? escapeHtml(event.pre_pause_status) : "-"}</p>
-            <p><strong>Started:</strong> ${escapeHtml(formatDateTime(event.started_at))}</p>
-            <p><strong>Paused:</strong> ${escapeHtml(formatDateTime(event.paused_at))}</p>
-            <p><strong>Completed:</strong> ${escapeHtml(formatDateTime(event.completed_at))}</p>
-            <p><strong>Server time:</strong> ${escapeHtml(formatDateTime(hostData?.server_time))}</p>
+          <p id="playoff-host-message-feedback" class="playoff-host-message-feedback${hostMessageFeedbackClass}">${escapeHtml(state.hostFeed.feedback)}</p>
+          <div class="playoff-host-message-history-heading">RECENT HOST MESSAGES</div>
+          <div id="playoff-admin-host-feed-history" class="playoff-admin-host-feed-history">
+            ${renderHostFeedHistoryMarkup()}
           </div>
-        </section>
-
-        <section class="playoff-dashboard-block" aria-label="Counts">
-          <h2>Counts</h2>
-          <div class="playoff-count-grid">
-            <article class="playoff-count-card"><h3>Invited</h3><p>${escapeHtml(counts.participants ?? 0)}</p></article>
-            <article class="playoff-count-card"><h3>Joined</h3><p>${escapeHtml(counts.joined ?? 0)}</p></article>
-            <article class="playoff-count-card"><h3>Not Joined</h3><p>${escapeHtml(counts.not_joined ?? 0)}</p></article>
-            <article class="playoff-count-card"><h3>Finalists</h3><p>${escapeHtml(counts.finalists ?? 0)}</p></article>
-            <article class="playoff-count-card"><h3>Eliminated</h3><p>${escapeHtml(counts.eliminated ?? 0)}</p></article>
-            <article class="playoff-count-card"><h3>Winners</h3><p>${escapeHtml(counts.winners ?? 0)}</p></article>
-            <article class="playoff-count-card"><h3>Total Submissions</h3><p>${escapeHtml(counts.submissions ?? 0)}</p></article>
-          </div>
-        </section>
-
-        <section class="playoff-dashboard-block" aria-label="Participants list">
-          <h2>Participants</h2>
-          <div class="playoff-item-list">${participantRows}</div>
-        </section>
-
-        <section class="playoff-dashboard-block" aria-label="Questions list">
-          <h2>Questions</h2>
-          <div class="playoff-item-list">${questionRows}</div>
         </section>
 
         <section class="playoff-dashboard-block" aria-label="Round submissions list">
@@ -1422,71 +1704,37 @@
           <div class="playoff-item-list playoff-submissions-list">${submissionRows}</div>
         </section>
 
-        <section class="playoff-dashboard-block" aria-label="Event setup">
-          <h2>Event Setup</h2>
-          <div class="playoff-setup-summary">
-            <p class="playoff-setup-summary__title">Current server configuration</p>
-            <p class="playoff-setup-summary__row">Round 1: ${escapeHtml(formatSetupModeLabel(q1Config.advancement_mode))}${q1Config.advancement_mode === "first_n" && q1Config.advance_limit !== null ? ` · ${q1Config.advance_limit} players` : ""}</p>
-            <p class="playoff-setup-summary__row">Round 2: ${escapeHtml(formatSetupModeLabel(q2Config.advancement_mode))}${q2Config.advancement_mode === "first_n" && q2Config.advance_limit !== null ? ` · ${q2Config.advance_limit} players` : ""}</p>
-            <p class="playoff-setup-summary__row">Round 3: First correct finalist wins · 1 winner</p>
-          </div>
-          <form id="playoff-event-setup-form" class="playoff-setup-form" data-setup-form="true" novalidate>
-            <div class="playoff-setup-card">
-              <div class="playoff-setup-row">
-                <div class="playoff-setup-copy">
-                  <h3>Round 1</h3>
-                  <p>Enter how many players should advance from this round.</p>
-                </div>
-                <div class="playoff-setup-controls">
-                  <label class="playoff-setup-field" for="playoff-setup-q1-limit">
-                    <span>Players Advancing</span>
-                    <input id="playoff-setup-q1-limit" data-setup-control="q1-limit" type="number" min="1" step="1" value="${escapeHtml(state.setupForm.q1Limit || "")}" ${isSetupEditable ? "" : "disabled"}>
-                  </label>
-                </div>
-              </div>
-            </div>
-            <div class="playoff-setup-card">
-              <div class="playoff-setup-row">
-                <div class="playoff-setup-copy">
-                  <h3>Round 2</h3>
-                  <p>Enter how many players should advance from this round.</p>
-                </div>
-                <div class="playoff-setup-controls">
-                  <label class="playoff-setup-field" for="playoff-setup-q2-limit">
-                    <span>Players Advancing</span>
-                    <input id="playoff-setup-q2-limit" data-setup-control="q2-limit" type="number" min="1" step="1" value="${escapeHtml(state.setupForm.q2Limit || "")}" ${isSetupEditable ? "" : "disabled"}>
-                  </label>
-                </div>
-              </div>
-            </div>
-            <div class="playoff-setup-card playoff-setup-card--readonly">
-              <div class="playoff-setup-row">
-                <div class="playoff-setup-copy">
-                  <h3>Round 3</h3>
-                  <p>First correct finalist wins.</p>
-                </div>
-                <div class="playoff-setup-readonly">
-                  <p>1 winner</p>
-                </div>
-              </div>
-            </div>
-            ${setupLockedMessage}
-            ${setupWarningMarkup}
-            ${setupFeedbackMarkup}
-            <div class="playoff-setup-actions">
-              <button id="playoff-setup-save" class="playoff-action-btn playoff-action-btn--primary" type="submit" ${isSetupEditable && !state.setupSaveLoading ? "" : "disabled"}>${state.setupSaveLoading ? "Saving..." : "Save Event Setup"}</button>
-            </div>
-          </form>
+        <section class="playoff-dashboard-block" aria-label="Participants list">
+          <h2>Participants</h2>
+          <div class="playoff-item-list playoff-participants-list">${participantRows}</div>
         </section>
 
-        <section class="playoff-dashboard-block" aria-label="Host controls">
-          <h2>Host Controls</h2>
-          <p class="playoff-status-detail">Controls are shown for operator UX only. Backend authorization and transition validation remain authoritative.</p>
-          ${state.actionLoading ? '<p class="playoff-host-action-feedback">Updating event...</p>' : ""}
-          ${actionFeedbackMarkup}
-          ${pendingWinnerMarkup}
-          ${roundCompleteAlertMarkup}
-          ${controlsMarkup}
+        <section class="playoff-dashboard-block" aria-label="Event setup">
+          <div class="playoff-setup-header">
+            <h2>Event Setup</h2>
+            ${setupLockedMessage}
+          </div>
+          <form id="playoff-event-setup-form" class="playoff-setup-form" data-setup-form="true" novalidate>
+            <div class="playoff-setup-compact-grid">
+              <label class="playoff-setup-field playoff-setup-compact-field" for="playoff-setup-q1-limit">
+                <span>Round 1</span>
+                <input id="playoff-setup-q1-limit" data-setup-control="q1-limit" type="number" min="1" step="1" value="${escapeHtml(state.setupForm.q1Limit || "")}" ${isSetupEditable ? "" : "disabled"}>
+              </label>
+              <label class="playoff-setup-field playoff-setup-compact-field" for="playoff-setup-q2-limit">
+                <span>Round 2</span>
+                <input id="playoff-setup-q2-limit" data-setup-control="q2-limit" type="number" min="1" step="1" value="${escapeHtml(state.setupForm.q2Limit || "")}" ${isSetupEditable ? "" : "disabled"}>
+              </label>
+              <div class="playoff-setup-compact-readonly">
+                <span>Round 3</span>
+                <strong>1 winner</strong>
+              </div>
+              <div class="playoff-setup-actions">
+                <button id="playoff-setup-save" class="playoff-action-btn playoff-action-btn--primary" type="submit" ${isSetupEditable && !state.setupSaveLoading ? "" : "disabled"}>${state.setupSaveLoading ? "Saving..." : "Save Event Setup"}</button>
+              </div>
+            </div>
+            ${setupWarningMarkup}
+            ${setupFeedbackMarkup}
+          </form>
         </section>
 
         <section class="playoff-dashboard-block playoff-dashboard-block--danger" aria-label="Recovery controls">
@@ -1498,21 +1746,15 @@
                 <button id="playoff-recovery-full-reset" class="playoff-action-btn playoff-recovery-btn" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "full_reset" ? "Resetting..." : "Full Reset Event"}</button>
               </div>`
             : ""}
-          ${canRestartCurrentRound
-            ? `<div class="playoff-recovery-actions">
-                <button id="playoff-recovery-restart-current-round" class="playoff-action-btn playoff-action-btn--primary" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "restart_current_round" ? "Restarting..." : "Restart Current Round"}</button>
-              </div>`
-            : ""}
-          ${canRollbackOneRound
-            ? `<div class="playoff-recovery-actions">
-                <button id="playoff-recovery-rollback-one-round" class="playoff-action-btn playoff-action-btn--primary" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "rollback_one_round" ? "Rolling Back..." : "Roll Back One Round"}</button>
-              </div>`
-            : ""}
-          ${canResetEntireGame
-            ? `<div class="playoff-recovery-actions">
-                <button id="playoff-recovery-reset-to-waiting" class="playoff-action-btn playoff-recovery-btn" type="button" ${state.recoveryLoading ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "reset_to_waiting" ? "Resetting Game..." : "Reset Entire Game to Waiting Room"}</button>
-              </div>`
-            : ""}
+          <div class="playoff-recovery-actions">
+            <button id="playoff-recovery-restart-current-round" class="playoff-action-btn playoff-action-btn--primary" type="button" ${state.recoveryLoading || !canRestartCurrentRound ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "restart_current_round" ? "Restarting..." : "Restart Current Round"}</button>
+          </div>
+          <div class="playoff-recovery-actions">
+            <button id="playoff-recovery-rollback-one-round" class="playoff-action-btn playoff-action-btn--primary" type="button" ${state.recoveryLoading || !canRollbackOneRound ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "rollback_one_round" ? "Rolling Back..." : "Roll Back One Round"}</button>
+          </div>
+          <div class="playoff-recovery-actions">
+            <button id="playoff-recovery-reset-to-waiting" class="playoff-action-btn playoff-recovery-btn" type="button" ${state.recoveryLoading || !canResetEntireGame ? "disabled" : ""}>${state.recoveryLoading && state.recoveryAction === "reset_to_waiting" ? "Resetting Game..." : "RESET ENTIRE GAME"}</button>
+          </div>
           ${!canRunFullReset && !canRestartCurrentRound && !canRollbackOneRound && !canResetEntireGame
             ? '<p class="playoff-status-detail">Full Reset Event is currently available only while the event is waiting for players. Restart Current Round is currently available only while Round 1, Round 2, or the Final Round is open, or when the event is winner locked. Roll Back One Round is available while Round 2 or the Final Round is active, or when the event is winner locked. Reset Entire Game to Waiting Room is available during active playoff runtime states.</p>'
             : ""}
@@ -1526,6 +1768,8 @@
       setupForm.addEventListener("submit", handleSetupSubmit);
     }
     restoreSubmissionScrollState(submissionScrollState);
+    restoreParticipantScrollState(participantScrollState);
+    restoreHostFeedScrollState(hostFeedScrollState);
     if (shouldScrollToRoundComplete) {
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
@@ -1602,6 +1846,15 @@
     try {
       const payload = await api.getHostState(getActiveEventId());
       let changed = updateHostStateFromPayload(payload, { force: force || state.status !== "ready" });
+      if (!fromPoll && !state.hostFeed.loaded) {
+        void refreshHostFeed();
+      } else if (fromPoll) {
+        state.hostFeedPollCount += 1;
+        if (state.hostFeedPollCount >= 2) {
+          state.hostFeedPollCount = 0;
+          void refreshHostFeed();
+        }
+      }
       syncSetupFormFromHostData(payload);
       if (!state.actionNoticeType || state.actionNoticeType === "success") {
         state.actionNotice = "";
@@ -1613,7 +1866,8 @@
         changed = updateHostStateFromPayload(autoCompletePayload, { force: true }) || changed;
       }
 
-      const suppressPollRender = fromPoll && (state.setupDirty || isSetupFormActive());
+      const composerActive = document.activeElement?.id === "playoff-host-message-draft";
+      const suppressPollRender = fromPoll && (state.setupDirty || isSetupFormActive() || composerActive);
       if (!suppressPollRender && (changed || state.status !== "ready" || fromPoll)) {
         state.refreshNotice = `Last refresh: ${formatDateTime(new Date().toISOString())}`;
         renderView();
@@ -1648,7 +1902,34 @@
   async function executeHostAction(action) {
     if (!action || state.actionLoading || state.loading || !state.hostData) return;
 
-    const confirmationText = ACTION_CONFIRM_MESSAGES[action] || `Run action: ${action}?`;
+    const completionRound = action === "complete_round_1"
+      ? 1
+      : action === "complete_round_2"
+        ? 2
+        : null;
+    let confirmationText = ACTION_CONFIRM_MESSAGES[action] || `Run action: ${action}?`;
+
+    if (completionRound !== null) {
+      const config = getQuestionConfig(state.hostData, completionRound);
+      const target = Number(config.advance_limit || 0);
+      if (config.advancement_mode === "first_n" && target > 0) {
+        const submissions = Array.isArray(state.hostData?.submissions) ? state.hostData.submissions : [];
+        const acceptedCount = Math.min(
+          target,
+          getUniqueAcceptedCorrectParticipantIds(submissions, completionRound).size
+        );
+        if (acceptedCount < target) {
+          confirmationText = [
+            `Round ${completionRound} target has not been reached.`,
+            "",
+            `Only ${acceptedCount} of ${target} required correct answers have been accepted.`,
+            "",
+            `Complete Round ${completionRound} anyway?`
+          ].join("\n");
+        }
+      }
+    }
+
     const confirmed = window.confirm(confirmationText);
     if (!confirmed) return;
 
@@ -1658,7 +1939,7 @@
     renderView();
 
     try {
-      const data = await runHostTransition(action);
+      const data = await runHostTransition(action, { skipConfirm: completionRound !== null });
       if (!data) {
         return;
       }

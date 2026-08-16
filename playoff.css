@@ -500,6 +500,81 @@ body {
   text-align: left;
 }
 
+.playoff-host-feed {
+  margin-top: 18px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(244, 199, 112, 0.24);
+  border-radius: 12px;
+  background: rgba(12, 15, 20, 0.38);
+}
+
+.playoff-host-feed-heading,
+.playoff-host-message-history-heading {
+  color: var(--ar-gold);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.playoff-host-feed-history {
+  display: grid;
+}
+
+.playoff-shell--player .playoff-host-feed-history,
+.playoff-admin-host-feed-history .playoff-host-feed-history {
+  max-height: 330px;
+  overflow-y: auto;
+  margin-top: 8px;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+}
+
+.playoff-host-feed-message {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.playoff-host-feed-message:last-child {
+  border-bottom: 0;
+}
+
+.playoff-host-feed-message--important {
+  color: #fff3c9;
+}
+
+.playoff-host-feed-message--pinned {
+  margin: 12px 0 6px;
+  padding: 12px;
+  border: 1px solid rgba(244, 199, 112, 0.48);
+  border-radius: 8px;
+  background: rgba(244, 199, 112, 0.12);
+}
+
+.playoff-host-feed-pin-label,
+.playoff-host-feed-meta {
+  margin: 0 0 6px;
+  color: var(--ar-gold);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.playoff-host-feed-text {
+  margin: 0;
+  color: var(--ar-text-main);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.playoff-host-feed-status {
+  margin: 12px 0 0;
+  color: var(--ar-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 .playoff-player-state-card {
   margin-top: 14px;
   padding: 18px;
@@ -756,12 +831,16 @@ body {
   text-align: left;
 }
 
+.playoff-shell--admin > .playoff-brand {
+  margin-bottom: 6px;
+}
+
 .playoff-header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 6px;
+  margin-top: 2px;
 }
 
 .playoff-admin-banner {
@@ -916,8 +995,7 @@ body {
 }
 
 .playoff-title-wrap {
-  display: grid;
-  gap: 8px;
+  min-width: 0;
 }
 
 .playoff-live-indicator {
@@ -940,6 +1018,31 @@ body {
 
 .playoff-live-timestamp {
   color: rgba(213, 213, 227, 0.72);
+}
+
+.playoff-admin-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 8px;
+  color: var(--ar-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.playoff-admin-meta > span + span {
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.playoff-admin-meta strong {
+  color: var(--ar-text-main);
+  font-weight: 700;
+}
+
+.playoff-admin-meta + .playoff-instrument-panel {
+  margin-top: 10px;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -989,6 +1092,360 @@ body {
   opacity: 0.85;
 }
 
+.playoff-instrument-panel {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  background: rgba(8, 13, 21, 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.playoff-instrument-panel__heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+}
+
+.playoff-instrument-panel__heading h2 {
+  margin: 0;
+  font-size: 0.86rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.playoff-instrument-panel__signal {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #aeb7c8;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px rgba(174, 183, 200, 0.1);
+}
+
+.playoff-instrument-metrics {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.playoff-instrument-metric {
+  --instrument-color: #aeb7c8;
+  min-width: 0;
+  min-height: 112px;
+  padding: 11px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-top: 2px solid var(--instrument-color);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.playoff-instrument-metric--green {
+  --instrument-color: #45dc8a;
+}
+
+.playoff-instrument-metric--amber {
+  --instrument-color: #f4c770;
+}
+
+.playoff-instrument-metric--blue {
+  --instrument-color: #4d91ff;
+}
+
+.playoff-instrument-metric--red {
+  --instrument-color: #ff6767;
+}
+
+.playoff-instrument-metric--neutral {
+  --instrument-color: #7e899d;
+}
+
+.playoff-instrument-metric h3 {
+  min-height: 2.2em;
+  margin: 0;
+  color: var(--ar-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.playoff-instrument-metric p {
+  margin: 7px 0 5px;
+  color: #fff;
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.playoff-instrument-metric span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ar-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.playoff-instrument-metric span::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--instrument-color);
+}
+
+.playoff-instrument-status {
+  display: grid;
+  grid-template-columns: minmax(250px, 2.1fr) minmax(100px, 0.8fr) minmax(175px, 1.4fr) minmax(165px, 1.3fr) minmax(195px, 1.7fr);
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.playoff-instrument-strip-item {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 116px;
+  height: 100%;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.playoff-instrument-progress {
+  gap: 8px;
+}
+
+.playoff-instrument-label {
+  display: block;
+  min-height: 1.4em;
+  color: #62e59b;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.playoff-instrument-progress strong {
+  display: block;
+  margin-top: 3px;
+  color: #fff;
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.playoff-instrument-progress p {
+  margin: 4px 0 0;
+  color: var(--ar-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.playoff-instrument-progress__track {
+  margin-top: auto;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.playoff-instrument-progress__track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #45dc8a;
+}
+
+.playoff-instrument-readout {
+  gap: 9px;
+}
+
+.playoff-instrument-readout strong {
+  display: block;
+  min-width: 0;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.playoff-instrument-readout .playoff-pill {
+  width: fit-content;
+  max-width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.playoff-instrument-readout small {
+  color: var(--ar-text-muted);
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
+.playoff-instrument-readout--time strong {
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.playoff-instrument-controls {
+  gap: 8px;
+}
+
+.playoff-instrument-controls .playoff-host-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 7px;
+  margin-top: 0;
+}
+
+.playoff-instrument-controls .playoff-action-btn {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 9px;
+  font-size: 0.76rem;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+.playoff-instrument-controls .playoff-action-btn--pause {
+  background: #b91c1c;
+}
+
+.playoff-instrument-controls .playoff-action-btn--pause:not(:disabled):hover {
+  background: #c73f4c;
+}
+
+.playoff-instrument-controls .playoff-empty,
+.playoff-instrument-controls .playoff-host-action-feedback {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 1100px) {
+  .playoff-instrument-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .playoff-instrument-status {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .playoff-instrument-progress {
+    grid-column: span 3;
+  }
+
+  .playoff-instrument-readout {
+    grid-column: span 1;
+  }
+
+  .playoff-instrument-controls {
+    grid-column: 1 / -1;
+  }
+}
+
+.playoff-host-message-composer label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--ar-text-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.playoff-host-message-composer textarea {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  padding: 11px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ar-text-main);
+  font: inherit;
+  line-height: 1.5;
+}
+
+.playoff-host-message-composer textarea:focus {
+  outline: 2px solid rgba(244, 199, 112, 0.5);
+  outline-offset: 1px;
+}
+
+.playoff-host-message-composer__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+#playoff-host-message-counter {
+  color: var(--ar-text-muted);
+  font-size: 0.85rem;
+}
+
+.playoff-host-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.playoff-action-btn--important {
+  border-color: rgba(244, 199, 112, 0.4);
+  background: #8f5a00;
+}
+
+#playoff-host-message-send-important {
+  border-color: rgba(255, 199, 112, 0.55);
+  background: #d99000;
+  color: #fff;
+}
+
+#playoff-host-message-send-important:not(:disabled):hover {
+  background: #f0a000;
+}
+
+#playoff-host-message-clear {
+  border-color: rgba(255, 142, 142, 0.65);
+  background: #b91c1c;
+  color: #fff;
+}
+
+#playoff-host-message-clear:not(:disabled):hover {
+  background: #b91c1c;
+  color: #fff;
+}
+
+.playoff-host-message-feedback {
+  min-height: 1.4em;
+  margin: 8px 0 0;
+  color: var(--ar-text-muted);
+}
+
+.playoff-host-message-feedback--success {
+  color: #bff5d4;
+}
+
+.playoff-host-message-feedback--error {
+  color: #ffd6d6;
+}
+
+.playoff-host-message-history-heading {
+  margin-top: 18px;
+}
+
+.playoff-admin-host-feed-history {
+  margin-top: 5px;
+}
+
 .playoff-count-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
@@ -1023,7 +1480,14 @@ body {
 }
 
 .playoff-submissions-list {
-  max-height: 42rem;
+  max-height: 20rem;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+}
+
+.playoff-participants-list {
+  max-height: 24rem;
   overflow-y: auto;
   padding-right: 6px;
   scrollbar-gutter: stable;
@@ -1217,6 +1681,65 @@ body {
   gap: 10px;
 }
 
+.playoff-setup-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.playoff-setup-header h2 {
+  margin-bottom: 8px;
+}
+
+.playoff-setup-header .playoff-setup-locked {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.playoff-setup-compact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr)) minmax(120px, 0.8fr) minmax(170px, auto);
+  align-items: end;
+  gap: 10px;
+}
+
+.playoff-setup-compact-field {
+  min-width: 0;
+}
+
+.playoff-setup-compact-readonly {
+  display: grid;
+  gap: 6px;
+  min-height: 63px;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.playoff-setup-compact-readonly span {
+  color: var(--ar-text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.playoff-setup-compact-readonly strong {
+  color: var(--ar-text-main);
+  font-size: 0.95rem;
+}
+
+.playoff-setup-compact-grid .playoff-setup-actions {
+  margin: 0;
+}
+
+.playoff-setup-compact-grid .playoff-action-btn {
+  width: 100%;
+  min-height: 40px;
+}
+
 .playoff-setup-card {
   padding: 12px;
   border-radius: 10px;
@@ -1337,6 +1860,14 @@ body {
   margin-top: 10px;
 }
 
+.playoff-dashboard-block--danger :is(
+  #playoff-recovery-restart-current-round,
+  #playoff-recovery-reset-to-waiting
+) {
+  width: min(100%, 220px);
+  min-height: 38px;
+}
+
 .playoff-recovery-btn {
   background: #b91c1c;
   border-color: rgba(255, 255, 255, 0.18);
@@ -1365,6 +1896,28 @@ body {
     width: 100%;
     justify-content: flex-start;
   }
+
+  .playoff-setup-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .playoff-setup-compact-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .playoff-instrument-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .playoff-instrument-status {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .playoff-instrument-status > * {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1377,7 +1930,28 @@ body {
     align-items: flex-start;
   }
 
+  .playoff-admin-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .playoff-admin-meta > span + span {
+    padding-left: 0;
+    border-left: 0;
+  }
+
   .playoff-refresh-btn {
+    width: 100%;
+  }
+
+  .playoff-host-message-composer__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .playoff-host-message-actions,
+  .playoff-host-message-actions .playoff-action-btn {
     width: 100%;
   }
 }

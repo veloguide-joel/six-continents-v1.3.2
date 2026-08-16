@@ -201,6 +201,39 @@ async function getHostState(eventId) {
   return data;
 }
 
+async function sendHostMessage(eventId, message, isImportant) {
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc("host_send_playoff_message", {
+    input_event_id: eventId,
+    input_message: message,
+    input_is_important: Boolean(isImportant)
+  });
+
+  if (error) throw rpcError(error);
+  return data;
+}
+
+async function getHostMessages(eventId, limit = 20) {
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc("get_playoff_host_messages", {
+    input_event_id: eventId,
+    input_limit: limit
+  });
+
+  if (error) throw rpcError(error);
+  return data;
+}
+
+async function clearHostMessages(eventId) {
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc("clear_playoff_host_messages", {
+    input_event_id: eventId
+  });
+
+  if (error) throw rpcError(error);
+  return data;
+}
+
 /**
  * Configure the playoff question advancement rules for the current event.
  * @param {string} eventId Event identifier.
@@ -351,6 +384,9 @@ export const PlayoffAPI = {
   ensureStage16PlayoffEnrollment,
   submitAnswer,
   getHostState,
+  sendHostMessage,
+  getHostMessages,
+  clearHostMessages,
   configureQuestions,
   recoverEvent,
   resetToWaiting,
