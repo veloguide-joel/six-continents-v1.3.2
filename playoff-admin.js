@@ -84,6 +84,7 @@
     lastUpdatedLabel: "",
     lastAutoCompletedAction: "",
     lastAutoCompletedStatus: "",
+    lastVisibleRoundComplete: null,
     authSubmitting: false,
     authError: "",
     authEmail: "",
@@ -692,6 +693,29 @@
     };
   }
 
+  function getRoundCompleteAlert(hostData, availableActions) {
+    let roundNumber = null;
+    let nextRoundLabel = "";
+
+    if (availableActions.includes("open_round_2")) {
+      roundNumber = 1;
+      nextRoundLabel = "Round 2";
+    } else if (availableActions.includes("open_round_3")) {
+      roundNumber = 2;
+      nextRoundLabel = "the Final Round";
+    }
+
+    if (roundNumber === null) return null;
+
+    const config = getQuestionConfig(hostData, roundNumber);
+    const advancementCount = Number(config.advance_limit);
+    return {
+      roundNumber,
+      nextRoundLabel,
+      advancementCount: Number.isFinite(advancementCount) && advancementCount > 0 ? advancementCount : null
+    };
+  }
+
   function isResetToWaitingAvailable(eventStatus) {
     const statusKey = normalizeStatus(eventStatus, "").toLowerCase();
     return [
@@ -1157,6 +1181,11 @@
     const readyBanner = getReadyBanner(hostData);
     const provisionalWinner = getProvisionalWinnerDetails(hostData);
     const confirmedWinner = getConfirmedWinnerDetails(hostData);
+    const roundCompleteAlert = getRoundCompleteAlert(hostData, availableActions);
+    const roundCompleteNumber = roundCompleteAlert?.roundNumber ?? null;
+    const shouldScrollToRoundComplete = roundCompleteNumber !== null
+      && state.lastVisibleRoundComplete !== roundCompleteNumber;
+    state.lastVisibleRoundComplete = roundCompleteNumber;
     const eventStatusLower = normalizeStatus(eventStatus).toLowerCase();
     const isSetupEditable = isEventSetupEditable();
     const canRunFullReset = eventStatusLower === "waiting_for_players";
@@ -1312,6 +1341,16 @@
           <p class="playoff-winner-pending__message">First correct finalist.<br>Awaiting host confirmation.</p>
         </section>`
       : "";
+    const roundCompleteAlertMarkup = roundCompleteAlert
+      ? `<section class="playoff-round-complete-alert" aria-label="Round ${roundCompleteAlert.roundNumber} complete">
+          <p class="playoff-round-complete-alert__kicker">✅ ROUND ${roundCompleteAlert.roundNumber} COMPLETE</p>
+          ${roundCompleteAlert.advancementCount !== null
+            ? `<h3>${roundCompleteAlert.advancementCount} OF ${roundCompleteAlert.advancementCount} ADVANCEMENT SPOTS FILLED</h3>`
+            : ""}
+          <p>All required ${roundCompleteAlert.roundNumber === 2 ? "finalist" : "qualifying"} positions have been filled.</p>
+          <p class="playoff-round-complete-alert__next">Ready to begin ${escapeHtml(roundCompleteAlert.nextRoundLabel)}.</p>
+        </section>`
+      : "";
 
     root.innerHTML = `
       <main class="playoff-shell playoff-shell--admin" aria-label="Live Playoff host dashboard">
@@ -1446,6 +1485,7 @@
           ${state.actionLoading ? '<p class="playoff-host-action-feedback">Updating event...</p>' : ""}
           ${actionFeedbackMarkup}
           ${pendingWinnerMarkup}
+          ${roundCompleteAlertMarkup}
           ${controlsMarkup}
         </section>
 
@@ -1486,6 +1526,14 @@
       setupForm.addEventListener("submit", handleSetupSubmit);
     }
     restoreSubmissionScrollState(submissionScrollState);
+    if (shouldScrollToRoundComplete) {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const alert = document.querySelector(`[aria-label="Round ${roundCompleteNumber} complete"]`);
+          alert?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      });
+    }
   }
 
   function renderCurrentView() {

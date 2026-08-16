@@ -879,6 +879,42 @@ body {
   color: var(--ar-text-muted);
 }
 
+.playoff-round-complete-alert {
+  margin: 14px 0 12px;
+  padding: 18px 16px;
+  border: 1px solid rgba(105, 232, 169, 0.58);
+  border-radius: 12px;
+  background: rgba(105, 232, 169, 0.09);
+  text-align: center;
+}
+
+.playoff-round-complete-alert__kicker {
+  margin: 0 0 8px;
+  color: #8cf0bb;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+}
+
+.playoff-round-complete-alert h3 {
+  margin: 0 0 9px;
+  color: #fff;
+  font-size: clamp(1.15rem, 4vw, 1.55rem);
+  line-height: 1.25;
+}
+
+.playoff-round-complete-alert p {
+  margin: 0;
+  color: var(--ar-text-muted);
+  line-height: 1.5;
+}
+
+.playoff-round-complete-alert__next {
+  margin-top: 5px !important;
+  color: var(--ar-text-main) !important;
+  font-weight: 700;
+}
+
 .playoff-title-wrap {
   display: grid;
   gap: 8px;
