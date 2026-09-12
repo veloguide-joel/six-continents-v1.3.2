@@ -280,6 +280,35 @@
       .replace(/'/g, "&#39;");
   };
 
+  const formatHostMessageText = (value) => {
+    const raw = String(value ?? "");
+    if (!raw) return "";
+    const urlPattern = /https?:\/\/[^\s<>"'`]+/gi;
+    let lastIndex = 0;
+    let result = "";
+    let match;
+
+    while ((match = urlPattern.exec(raw)) !== null) {
+      let url = match[0];
+      const matchIndex = match.index;
+      let trailing = "";
+
+      const trailingPunctMatch = url.match(/[.,;:!?)]+$/);
+      if (trailingPunctMatch) {
+        trailing = trailingPunctMatch[0];
+        url = url.slice(0, -trailing.length);
+      }
+
+      result += escapeHtml(raw.slice(lastIndex, matchIndex));
+      result += `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
+      result += escapeHtml(trailing);
+      lastIndex = matchIndex + match[0].length;
+    }
+
+    result += escapeHtml(raw.slice(lastIndex));
+    return result;
+  };
+
   const formatHostMessageTime = (value) => {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return "";
@@ -292,7 +321,7 @@
     return `
       <article class="playoff-host-feed-message${importantClass}${pinned ? " playoff-host-feed-message--pinned" : ""}">
         ${pinned ? '<p class="playoff-host-feed-pin-label">📌 IMPORTANT</p>' : `<p class="playoff-host-feed-meta">${time ? `${escapeHtml(time)} — ` : ""}HOST${message?.is_important ? " · IMPORTANT" : ""}</p>`}
-        <p class="playoff-host-feed-text">${escapeHtml(message?.message || "")}</p>
+        <p class="playoff-host-feed-text">${formatHostMessageText(message?.message || "")}</p>
       </article>
     `;
   };

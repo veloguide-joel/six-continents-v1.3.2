@@ -640,6 +640,22 @@ body {
   white-space: pre-wrap;
 }
 
+.playoff-host-feed-text a {
+  color: var(--ar-gold);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.16em;
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+
+.playoff-host-feed-text a:hover,
+.playoff-host-feed-text a:focus-visible {
+  color: #ffe8ab;
+  text-decoration-color: #ffe8ab;
+  outline: none;
+}
+
 .playoff-host-feed-status {
   margin: 12px 0 0;
   color: var(--ar-text-muted);
