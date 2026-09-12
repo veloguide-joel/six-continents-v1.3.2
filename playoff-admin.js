@@ -124,6 +124,7 @@
     if (!(target instanceof HTMLElement)) return;
     if (target.id === "playoff-admin-refresh") {
       if (state.actionLoading) return;
+      state.pollSuspended = false;
       void refreshHostState();
       return;
     }
@@ -185,7 +186,7 @@
       return;
     }
 
-    if (state.session?.user && !state.actionLoading && state.status === "ready") {
+    if (state.session?.user) {
       state.pollSuspended = false;
       void refreshHostState({ fromPoll: true, force: true });
     }
@@ -769,7 +770,7 @@
 
   function scheduleNextPoll() {
     clearPollTimer();
-    if (state.pollSuspended || state.actionLoading || state.loading || !state.session?.user || state.status !== "ready") {
+    if (state.pollSuspended || !state.session?.user || state.status !== "ready") {
       return;
     }
 
@@ -1844,7 +1845,19 @@
   }
 
   async function refreshHostState({ fromPoll = false, force = false } = {}) {
-    if (state.pollInFlight || state.actionLoading || state.recoveryLoading) return;
+    if (state.pollInFlight || state.actionLoading || state.recoveryLoading) {
+      if (fromPoll) {
+        scheduleNextPoll();
+      }
+      return;
+    }
+
+    if (!state.eventTargetValid) {
+      state.status = "invalid_event";
+      state.message = state.eventTargetError || "The supplied event ID is invalid.";
+      renderCurrentView();
+      return;
+    }
 
     state.pollInFlight = true;
 
@@ -1853,13 +1866,6 @@
       state.message = "Loading host state...";
       state.refreshNotice = "";
       renderView();
-    }
-
-    if (!state.eventTargetValid) {
-      state.status = "invalid_event";
-      state.message = state.eventTargetError || "The supplied event ID is invalid.";
-      renderCurrentView();
-      return;
     }
 
     try {
