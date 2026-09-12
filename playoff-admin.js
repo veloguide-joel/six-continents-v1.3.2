@@ -648,6 +648,21 @@
     history.scrollTop = Math.min(Math.max(0, targetScrollTop), maxScrollTop);
   }
 
+  function captureHostMessageComposerFocus() {
+    const textarea = document.getElementById("playoff-host-message-draft");
+    if (!(textarea instanceof HTMLTextAreaElement)) return null;
+    return { selectionStart: textarea.selectionStart, selectionEnd: textarea.selectionEnd };
+  }
+
+  function restoreHostMessageComposerFocus(focusState) {
+    const textarea = document.getElementById("playoff-host-message-draft");
+    if (!(textarea instanceof HTMLTextAreaElement)) return;
+    textarea.focus();
+    if (focusState && typeof textarea.setSelectionRange === "function") {
+      textarea.setSelectionRange(focusState.selectionStart, focusState.selectionEnd);
+    }
+  }
+
   function updateHostMessageComposerDom() {
     const textarea = document.getElementById("playoff-host-message-draft");
     const counter = document.getElementById("playoff-host-message-counter");
@@ -1871,10 +1886,15 @@
       }
 
       const composerActive = document.activeElement?.id === "playoff-host-message-draft";
-      const suppressPollRender = fromPoll && (state.setupDirty || isSetupFormActive() || composerActive);
+      // Critical transitions (status, winner, finalists, eliminations, submissions) must never be held back by composer focus.
+      const suppressPollRender = fromPoll && !changed && (state.setupDirty || isSetupFormActive() || composerActive);
       if (!suppressPollRender && (changed || state.status !== "ready" || fromPoll)) {
+        const composerFocusState = composerActive ? captureHostMessageComposerFocus() : null;
         state.refreshNotice = `Last refresh: ${formatDateTime(new Date().toISOString())}`;
         renderView();
+        if (composerFocusState) {
+          restoreHostMessageComposerFocus(composerFocusState);
+        }
       }
     } catch (error) {
       if (!state.lastPollErrorAt || Date.now() - state.lastPollErrorAt > 10000) {
