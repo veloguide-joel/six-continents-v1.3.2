@@ -177,7 +177,7 @@
     if (!(target instanceof HTMLTextAreaElement) || target.id !== "playoff-host-message-draft") return;
     state.hostFeed.draft = target.value;
     const counter = document.getElementById("playoff-host-message-counter");
-    if (counter) counter.textContent = `${target.value.length} / 500`;
+    if (counter) counter.textContent = `${target.value.length} / 1500`;
   });
 
   document.addEventListener("visibilitychange", () => {
@@ -702,7 +702,7 @@
     const importantButton = document.getElementById("playoff-host-message-send-important");
 
     if (textarea instanceof HTMLTextAreaElement && textarea.value !== state.hostFeed.draft) textarea.value = state.hostFeed.draft;
-    if (counter) counter.textContent = `${state.hostFeed.draft.length} / 500`;
+    if (counter) counter.textContent = `${state.hostFeed.draft.length} / 1500`;
     if (feedback) {
       feedback.textContent = state.hostFeed.feedback;
       feedback.className = `playoff-host-message-feedback${state.hostFeed.feedbackType ? ` playoff-host-message-feedback--${state.hostFeed.feedbackType}` : ""}`;
@@ -737,8 +737,8 @@
     if (state.hostFeed.sending || state.hostFeed.clearing || !state.hostData) return;
 
     const message = state.hostFeed.draft.trim();
-    if (!message || message.length > 500) {
-      state.hostFeed.feedback = !message ? "Enter a message before sending." : "Message must be 500 characters or fewer.";
+    if (!message || message.length > 1500) {
+      state.hostFeed.feedback = !message ? "Enter a message before sending." : "Message must be 1500 characters or fewer.";
       state.hostFeed.feedbackType = "error";
       updateHostMessageComposerDom();
       return;
@@ -1732,9 +1732,9 @@
         <section class="playoff-dashboard-block playoff-host-message-composer" aria-label="Message players">
           <h2>MESSAGE PLAYERS</h2>
           <label for="playoff-host-message-draft">Host message</label>
-          <textarea id="playoff-host-message-draft" maxlength="500" rows="4" placeholder="Write a live update for joined players...">${escapeHtml(state.hostFeed.draft)}</textarea>
+          <textarea id="playoff-host-message-draft" maxlength="1500" rows="4" placeholder="Write a live update for joined players...">${escapeHtml(state.hostFeed.draft)}</textarea>
           <div class="playoff-host-message-composer__footer">
-            <span id="playoff-host-message-counter">${state.hostFeed.draft.length} / 500</span>
+            <span id="playoff-host-message-counter">${state.hostFeed.draft.length} / 1500</span>
             <div class="playoff-host-message-actions">
               <button id="playoff-host-message-clear" class="playoff-action-btn playoff-host-message-clear-btn" type="button" ${state.hostFeed.sending || state.hostFeed.clearing ? "disabled" : ""}>CLEAR CHAT</button>
               <button id="playoff-host-message-send" class="playoff-action-btn playoff-action-btn--primary" type="button" ${state.hostFeed.sending || state.hostFeed.clearing ? "disabled" : ""}>SEND</button>

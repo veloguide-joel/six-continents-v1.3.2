@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS public.playoff_host_messages (
     created_by_email text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     CONSTRAINT playoff_host_messages_message_length_check
-        CHECK (char_length(btrim(message)) BETWEEN 1 AND 500),
+        CHECK (char_length(btrim(message)) BETWEEN 1 AND 1500),
     CONSTRAINT playoff_host_messages_pinned_important_check
         CHECK (is_pinned = false OR is_important = true)
 );
@@ -76,10 +76,10 @@ BEGIN
             MESSAGE = 'Event ID is required.';
     END IF;
 
-    IF char_length(v_message) NOT BETWEEN 1 AND 500 THEN
+    IF char_length(v_message) NOT BETWEEN 1 AND 1500 THEN
         RAISE EXCEPTION USING
             ERRCODE = '22023',
-            MESSAGE = 'Message must contain between 1 and 500 characters.';
+            MESSAGE = 'Message must contain between 1 and 1500 characters.';
     END IF;
 
     PERFORM 1
