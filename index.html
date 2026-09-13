@@ -115,49 +115,132 @@
     <div id="global-toast" class="global-toast hidden">
         <p id="global-toast-message"></p>
     </div>
-    <!-- Landing Page -->
+    <!-- Completed Challenge Landing Page -->
     <div id="landingPage" class="landing-page">
-        <div class="landing-hero">
-            <div class="landing-tagline">Six Continents Challenge</div>
-            <h1 class="landing-title">The Global Travel Game<br>You Can Actually Win!</h1>
-            <p class="landing-subtitle">Six Continents. 16 Days. One Amazing Journey.</p>
+        <div class="completed-container">
 
-            <div class="landing-features">
-                <div class="landing-feature">
-                    <span class="landing-feature-icon">🔍</span>
-                    <div class="landing-feature-text">Solve Clues</div>
-                </div>
-                <div class="landing-feature">
-                    <span class="landing-feature-icon">🔓</span>
-                    <div class="landing-feature-text">Unlock Stages</div>
-                </div>
-                <div class="landing-feature">
-                    <span class="landing-feature-icon">✈️</span>
-                    <div class="landing-feature-text">Win Miles</div>
-                </div>
-            </div>
+            <!-- SECTION 1 — COMPLETED HERO -->
+            <header class="completed-card completed-card--hero" aria-label="Completed Challenge Hero">
+                <div class="completed-hero-pill">SIX CONTINENTS CHALLENGE</div>
+                <h1 class="completed-hero-title">THE CHALLENGE<br>IS COMPLETE</h1>
+                <p class="completed-hero-subtitle">Six Continents. 16 Stages. One Amazing Journey.</p>
 
-            <div class="prize-highlight">Win 150,000<br>Turkish Airlines Miles</div>
+                <div class="completed-trophy-wrap">
+                    <div class="completed-trophy-icon" aria-hidden="true">🏆</div>
+                    <div class="completed-champion-name">CONGRATULATIONS VR</div>
+                    <div class="completed-champion-title">2026 SIX CONTINENTS CHAMPION</div>
+                </div>
 
-            <button id="playGameBtn" class="play-game-btn">PLAY THE GAME!</button>
+                <div class="completed-divider" aria-hidden="true"></div>
+
+                <p class="completed-thank-you">Thank you to everyone who played!</p>
+                <p class="completed-thank-you-sub">This adventure wouldn't have been possible without our amazing community.</p>
+            </header>
+
+            <!-- SECTION 2 — CHALLENGE STATS -->
+            <section class="completed-card completed-card--stats" aria-label="Challenge Stats">
+                <div class="completed-stats-grid">
+                    <div class="completed-stat-item">
+                        <div class="completed-stat-icon" aria-hidden="true">🌎</div>
+                        <div class="completed-stat-number">6</div>
+                        <div class="completed-stat-label">CONTINENTS</div>
+                    </div>
+                    <div class="completed-stat-item">
+                        <div class="completed-stat-icon" aria-hidden="true">📍</div>
+                        <div class="completed-stat-number">16</div>
+                        <div class="completed-stat-label">STAGES</div>
+                    </div>
+                    <div class="completed-stat-item">
+                        <div class="completed-stat-icon" aria-hidden="true">🏆</div>
+                        <div class="completed-stat-number">1</div>
+                        <div class="completed-stat-label">CHAMPION</div>
+                    </div>
+                </div>
+                <p class="completed-stats-supporting">A global adventure.<br>An incredible community.<br>Until next time...</p>
+            </section>
+
+            <!-- SECTION 3 — FUTURE CONTEST EMAIL SIGNUP (PRIMARY CONVERSION) -->
+            <section class="completed-card completed-card--signup" aria-label="Future Contest Signup">
+                <span class="completed-card-kicker">NEXT ADVENTURE</span>
+                <h2 class="completed-card-title">WANT TO PLAY THE NEXT ONE?</h2>
+                <p class="completed-card-text">Be the first to hear about future contests, giveaways and travel challenges from The Accidental Retiree.</p>
+
+                <form id="contest-interest-form" class="completed-signup-form" novalidate>
+                    <input
+                        type="email"
+                        id="contest-interest-email"
+                        name="email"
+                        class="completed-signup-input"
+                        placeholder="Your email address"
+                        autocomplete="email"
+                        required
+                    />
+                    <button type="submit" id="contest-interest-submit" class="completed-signup-btn">KEEP ME INFORMED</button>
+                </form>
+                <div id="contest-interest-feedback" class="completed-form-feedback" role="status" aria-live="polite"></div>
+                <p class="completed-microcopy">No spam. Just travel, contests and good stuff.</p>
+            </section>
+
+            <!-- SECTION 4 — MARAVILLA NAYARIT -->
+            <section class="completed-card completed-card--maravilla" aria-label="Maravilla Nayarit Vacation Rental">
+                <div class="completed-split-grid">
+                    <div class="completed-visual-slot" aria-label="Maravilla Nayarit property showcase">
+                        <div class="completed-visual-icon" aria-hidden="true">🏖️</div>
+                        <div class="completed-visual-tag">MARAVILLA NAYARIT</div>
+                        <div class="completed-visual-sub">Riviera Nayarit, Mexico</div>
+                    </div>
+                    <div class="completed-split-content">
+                        <span class="completed-card-kicker">PLAN YOUR OWN ADVENTURE</span>
+                        <h2 class="completed-card-title">MARAVILLA NAYARIT</h2>
+                        <p class="completed-card-text">
+                            Our vacation rental on Mexico's stunning Pacific coast.<br>
+                            Luxury, comfort and unforgettable views await.
+                        </p>
+                        <a id="completed-maravilla-cta" href="https://www.maravillanayarit.com/" target="_blank" rel="noopener noreferrer" class="completed-cta-btn">
+                            EXPLORE MARAVILLA NAYARIT
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 5 — YOUTUBE -->
+            <section class="completed-card completed-card--youtube" aria-label="Watch the Latest Adventure on YouTube">
+                <span class="completed-card-kicker">WATCH THE LATEST ADVENTURE</span>
+                <h2 class="completed-card-title">NEW PLACES.<br>REAL STORIES.</h2>
+                <p class="completed-card-text">Catch up on my most recent journey on The Accidental Retiree.</p>
+
+                <div class="completed-video-wrap">
+                    <div class="completed-video-container">
+                        <iframe
+                            id="completed-youtube-iframe"
+                            src="https://www.youtube-nocookie.com/embed/cobNDyMOvY4?rel=0"
+                            title="The Accidental Retiree - Promoted Adventure"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen
+                            loading="lazy"
+                        ></iframe>
+                    </div>
+                </div>
+
+                <a id="completed-youtube-cta" href="https://www.youtube.com/watch?v=cobNDyMOvY4" target="_blank" rel="noopener noreferrer" class="completed-cta-btn">
+                    WATCH ON YOUTUBE
+                </a>
+            </section>
+
+            <!-- FOOTER -->
+            <footer class="completed-footer" aria-label="Site footer">
+                <div class="completed-footer-tagline">TRAVEL · EXPLORE · LIVE MORE</div>
+                <p class="completed-footer-sub">Thanks for being part of the journey.</p>
+                <div class="completed-footer-links">
+                    <a href="#" id="howToPlayLink">❓ How to Play the Game</a>
+                    <span class="footer-separator">•</span>
+                    <a href="#" id="termsLink">⚖️ Terms & Conditions</a>
+                    <span class="footer-separator">•</span>
+                    <a href="https://www.youtube.com/@TheAccidentalRetiree" target="_blank" rel="noopener noreferrer">📺 YouTube Channel</a>
+                </div>
+            </footer>
+
         </div>
-
-        <!-- Player Status Card (Hidden by default) -->
-        <section id="player-status" class="player-status-card hidden">
-            <div class="player-status-label">Your Game Status</div>
-            <h2 class="player-status-headline">Welcome back, <span id="playerName"></span></h2>
-            <p class="player-status-subline">You're currently on Stage <span id="playerCurrentStage"></span> of 16</p>
-            <button id="playerContinueBtn" class="player-continue-btn">Continue where you left off</button>
-        </section>
-
-        <!-- FOOTER SECTION -->
-        <footer class="app-footer">
-            <div class="footer-links">
-                <a href="#" id="howToPlayLink">❓ How to Play the Game?</a>
-                <span class="footer-separator">•</span>
-                <a href="#" id="termsLink">⚖️ Terms & Conditions</a>
-            </div>
-        </footer>
     </div>
 
     <!-- Admin Panel Container (Hidden Initially) -->
@@ -594,6 +677,9 @@
 
 <!-- Marketing tracking (optional, non-blocking) -->
 <script defer src="./marketing.js" onerror="console.warn('[MARKETING] marketing.js failed to load (ok, tracking disabled)');"></script>
+
+<!-- Completed challenge landing page controller -->
+<script type="module" src="./completed.js"></script>
 
 <!-- Main app (must load after config and supabase) -->
 <script type="module" src="./script.js"></script>

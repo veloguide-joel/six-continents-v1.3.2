@@ -4841,3 +4841,523 @@ input:checked + .toggle-slider:before {
 .password-change-info {
   color: var(--ar-text-muted, #aaa);
 }
+
+/* =============================================================================
+   COMPLETED CHALLENGE LANDING PAGE (POST-CONTEST)
+   ============================================================================= */
+
+.completed-container {
+    width: 100%;
+    max-width: 860px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    padding: 20px 0;
+}
+
+.completed-card {
+    background: linear-gradient(180deg, rgba(48, 54, 66, 0.90) 0%, rgba(38, 44, 56, 0.95) 100%);
+    backdrop-filter: blur(20px);
+    border: 0.5px solid var(--ar-gold);
+    border-radius: 22px;
+    padding: 40px 48px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    position: relative;
+    text-align: center;
+}
+
+/* Hero Section */
+.completed-hero-pill {
+    display: inline-block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid var(--ar-gold);
+    border-radius: 999px;
+    padding: 5px 16px;
+    box-shadow: 0 0 10px rgba(255, 215, 130, 0.22);
+    margin-bottom: 18px;
+    color: var(--ar-gold);
+    font-weight: 700;
+}
+
+.completed-hero-title {
+    font-size: clamp(2.4rem, 6vw, 3.8rem);
+    font-weight: 900;
+    margin-bottom: 14px;
+    text-shadow: 0 3px 12px rgba(0, 0, 0, 0.50);
+    line-height: 1.08;
+    color: #ffffff;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+.completed-hero-subtitle {
+    font-size: clamp(1.1rem, 2.5vw, 1.35rem);
+    margin-bottom: 28px;
+    opacity: 0.85;
+    font-weight: 500;
+    color: #d1d5db;
+    letter-spacing: 0.3px;
+}
+
+/* Champion Trophy Treatment */
+.completed-trophy-wrap {
+    margin: 24px 0 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.completed-trophy-icon {
+    font-size: 3rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(30, 36, 48, 0.95) 0%, rgba(20, 24, 32, 1) 70%);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    position: relative;
+    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55), inset 0 2px 10px rgba(251, 191, 36, 0.2);
+    margin-bottom: 16px;
+    transition: transform 0.3s ease;
+}
+
+.completed-trophy-icon::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.6) 0%, rgba(251, 191, 36, 0.25) 35%, rgba(251, 191, 36, 0.1) 70%, rgba(251, 191, 36, 0.5) 100%);
+    z-index: -1;
+}
+
+.completed-champion-name {
+    font-size: clamp(1.5rem, 4vw, 2.2rem);
+    font-weight: 900;
+    letter-spacing: 1px;
+    background: linear-gradient(135deg, #ffffff 0%, var(--ar-gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+}
+
+.completed-champion-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--ar-gold);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+/* Gold Divider */
+.completed-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(244, 199, 112, 0.5) 50%, transparent 100%);
+    margin: 28px auto;
+    width: 80%;
+    max-width: 440px;
+}
+
+.completed-thank-you {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 8px;
+}
+
+.completed-thank-you-sub {
+    font-size: 1rem;
+    color: var(--ar-text-muted);
+    line-height: 1.55;
+    max-width: 580px;
+    margin: 0 auto;
+}
+
+/* Section 2: Stats Grid */
+.completed-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin: 12px 0 24px;
+}
+
+.completed-stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.completed-stat-icon {
+    font-size: 2.2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(30, 36, 48, 0.95) 0%, rgba(20, 24, 32, 1) 70%);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    position: relative;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45), inset 0 2px 8px rgba(251, 191, 36, 0.08);
+    margin-bottom: 12px;
+}
+
+.completed-stat-icon::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.4) 0%, rgba(251, 191, 36, 0.15) 35%, rgba(251, 191, 36, 0.05) 70%, rgba(251, 191, 36, 0.3) 100%);
+    z-index: -1;
+}
+
+.completed-stat-number {
+    font-size: clamp(2rem, 4.5vw, 2.7rem);
+    font-weight: 900;
+    line-height: 1;
+    color: #ffffff;
+    margin-bottom: 4px;
+    letter-spacing: -0.02em;
+}
+
+.completed-stat-label {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ar-gold);
+}
+
+.completed-stats-supporting {
+    font-size: 0.95rem;
+    color: #9ca3af;
+    line-height: 1.6;
+    margin-top: 12px;
+}
+
+/* Section Headings & Kickers */
+.completed-card-kicker {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ar-gold);
+    margin-bottom: 10px;
+}
+
+.completed-card-title {
+    font-size: clamp(1.8rem, 4vw, 2.5rem);
+    font-weight: 900;
+    line-height: 1.15;
+    color: #ffffff;
+    margin-bottom: 14px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.completed-card-text {
+    font-size: 1.05rem;
+    color: #d1d5db;
+    line-height: 1.6;
+    max-width: 620px;
+    margin: 0 auto 24px;
+}
+
+/* Section 3: Email Signup Form */
+.completed-signup-form {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    max-width: 540px;
+    margin: 0 auto 12px;
+    width: 100%;
+}
+
+.completed-signup-input {
+    flex: 1;
+    min-width: 0;
+    padding: 16px 20px;
+    font-size: 1.05rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(15, 18, 24, 0.85);
+    color: #ffffff;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.completed-signup-input:focus {
+    border-color: var(--ar-gold);
+    box-shadow: 0 0 0 2px rgba(244, 199, 112, 0.25), inset 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.completed-signup-btn {
+    background: linear-gradient(180deg, #d91825 0%, #b81018 100%);
+    color: #ffffff;
+    border: none;
+    padding: 16px 32px;
+    font-size: 1.05rem;
+    font-weight: 800;
+    border-radius: 999px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    box-shadow: 0 6px 20px rgba(201, 15, 26, 0.35);
+    transition: all 0.25s ease;
+}
+
+.completed-signup-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #e61f2d 0%, #c7141f 100%);
+    transform: scale(1.02);
+    box-shadow: 0 8px 24px rgba(201, 15, 26, 0.5);
+}
+
+.completed-signup-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.completed-microcopy {
+    font-size: 0.85rem;
+    color: #9ca3af;
+    margin: 8px 0 0;
+}
+
+.completed-form-feedback {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-top: 12px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    display: inline-block;
+}
+
+.completed-form-feedback:empty {
+    display: none;
+}
+
+.completed-form-feedback--success {
+    color: #6ee7b7;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.completed-form-feedback--error {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.completed-form-feedback--info {
+    color: var(--ar-gold);
+    background: rgba(244, 199, 112, 0.1);
+    border: 1px solid rgba(244, 199, 112, 0.25);
+}
+
+/* Section 4: Maravilla Nayarit Split Card */
+.completed-split-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 36px;
+    align-items: center;
+    text-align: left;
+}
+
+.completed-visual-slot {
+    width: 100%;
+    min-height: 240px;
+    border-radius: 16px;
+    background: radial-gradient(circle at 50% 40%, rgba(30, 48, 68, 0.7) 0%, rgba(15, 22, 34, 0.95) 100%), linear-gradient(135deg, rgba(244, 199, 112, 0.15) 0%, rgba(30, 36, 48, 0.8) 100%);
+    border: 1px solid rgba(244, 199, 112, 0.35);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    position: relative;
+    overflow: hidden;
+}
+
+.completed-visual-icon {
+    font-size: 3rem;
+    margin-bottom: 12px;
+}
+
+.completed-visual-tag {
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--ar-gold);
+    text-transform: uppercase;
+}
+
+.completed-visual-sub {
+    font-size: 0.8rem;
+    color: #9ca3af;
+    margin-top: 4px;
+}
+
+.completed-split-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.completed-split-content .completed-card-text {
+    text-align: left;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Red Primary Action CTA Buttons */
+.completed-cta-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #d91825 0%, #b81018 100%);
+    color: #ffffff !important;
+    text-decoration: none;
+    border: none;
+    padding: 16px 36px;
+    font-size: 1.05rem;
+    font-weight: 800;
+    border-radius: 999px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    box-shadow: 0 6px 20px rgba(201, 15, 26, 0.35);
+    transition: all 0.25s ease;
+    margin-top: 8px;
+}
+
+.completed-cta-btn:hover {
+    background: linear-gradient(180deg, #e61f2d 0%, #c7141f 100%);
+    transform: scale(1.02);
+    box-shadow: 0 8px 24px rgba(201, 15, 26, 0.5);
+    color: #ffffff;
+}
+
+/* Section 5: YouTube Card */
+.completed-video-wrap {
+    width: 100%;
+    max-width: 680px;
+    margin: 0 auto 24px;
+}
+
+.completed-video-container {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    height: 0;
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid rgba(244, 199, 112, 0.35);
+    background: #000000;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+}
+
+.completed-video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+/* Footer */
+.completed-footer {
+    padding: 32px 20px 48px;
+    text-align: center;
+}
+
+.completed-footer-tagline {
+    font-size: 0.9rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    color: var(--ar-gold);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.completed-footer-sub {
+    font-size: 0.95rem;
+    color: #9ca3af;
+    margin-bottom: 20px;
+}
+
+.completed-footer-links {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    font-size: 0.9rem;
+    color: var(--ar-text-muted);
+}
+
+.completed-footer-links a {
+    color: #9ca3af;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.completed-footer-links a:hover {
+    color: var(--ar-gold);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .completed-card {
+        padding: 32px 22px;
+    }
+
+    .completed-split-grid {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .completed-split-content {
+        align-items: center;
+        text-align: center;
+    }
+
+    .completed-split-content .completed-card-text {
+        text-align: center;
+    }
+
+    .completed-signup-form {
+        flex-direction: column;
+    }
+
+    .completed-signup-btn {
+        width: 100%;
+    }
+
+    .completed-stats-grid {
+        gap: 12px;
+    }
+
+    .completed-stat-icon {
+        width: 64px;
+        height: 64px;
+        font-size: 1.8rem;
+    }
+
+    .completed-footer-links {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
