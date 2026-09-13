@@ -8,7 +8,7 @@
  * To change the promoted video on the completed landing page,
  * update the PROMOTED_YOUTUBE_VIDEO_ID below with the 11-character YouTube video ID.
  */
-export const PROMOTED_YOUTUBE_VIDEO_ID = "cobNDyMOvY4";
+export const PROMOTED_YOUTUBE_VIDEO_ID = "Bel5sRGZO30";
 export const PROMOTED_YOUTUBE_URL = `https://www.youtube.com/watch?v=${PROMOTED_YOUTUBE_VIDEO_ID}`;
 export const MARAVILLA_URL = "https://www.maravillanayarit.com/";
 
